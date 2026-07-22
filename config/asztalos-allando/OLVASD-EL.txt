@@ -1,0 +1,8 @@
+DIVIAN ASZTALOS — ÁLLANDÓ ELÉRÉS
+================================
+
+A Váci úti gépen fusson: INDITAS-asztalos-allando.bat
+(vagy a Windows ütemezett feladat: DivianAsztalosAllando)
+
+Boltzárás után is elérhető, HA a gép be van kapcsolva és nem alszik el.
+Küldd el az asztalosoknak az asztalos-url.txt tartalmát.

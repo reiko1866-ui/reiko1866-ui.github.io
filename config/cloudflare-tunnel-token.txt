@@ -1,0 +1,4 @@
+# Cloudflare Zero Trust → Networks → Tunnels → Create → copy token
+# Illeszd be ide EGY sorban a token-t (ne oszd meg nyilvánosan).
+
+eyJhIjoiNGM3ZjNhYzc1ODUyNDA2MmRmMzhhZjI2ZjZkNzIyYmIiLCJ0IjoiYzExNGI4ZDQtMzkzYS00OTFlLTkwMzAtMTdjZTliNmQ4NmYzIiwicyI6IllUSXhNbVk0WXpJdFltVXpZeTAwT1RneUxUZ3hNR0V0WVdWbU16RmxNMlZoWWpkbCJ9

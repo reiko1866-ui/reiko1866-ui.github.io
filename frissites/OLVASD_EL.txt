@@ -1,0 +1,34 @@
+Divian Kalkulator
+=================
+
+INDITAS.bat  — napi hasznalat (tervezo + arajanlat)
+
+Elso alkalom:
+  install-fuggosegek.bat
+  Google Chrome: https://google.com/chrome
+
+Leallitas: leallitas-17321.bat
+
+---
+Szallitolevel (2026-07)
+-----------------------
+Forras: kizarolag Mentett megrendelok mappaban levo _megrendelo.pdf
+Szamolas: konyha buro elemek (kodlista) + munkalap darab + Nagyker kulon
+Nem szamol: lab, labelo, labazati szilikon
+Kimenet: Asztal -> Szallitolevelek PDF / Excel
+Melleklet: megrendelo PDF elso oldalanak kicsinyitett kepe (ha olvashato)
+
+Inditas: arajanlat.html -> Szallitolevel (PDF) vagy Megrendelo PDF gomb
+Admin kozpont -> Archivum -> Szallito (PDF-bol)
+
+Frissites Budaorsre: node tools/prepare-frissites.js  (frissites/ mappa)
+UTOLSO FRISSITES: 2026-07-15
+2026-07-15 — Budaors frissites:
+  • Divian tálca + Divian csap: kötelező kézi szín (wizard blokkolás)
+  • Szállítólevél: mosogatóelőgéplap külön sor
+  • Számlázz: I.+II. díjbekérő külön, kerekítés, üzletnév, csaptelep név
+  • divian-invoice-vat.js (új) — ÁFA kerekítés
+  • Asztalos értesítések (szerver oldal, ha használjátok a várólistát)
+  • package.json: form-data + axios (Számlázz API); install-fuggosegek.bat sorrend javítva
+  • javitas-form-data.bat — ha Cannot find module form-data hiba
+  • Szállítólevél generálás kikapcsolva (divian-feature-flags.js)

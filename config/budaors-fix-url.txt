@@ -1,0 +1,5 @@
+# Divian — fix nyilvános szerver URL (Budaörs / távoli)
+# Ha Cloudflare named tunnel-t használsz, ide írd a stabil hostname-et:
+# https://divian.sajatdomain.hu
+#
+# Üresen hagyva a gyors trycloudflare linket használjuk (változhat indításkor).

@@ -1,0 +1,380 @@
+<!DOCTYPE html>
+<html lang="hu" class="h-full">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover"
+    />
+    <meta name="theme-color" content="#0f172a" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+    <title>Divian — Szállítás</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            fontFamily: {
+              industrial: ['"IBM Plex Sans"', "system-ui", "sans-serif"],
+              mono: ['"IBM Plex Mono"', "ui-monospace", "monospace"]
+            }
+          }
+        }
+      };
+    </script>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500;600&family=IBM+Plex+Sans:wght@400;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      /* Tailwind CDN nélkül is működjön a megjelenés / kattintás */
+      .hidden {
+        display: none !important;
+      }
+      html,
+      body {
+        height: 100%;
+        margin: 0;
+        touch-action: manipulation;
+        -webkit-tap-highlight-color: transparent;
+        background: #0f172a;
+        color: #f1f5f9;
+        font-family: "IBM Plex Sans", system-ui, sans-serif;
+      }
+      .btn-action {
+        cursor: pointer;
+        -webkit-user-select: none;
+        user-select: none;
+      }
+      .btn-action:active {
+        transform: scale(0.96);
+      }
+      .item-card[data-ui="ok"] {
+        border-color: rgb(34 197 94 / 0.55);
+        box-shadow: inset 4px 0 0 0 rgb(34 197 94);
+      }
+      .item-card[data-ui="missing"] {
+        border-color: rgb(239 68 68 / 0.55);
+        box-shadow: inset 4px 0 0 0 rgb(239 68 68);
+      }
+      .item-card[data-ui="in-transit"] {
+        border-color: rgb(245 158 11 / 0.55);
+        box-shadow: inset 4px 0 0 0 rgb(245 158 11);
+      }
+      .signature-canvas {
+        touch-action: none;
+      }
+      @keyframes pulse-dot {
+        0%,
+        100% {
+          opacity: 1;
+        }
+        50% {
+          opacity: 0.35;
+        }
+      }
+      .live-dot {
+        animation: pulse-dot 1.6s ease-in-out infinite;
+      }
+      /* Alsó sáv: ne takarja a tétel-gombokat */
+      #screenMain {
+        padding-bottom: calc(7.5rem + env(safe-area-inset-bottom));
+      }
+      #screenMain.sign-open {
+        padding-bottom: calc(24rem + env(safe-area-inset-bottom));
+      }
+      #footerBar {
+        position: fixed;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        z-index: 40;
+        pointer-events: none;
+      }
+      #footerBar .footer-inner {
+        pointer-events: auto;
+      }
+      #itemsRoot {
+        position: relative;
+        z-index: 1;
+        padding-bottom: 1rem;
+      }
+      .item-card .btn-action {
+        touch-action: manipulation;
+        -webkit-tap-highlight-color: rgba(245, 158, 11, 0.35);
+        cursor: pointer;
+        position: relative;
+        z-index: 2;
+      }
+      .item-card.is-flash-ok {
+        border-color: rgba(16, 185, 129, 0.85) !important;
+        background: rgba(6, 78, 59, 0.45) !important;
+      }
+      .item-card.is-flash-err {
+        border-color: rgba(239, 68, 68, 0.85) !important;
+        background: rgba(127, 29, 29, 0.45) !important;
+      }
+      #toastHost .toast-card {
+        pointer-events: auto;
+        border-radius: 14px;
+        border: 1px solid rgba(148, 163, 184, 0.45);
+        padding: 0.85rem 1rem;
+        font: 600 0.95rem/1.35 system-ui, sans-serif;
+        box-shadow: 0 12px 28px rgba(0, 0, 0, 0.45);
+      }
+      #toastHost .toast-ok {
+        background: #052e16;
+        border-color: rgba(34, 197, 94, 0.55);
+        color: #bbf7d0;
+      }
+      #toastHost .toast-error {
+        background: #450a0a;
+        border-color: rgba(239, 68, 68, 0.55);
+        color: #fecaca;
+      }
+      #toastHost .toast-info {
+        background: #1e293b;
+        color: #e2e8f0;
+      }
+    </style>
+  </head>
+  <body class="h-full bg-slate-900 text-slate-100 font-industrial antialiased">
+    <!-- Betöltő képernyő -->
+    <div id="screenLoad" class="min-h-full flex flex-col px-4 py-8 max-w-lg mx-auto relative z-10">
+      <header class="mb-10">
+        <p class="text-xs font-mono uppercase tracking-[0.2em] text-amber-500/80 mb-2">Divian Logistics</p>
+        <h1 class="text-3xl font-bold tracking-tight text-white">Szállító app</h1>
+        <p class="mt-2 text-slate-400 text-sm leading-relaxed">
+          Keress megrendelő névre. Kipipáláskor a tétel azonnal feltöltődik az irodába.
+        </p>
+      </header>
+
+      <form id="loadForm" class="space-y-5 flex-1">
+        <label class="block">
+          <span class="text-xs font-mono uppercase tracking-wider text-slate-400">Megrendelő neve</span>
+          <input
+            id="inputCustomerSearch"
+            type="search"
+            inputmode="search"
+            autocomplete="off"
+            placeholder="pl. Csobádi"
+            class="mt-2 w-full rounded-xl border-2 border-slate-700 bg-slate-800/80 px-4 py-4 text-lg text-white placeholder:text-slate-500 focus:border-amber-500 focus:outline-none focus:ring-2 focus:ring-amber-500/30"
+          />
+          <span class="mt-1.5 block text-[11px] text-slate-500">Írj legalább 2 betűt — kattints a találatra</span>
+        </label>
+
+        <div id="searchResults" class="space-y-2 hidden"></div>
+        <p id="searchEmpty" class="hidden text-sm text-slate-500 font-mono text-center py-2">Nincs találat</p>
+
+        <details class="rounded-xl border border-slate-800 bg-slate-800/40 px-3 py-2">
+          <summary class="cursor-pointer text-xs font-mono uppercase tracking-wider text-slate-500">
+            Vagy ajánlatszám megadása
+          </summary>
+          <label class="block mt-3">
+            <span class="text-xs font-mono uppercase tracking-wider text-slate-400">Szállítási azonosító</span>
+            <input
+              id="inputDeliveryId"
+              type="text"
+              inputmode="text"
+              autocomplete="off"
+              autocapitalize="characters"
+              placeholder="MRDH-VACI-26-0555"
+              class="mt-2 w-full rounded-xl border-2 border-slate-700 bg-slate-900/80 px-4 py-3 text-base font-mono text-white placeholder:text-slate-500 focus:border-amber-500 focus:outline-none"
+            />
+          </label>
+        </details>
+
+        <label class="block">
+          <span class="text-xs font-mono uppercase tracking-wider text-slate-400">Szállító neve</span>
+          <input
+            id="inputCourierName"
+            type="text"
+            autocomplete="name"
+            placeholder="Kovács Péter"
+            class="mt-2 w-full rounded-xl border-2 border-slate-700 bg-slate-800/80 px-4 py-4 text-lg text-white placeholder:text-slate-500 focus:border-amber-500 focus:outline-none focus:ring-2 focus:ring-amber-500/30"
+          />
+        </label>
+        <button
+          type="submit"
+          id="btnLoadDelivery"
+          class="btn-action w-full rounded-xl bg-amber-500 py-5 text-lg font-bold uppercase tracking-wide text-slate-900 shadow-lg shadow-amber-500/20 active:bg-amber-400"
+        >
+          Szállítás betöltése
+        </button>
+      </form>
+
+      <p id="loadError" class="mt-4 hidden rounded-xl border border-red-500/40 bg-red-950/40 px-4 py-3 text-sm text-red-300"></p>
+      <p class="mt-auto pt-8 text-center text-xs text-slate-600 font-mono">v<span id="appVersion">—</span></p>
+    </div>
+
+    <!-- Fő képernyő -->
+    <div id="screenMain" class="hidden min-h-full flex flex-col relative z-10">
+      <header
+        class="sticky top-0 z-30 border-b border-slate-800 bg-slate-900/95 backdrop-blur-md px-4 pt-[calc(0.75rem+env(safe-area-inset-top))] pb-4"
+      >
+        <div class="max-w-lg mx-auto">
+          <div class="flex items-start justify-between gap-3 mb-3">
+            <div class="min-w-0 flex-1">
+              <p class="text-[10px] font-mono uppercase tracking-[0.18em] text-amber-500/90 mb-1">
+                Aktív szállítás · <span id="hdrDeliveryId">—</span>
+              </p>
+              <h2 id="hdrCustomerName" class="text-xl font-bold text-white truncate">—</h2>
+              <p id="hdrCustomerAddress" class="text-sm text-slate-400 mt-0.5 leading-snug">—</p>
+            </div>
+            <button
+              type="button"
+              id="btnChangeDelivery"
+              class="btn-action shrink-0 rounded-lg border border-slate-700 px-3 py-2 text-xs font-mono uppercase text-slate-400 active:bg-slate-800"
+            >
+              Másik
+            </button>
+          </div>
+          <div class="flex flex-wrap items-center gap-2">
+            <span
+              id="hdrStatusBadge"
+              class="inline-flex items-center gap-1.5 rounded-full border border-slate-700 bg-slate-800 px-3 py-1 text-xs font-mono uppercase tracking-wide text-slate-300"
+            >
+              <span id="hdrLiveDot" class="live-dot h-2 w-2 rounded-full bg-emerald-400 hidden"></span>
+              <span id="hdrStatusText">Betöltés…</span>
+            </span>
+            <span id="hdrProgress" class="text-xs font-mono text-slate-500">0 / 0 átadva</span>
+          </div>
+        </div>
+      </header>
+
+      <div class="border-b border-slate-800 bg-slate-900/90 px-4 py-2">
+        <p class="max-w-lg mx-auto text-center text-[11px] font-mono uppercase tracking-wider text-amber-500/80">
+          Helyszíni átadás · ✓ = átadva · ✕ = hiányzik/sérült
+        </p>
+      </div>
+
+      <main id="itemsRoot" class="flex-1 px-4 py-4 max-w-lg mx-auto w-full">
+        <div id="itemsLoading" class="py-16 text-center text-slate-500 font-mono text-sm">Tételek betöltése…</div>
+        <div id="itemsContainer" class="hidden space-y-8"></div>
+      </main>
+
+      <!-- Alsó sáv: alapból csak gombok — aláírás kinyitható -->
+      <footer
+        id="footerBar"
+        class="border-t border-slate-800 bg-slate-900/98 backdrop-blur px-4 py-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))]"
+      >
+        <div class="footer-inner max-w-lg mx-auto space-y-3">
+          <div id="signPanel" class="hidden space-y-3">
+            <div class="rounded-xl border-2 border-slate-700 bg-slate-800/60 p-3">
+              <div class="flex items-center justify-between mb-2">
+                <span class="text-xs font-mono uppercase tracking-wider text-slate-400">Ügyfél aláírása</span>
+                <button
+                  type="button"
+                  id="btnClearSignature"
+                  class="btn-action text-xs font-mono uppercase text-slate-500 active:text-amber-400 px-2 py-1"
+                >
+                  Törlés
+                </button>
+              </div>
+              <canvas
+                id="signatureCanvas"
+                class="signature-canvas w-full h-36 rounded-lg bg-slate-950 border border-slate-700 cursor-crosshair"
+                aria-label="Aláírás mező"
+              ></canvas>
+              <p class="mt-2 text-[11px] text-slate-500 text-center">Húzd az ujjad / tollal írj alá</p>
+            </div>
+            <button
+              type="button"
+              id="btnCompleteDelivery"
+              class="btn-action w-full rounded-xl bg-emerald-500 py-4 text-base font-bold uppercase tracking-wide text-slate-900 shadow-lg shadow-emerald-500/20 active:bg-emerald-400"
+            >
+              Átadás lezárása
+            </button>
+            <button
+              type="button"
+              id="btnHideSign"
+              class="btn-action w-full py-2 text-xs font-mono uppercase text-slate-500"
+            >
+              Aláírás elrejtése
+            </button>
+          </div>
+
+          <div id="footerCompact" class="grid grid-cols-1 gap-2">
+            <button
+              type="button"
+              id="btnShowSign"
+              class="btn-action w-full rounded-xl border-2 border-amber-500/50 bg-amber-500/10 py-4 text-base font-bold uppercase tracking-wide text-amber-400 active:bg-amber-500/20"
+            >
+              Ügyfél aláírása →
+            </button>
+          </div>
+        </div>
+      </footer>
+    </div>
+
+    <div
+      id="modalIssue"
+      class="hidden fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm p-4 pb-[calc(1rem+env(safe-area-inset-bottom))]"
+      role="dialog"
+      aria-modal="true"
+    >
+      <div class="w-full max-w-lg rounded-2xl border border-slate-700 bg-slate-800 p-4 shadow-2xl">
+        <p class="text-sm font-mono uppercase tracking-wider text-slate-400 mb-1">Probléma jelzése</p>
+        <p id="modalIssueItemName" class="text-lg font-semibold text-white mb-4 truncate">—</p>
+        <div class="grid grid-cols-2 gap-3">
+          <button
+            type="button"
+            data-issue="hianyzik"
+            class="btn-action rounded-xl border-2 border-red-500/50 bg-red-950/40 py-5 text-sm font-bold uppercase text-red-300 active:bg-red-900/50"
+          >
+            ✕ Hiányzik
+          </button>
+          <button
+            type="button"
+            data-issue="serult"
+            class="btn-action rounded-xl border-2 border-orange-500/50 bg-orange-950/40 py-5 text-sm font-bold uppercase text-orange-300 active:bg-orange-900/50"
+          >
+            ⚠ Sérült
+          </button>
+        </div>
+        <button
+          type="button"
+          id="btnModalIssueCancel"
+          class="btn-action mt-3 w-full py-3 text-sm font-mono uppercase text-slate-500"
+        >
+          Mégse
+        </button>
+      </div>
+    </div>
+
+    <div
+      id="modalSuccess"
+      class="hidden fixed inset-0 z-50 flex items-center justify-center bg-slate-900/95 p-6"
+      role="dialog"
+      aria-modal="true"
+    >
+      <div class="text-center max-w-sm">
+        <div class="text-6xl mb-4">✓</div>
+        <h3 class="text-2xl font-bold text-emerald-400 mb-2">Átadás rögzítve</h3>
+        <p id="successMessage" class="text-slate-400 text-sm mb-6">Az aláírás elmentve.</p>
+        <button
+          type="button"
+          id="btnSuccessOk"
+          class="btn-action w-full rounded-xl bg-slate-800 border border-slate-600 py-4 font-bold uppercase text-white"
+        >
+          Új szállítás
+        </button>
+      </div>
+    </div>
+
+    <div
+      id="toastHost"
+      class="fixed top-[calc(0.75rem+env(safe-area-inset-top))] inset-x-4 z-[60] flex flex-col gap-2 pointer-events-none max-w-lg mx-auto"
+      aria-live="polite"
+    ></div>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="/divian-realtime-notify.js?v=20260718btn"></script>
+    <script src="app.js?v=20260721refresh"></script>
+  </body>
+</html>

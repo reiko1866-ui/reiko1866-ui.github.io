@@ -1,0 +1,10 @@
+DIVIAN — BUDAÖRS CSATLAKOZÁS (Váci úti szerver)
+============================================
+
+1) A Váci úti gépen fusson az INDITAS.bat.
+2) Ezt a Divian-Budaors mappát oszd meg OneDrive-dal a Budaörsi gépekkel
+   (vagy másold át USB-n / hálózaton).
+3) Budaörsön futtasd: CSATLAKOZAS.bat
+
+A szerver-url.txt minden tunnel-indításkor frissül a Váci gépen.
+Ha fix domained van, írd be: config\budaors-fix-url.txt

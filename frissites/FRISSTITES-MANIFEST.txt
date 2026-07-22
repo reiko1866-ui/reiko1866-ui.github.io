@@ -1,0 +1,54 @@
+Divian Kalkulator — Budaors frissites csomag
+Keszitve: 2026-07-15
+
+Valtozasok:
+  2026-07-15 — Budaors frissites:
+  • Divian tálca + Divian csap: kötelező kézi szín (wizard blokkolás)
+  • Szállítólevél: mosogatóelőgéplap külön sor
+  • Számlázz: I.+II. díjbekérő külön, kerekítés, üzletnév, csaptelep név
+  • divian-invoice-vat.js (új) — ÁFA kerekítés
+  • Asztalos értesítések (szerver oldal, ha használjátok a várólistát)
+  • package.json: form-data + axios (Számlázz API); install-fuggosegek.bat sorrend javítva
+  • javitas-form-data.bat — ha Cannot find module form-data hiba
+  • Szállítólevél generálás kikapcsolva (divian-feature-flags.js)
+
+Fajlok (32 db):
+  - arajanlat.html
+  - szamla-eloreszlet.html
+  - divian-feature-flags.js
+  - partial-invoice-view.js
+  - divian-invoice-vat.js
+  - divian-megrendelo-import.js
+  - divian-cabinet-codes.js
+  - divian-asztalos-munkalap.js
+  - styles.css
+  - szamlazz-integration.js
+  - szamlazz-local-docs.js
+  - divian-playwright-forwarder.js
+  - divian-static-server.js
+  - divian-saved-orders.js
+  - divian-order-folder.js
+  - divian-felmeres-queue.js
+  - divian-admin-settings.js
+  - divian-crew-notifications.js
+  - divian-cyncly-cli.js
+  - divian-cyncly-bridge.js
+  - divian-planner-payload.js
+  - inditas-teszt.bat
+  - inditas-teszt-tervezo.bat
+  - inditas-teszt-tervezo-szamlazz.bat
+  - install-playwright-browsers.bat
+  - leallitas-17321.bat
+  - package.json
+  - tools/free-port-17321.js
+  - tools/apply-update.js
+  - install-fuggosegek.bat
+  - javitas-form-data.bat
+  - OLVASD_EL.txt
+
+Telepites Budaors gepen:
+  1. Masold a frissites\ mappa tartalmat a Budaors DivianKalkulator mappaba
+     (vagy csak ezt a frissites almappat, ha mar van teljes telepites)
+  2. Dupla katt: install-fuggosegek.bat  (npm + apply-update)
+  3. leallitas-17321.bat majd inditas-teszt-tervezo.bat
+  4. Böngeszoben Ctrl+F5 az arajanlat.html oldalon

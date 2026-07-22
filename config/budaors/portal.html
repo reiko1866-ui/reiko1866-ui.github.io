@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="hu">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Divian — Budaörs csatlakozás</title>
+<style>
+:root{--bg:#0f1419;--card:#1a222c;--line:#2c3a48;--text:#e8eef4;--muted:#9aa8b5;--accent:#3d9cfd;--ok:#3ecf8e;--err:#f07178}
+*{box-sizing:border-box}body{margin:0;min-height:100vh;font-family:Segoe UI,system-ui,sans-serif;background:radial-gradient(1200px 600px at 10% -10%,#1a2a3a,var(--bg));color:var(--text)}
+main{max-width:52rem;margin:0 auto;padding:2rem 1.25rem 3rem}h1{font-size:1.75rem;margin:0 0 .35rem;letter-spacing:-.02em}
+.sub{color:var(--muted);margin:0 0 1.5rem;line-height:1.45}grid{display:grid;gap:.85rem}
+.card{display:grid;gap:.35rem;padding:1rem 1.1rem;border:1px solid var(--line);border-radius:14px;background:var(--card);color:inherit;text-decoration:none;transition:border-color .15s,transform .15s}
+.card:hover{border-color:var(--accent);transform:translateY(-1px)}.card strong{font-size:1.05rem}.card span{color:var(--muted);font-size:.92rem}
+.card code,.ok code,.err code{font-size:.78rem;word-break:break-all;color:#b8d4f0}
+.ok{color:var(--ok)}.err{color:var(--err)}ol{color:var(--muted);line-height:1.55;padding-left:1.2rem}
+</style>
+</head>
+<body>
+<main>
+<h1>Divian — Budaörs</h1>
+<p class="sub">A Váci úti szerverre csatlakozol. A megrendelők és a szállítás onnan jön — nem a helyi gépről.</p>
+<p class="ok">Szerver elérés (Váci út): <code>https://annotation-graham-customs-ist.trycloudflare.com</code></p>
+<div class="grid" style="display:grid;gap:.85rem;margin:1.25rem 0 2rem">
+<a class="card" href="https://annotation-graham-customs-ist.trycloudflare.com/szallitas/" target="_blank" rel="noopener"><strong>Szállítás (futár)</strong><span>Tételek átadása</span><code>https://annotation-graham-customs-ist.trycloudflare.com/szallitas/</code></a>
+<a class="card" href="https://annotation-graham-customs-ist.trycloudflare.com/szallitas/vezerlopult.html" target="_blank" rel="noopener"><strong>Szállítás vezérlőpult</strong><span>Irodai élő nézet</span><code>https://annotation-graham-customs-ist.trycloudflare.com/szallitas/vezerlopult.html</code></a>
+<a class="card" href="https://annotation-graham-customs-ist.trycloudflare.com/admin-center.html" target="_blank" rel="noopener"><strong>Admin központ</strong><span>Munkaszervezés</span><code>https://annotation-graham-customs-ist.trycloudflare.com/admin-center.html</code></a>
+<a class="card" href="https://annotation-graham-customs-ist.trycloudflare.com/dashboard.html" target="_blank" rel="noopener"><strong>Parancspult</strong><span>Áttekintés</span><code>https://annotation-graham-customs-ist.trycloudflare.com/dashboard.html</code></a>
+<a class="card" href="https://annotation-graham-customs-ist.trycloudflare.com/arajanlat.html" target="_blank" rel="noopener"><strong>Árajánlat</strong><span>Ajánlatkészítő</span><code>https://annotation-graham-customs-ist.trycloudflare.com/arajanlat.html</code></a>
+<a class="card" href="https://annotation-graham-customs-ist.trycloudflare.com/asztalos-szereles.html" target="_blank" rel="noopener"><strong>Asztalos szerelés</strong><span>Helyszíni app</span><code>https://annotation-graham-customs-ist.trycloudflare.com/asztalos-szereles.html</code></a>
+</div>
+<h2 style="font-size:1.05rem;margin:0 0 .5rem">Ha a link nem nyílik</h2>
+<ol><li>A Váci úti gépen fusson az <strong>INDITAS.bat</strong> (tunnel ablak se záródjon be).</li><li>Ha OneDrive-on át jön a <strong>Divian-Budaors</strong> mappa, várj a szinkronra, majd futtasd újra a <strong>CSATLAKOZAS.bat</strong>-ot.</li><li>Régi trycloudflare link elromolhat — mindig az aktuális fájlból nyiss.</li></ol>
+</main>
+</body>
+</html>
