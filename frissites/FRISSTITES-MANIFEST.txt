@@ -10,7 +10,7 @@ Valtozasok:
   • Asztalos értesítések (szerver oldal, ha használjátok a várólistát)
   • package.json: form-data + axios (Számlázz API); install-fuggosegek.bat sorrend javítva
   • javitas-form-data.bat — ha Cannot find module form-data hiba
-  • Szállítólevél generálás kikapcsolva (divian-feature-flags.js)
+  • Szállítólevél generálás újra engedélyezve (divian-feature-flags.js)
 
 Fajlok (32 db):
   - arajanlat.html
