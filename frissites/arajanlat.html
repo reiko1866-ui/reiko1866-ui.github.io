@@ -13,8 +13,8 @@
       href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="divian-brand.css?v=20260604s" />
-    <link rel="stylesheet" href="styles.css?v=20260715kiadv" />
+    <link rel="stylesheet" href="divian-brand.css?v=20260810pages" />
+    <link rel="stylesheet" href="styles.css?v=20260810pages" />
     <style>
       html.embed-dashboard body.quote-app {
         position: fixed;
@@ -48,14 +48,14 @@
       }
     </style>
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-    <script src="divian-fixed-pricebook.js?v=20260530d"></script>
-    <script src="divian-kisker-arlista.js?v=20260529"></script>
-    <script src="divian-extras-kiadvany.js?v=20260519"></script>
-    <script src="divian-planner-url-client.js?v=20260708"></script>
+    <script src="divian-fixed-pricebook.js?v=20260810pages"></script>
+    <script src="divian-kisker-arlista.js?v=20260810pages"></script>
+    <script src="divian-extras-kiadvany.js?v=20260810pages"></script>
+    <script src="divian-planner-url-client.js?v=20260810pages"></script>
     <script src="divian-cabinet-codes.js?v=20260711j"></script>
-    <script src="divian-feature-flags.js?v=20260715dn"></script>
+    <script src="divian-feature-flags.js?v=20260810vaci"></script>
     <script src="divian-invoice-vat.js?v=20260714b"></script>
-    <script src="partial-invoice-view.js?v=20260715dn"></script>
+    <script src="partial-invoice-view.js?v=20260810pages"></script>
     <script src="divian-megrendelo-import.js?v=20260711j"></script>
     <script src="divian-asztalos-munkalap.js?v=20260704j"></script>
   </head>
@@ -1301,15 +1301,36 @@
       const AUTH_SESSION_KEY = "divian_auth_session_v1";
       const AUTH_LAST_EMAIL_KEY = "divian_auth_last_email_v1";
       /** Távoli: `window.__DIVIAN_FORWARDER_BASE__` felülírhatja. Egyébként http(s) + nem localhost hostnál automatikusan `http://{host}:17321` (LAN próba). */
+      function isPagesCloudHost(hostname) {
+        const h = String(hostname || "").toLowerCase();
+        return (
+          h.endsWith(".github.io") ||
+          h.endsWith(".workers.dev") ||
+          h.endsWith(".pages.dev")
+        );
+      }
+
       function defaultDivianForwarderBase() {
         try {
           const loc = window.location;
           const p = String(loc.protocol || "");
           const port = String(loc.port || "");
+          const h = String(loc.hostname || "").toLowerCase();
+          // GitHub Pages / Workers: nincs helyi :17321 forwarder
+          if (isPagesCloudHost(h)) return "";
           if ((p === "http:" || p === "https:") && port === "17321") {
             return loc.origin;
           }
-          const h = String(loc.hostname || "").toLowerCase();
+          // Tunnel / telefon: a nyilvános host a 17321-et proxyzza — ugyanaz az origin.
+          if (
+            (p === "http:" || p === "https:") &&
+            h &&
+            h !== "localhost" &&
+            h !== "127.0.0.1" &&
+            (h.endsWith(".trycloudflare.com") || h.endsWith(".loca.lt") || h.endsWith(".fly.dev"))
+          ) {
+            return loc.origin;
+          }
           if ((p === "http:" || p === "https:") && h && h !== "localhost" && h !== "127.0.0.1") {
             return window.location.protocol + "//" + window.location.hostname + ":17321";
           }
@@ -6744,6 +6765,7 @@
       }
 
       function isWorkflowPhaseUnlocked(phaseId) {
+        if (window.DivianFeatureFlags?.isWorkflowFullyUnlocked?.() === true) return true;
         const state = computeQuoteWorkflowState();
         if (phaseId === "cabinets") return true;
         if (phaseId === "accessories_auto") return state.sequenceOk;
@@ -6763,12 +6785,57 @@
       }
 
       function applyWorkflowSectionLocks() {
+        // UI: szakaszok szerkeszthetők maradnak (korábbi viselkedés).
+        // Váci hubon a szállítólevél flag külön oldja a bizonylat-zárolást.
         document.querySelectorAll("[data-workflow-phase]").forEach((el) => {
           el.classList.remove("workflow-section-locked");
           el.querySelectorAll("input, select, textarea, button").forEach((ctrl) => {
             ctrl.disabled = false;
           });
         });
+      }
+
+      function ensurePagesCloudBanner() {
+        try {
+          if (!isPagesCloudHost(location.hostname)) return;
+          if (document.getElementById("pagesCloudBanner")) return;
+          const host = quoteMain || document.querySelector(".quote-page") || document.body;
+          const el = document.createElement("div");
+          el.id = "pagesCloudBanner";
+          el.className = "pages-cloud-banner";
+          el.innerHTML =
+            "<strong>Felhő (GitHub Pages) mód</strong> — az árajánlat szerkesztő itt elérhető. " +
+            "Cyncly élő import, asztali PDF mentés és szállítólevél szerver a helyi gépen / " +
+            '<a href="https://divian-asztalos.fly.dev/asztalos-szereles.html" target="_blank" rel="noopener">Fly asztalos</a> appban. ' +
+            'Menü: <a href="../index.html">kezdőlap</a>.';
+          if (host.firstChild) host.insertBefore(el, host.firstChild);
+          else host.appendChild(el);
+        } catch (_err) {}
+      }
+
+      async function syncFeatureFlagsFromHub() {
+        try {
+          if (isPagesCloudHost(location.hostname)) {
+            window.DivianFeatureFlags?.applyRemoteFlags?.({ site: "pages-cloud", vaciHubUnlocked: false });
+            return;
+          }
+          let base = String(DIVIAN_FORWARDER_BASE || "").replace(/\/+$/, "");
+          try {
+            const p = String(location.protocol || "");
+            if ((p === "http:" || p === "https:") && !isPagesCloudHost(location.hostname)) {
+              if (String(location.port || "") === "17321" || String(location.hostname || "").endsWith(".fly.dev")) {
+                base = String(location.origin || base).replace(/\/+$/, "");
+              }
+            }
+          } catch (_e) {}
+          if (!base || base.startsWith("file:")) return;
+          const res = await fetch(base + "/api/feature-flags", { cache: "no-store" });
+          if (!res.ok) return;
+          const data = await res.json();
+          window.DivianFeatureFlags?.applyRemoteFlags?.(data);
+        } catch (_err) {
+          /* helyi fájl / más gép — marad az alap zárolás */
+        }
       }
 
       function rebuildKiskerItemSelect() {
@@ -14015,7 +14082,12 @@
       rebuildHardwareSelector();
       renderHardwarePrice();
       rebuildKiadvanyExtrasSelectors();
-      hideDeliveryNoteUi();
+      void (async () => {
+        await syncFeatureFlagsFromHub();
+        hideDeliveryNoteUi();
+        applyWorkflowSectionLocks();
+        ensurePagesCloudBanner();
+      })();
       initKiadvanyExtrasTabs();
       renderKiadvanyExtrasLines();
       if (useKiskerPricebookInput) {

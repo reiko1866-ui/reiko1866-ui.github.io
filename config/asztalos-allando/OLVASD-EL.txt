@@ -1,8 +1,11 @@
 DIVIAN ASZTALOS — ÁLLANDÓ ELÉRÉS
 ================================
 
-A Váci úti gépen fusson: INDITAS-asztalos-allando.bat
-(vagy a Windows ütemezett feladat: DivianAsztalosAllando)
+Felhő (ajánlott):
+  https://divian-asztalos.fly.dev/asztalos-szereles.html
+  Első alkalommal tulajdonosi jelszó kell (BELÉPÉS menü).
 
-Boltzárás után is elérhető, HA a gép be van kapcsolva és nem alszik el.
-Küldd el az asztalosoknak az asztalos-url.txt tartalmát.
+Régi helyi mód (ha még van Váci gép):
+  INDITAS-asztalos-allando.bat / DivianAsztalosAllando
+
+Telefonos elérés: config\telefon\OLVASD-EL.txt és portal.html

@@ -18,7 +18,11 @@ const {
   resolveOrderSaveTargetAsync
 } = require("./divian-saved-orders");
 const { resolveDeliveryNotePdfTarget } = require("./divian-order-folder");
-const { isDeliveryNoteDisabled, deliveryNoteDisabledError } = require("./divian-feature-flags");
+const {
+  isDeliveryNoteDisabled,
+  deliveryNoteDisabledError,
+  getFeatureFlagsSnapshot
+} = require("./divian-feature-flags");
 
 function loadMegrendeloImportModule() {
   if (loadMegrendeloImportModule._api) return loadMegrendeloImportModule._api;
@@ -2240,6 +2244,7 @@ async function capturePlannerScreenshotPayload(label = "Aktuális nézet", plann
               "/api/felmeres-close POST",
               "/api/szereles-photo/:jobId/:photoId GET",
               "/api/public-url GET",
+              "/api/feature-flags GET",
               "/auth-accounts GET",
               "/auth-accounts POST",
               "/* GET statikus fájlok (kalkulátor mappa)"
@@ -2798,6 +2803,14 @@ async function capturePlannerScreenshotPayload(label = "Aktuális nézet", plann
             localUrl: buildLanHttpUrl("asztalos-szereles.html")
           })
         );
+        return;
+      }
+      if (pathname === "/api/feature-flags" && req.method === "GET") {
+        res.writeHead(200, {
+          "Content-Type": "application/json",
+          "Cache-Control": "no-store"
+        });
+        res.end(JSON.stringify(getFeatureFlagsSnapshot()));
         return;
       }
       if (pathname === "/api/asztalos-public-url" && req.method === "POST") {

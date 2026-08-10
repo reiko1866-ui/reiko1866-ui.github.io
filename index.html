@@ -1,1 +1,93 @@
+<!DOCTYPE html>
+<html lang="hu">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
+<meta name="mobile-web-app-capable" content="yes"/>
+<title>Divian — felhő menü</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;700;800&display=swap" rel="stylesheet"/>
+<style>
+:root{
+  --bg:#10141a;--card:#1a222c;--line:#2c3a48;--text:#eef3f7;--muted:#9aa8b5;
+  --burgundy:#800040;--mustard:#f3bf35;--ok:#3ecf8e;--link:#8ec5ff;
+}
+*{box-sizing:border-box}
+body{
+  margin:0;min-height:100vh;font-family:Manrope,system-ui,sans-serif;color:var(--text);
+  background:
+    radial-gradient(900px 420px at 10% -10%,rgba(128,0,64,.35),transparent 55%),
+    radial-gradient(800px 380px at 100% 0%,rgba(243,191,53,.18),transparent 50%),
+    var(--bg);
+}
+main{max-width:34rem;margin:0 auto;padding:1.4rem 1.1rem 2.8rem}
+h1{margin:0 0 .25rem;font-size:1.7rem;letter-spacing:-.03em}
+.sub{margin:0 0 1.1rem;color:var(--muted);line-height:1.45}
+.badge{
+  display:inline-block;margin:0 0 1rem;padding:.35rem .7rem;border-radius:999px;
+  background:rgba(62,207,142,.14);color:var(--ok);font-size:.75rem;font-weight:800;
+  letter-spacing:.06em;text-transform:uppercase;
+}
+.card{
+  display:block;margin:0 0 .75rem;padding:1rem 1.05rem;border:1px solid var(--line);
+  border-radius:16px;background:linear-gradient(165deg,rgba(255,255,255,.04),rgba(0,0,0,.12)),var(--card);
+  color:inherit;text-decoration:none;
+}
+.card:hover{border-color:rgba(243,191,53,.55)}
+.card strong{display:block;font-size:1.05rem;margin-bottom:.25rem}
+.card span{display:block;color:var(--muted);font-size:.9rem;line-height:1.4}
+.card code{display:block;margin-top:.45rem;font-size:.72rem;word-break:break-all;color:var(--link)}
+.hint{margin-top:1.2rem;color:var(--muted);font-size:.88rem;line-height:1.5}
+.hint a{color:var(--mustard);font-weight:700}
+</style>
+</head>
+<body>
+<main>
+  <h1>Divian</h1>
+  <p class="sub">Ingyenes felhő menü (GitHub Pages) + élő asztalos app (Fly)</p>
+  <div class="badge">Pages · ingyenes</div>
 
+  <a class="card" href="frissites/arajanlat.html">
+    <strong>Árajánlat</strong>
+    <span>Szerkesztő a böngészőben — Pages mód</span>
+    <code>/frissites/arajanlat.html</code>
+  </a>
+
+  <a class="card" href="szallitas/">
+    <strong>Szállítás</strong>
+    <span>Futár nézet (élő API nélkül demó / helyi szerver kell a sync-hez)</span>
+    <code>/szallitas/</code>
+  </a>
+
+  <a class="card" href="szallitas/vezerlopult.html">
+    <strong>Szállítás vezérlőpult</strong>
+    <span>Irodai nézet</span>
+    <code>/szallitas/vezerlopult.html</code>
+  </a>
+
+  <a class="card" href="telefon/">
+    <strong>Telefonos gyorsmenü</strong>
+    <span>Fly + Pages linkek egy helyen</span>
+    <code>/telefon/</code>
+  </a>
+
+  <a class="card" href="https://divian-asztalos.fly.dev/asztalos-szereles.html" target="_blank" rel="noopener">
+    <strong>Asztalos szerelés (Fly)</strong>
+    <span>Élő felhő — tulajdonosi jelszó után</span>
+    <code>divian-asztalos.fly.dev</code>
+  </a>
+
+  <a class="card" href="https://divian-asztalos.fly.dev/asztalos-munkaszervezes.html" target="_blank" rel="noopener">
+    <strong>Asztalos munkaszervezés (Fly)</strong>
+    <span>Várólista / szervezés</span>
+    <code>divian-asztalos.fly.dev/…</code>
+  </a>
+
+  <p class="hint">
+    A Pages oldalak ingyenesek. A teljes Cyncly/PDF/szerver funkciókhoz helyi gép kell.
+    Asztalos élő adat: <a href="https://divian-asztalos.fly.dev/asztalos-szereles.html">Fly</a>.
+  </p>
+</main>
+</body>
+</html>

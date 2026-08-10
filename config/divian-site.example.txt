@@ -1,0 +1,6 @@
+# Másold divian-site.txt néven a Váci úti gépen (a repo config mappájába).
+# Érvényes érték a hub feloldásához:
+vaci-server
+#
+# Budaörsi / más kliens gépen NE legyen vaci-server
+# (vagy állítsd: budaors-client)

@@ -1,0 +1,17 @@
+DIVIAN — TELEFONOS ELÉRÉS (felhő)
+=================================
+
+Élő felhő (Fly.io):
+  Asztalos: https://divian-asztalos.fly.dev/asztalos-szereles.html
+  Budaörs menü: https://divian-budaors.fly.dev/tavoli/
+
+Első megnyitáskor: tulajdonosi jelszó (BELÉPÉS menü / kód).
+A böngésző ~14 napig megjegyzi a belépést.
+
+Ingyenes statikus (jelszó nélkül):
+  Árajánlat: https://reiko1866-ui.github.io/frissites/arajanlat.html
+  Szállítás: https://reiko1866-ui.github.io/szallitas/
+
+Megjegyzés:
+  A Budaörs Fly proxy jelenleg egy halott trycloudflare upstream-re mutat,
+  ezért az árajánlat/szállítás ott 502 — amíg nincs új upstream.

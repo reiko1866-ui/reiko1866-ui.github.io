@@ -42,6 +42,14 @@
 
   function friendlyLoadError(err) {
     const msg = String(err?.message || err || "");
+    const host = String(location.hostname || "").toLowerCase();
+    const onPages = host.endsWith(".github.io") || host.endsWith(".pages.dev") || host.endsWith(".workers.dev");
+    if (onPages) {
+      return (
+        "GitHub Pages módban nincs élő szállítási szerver. " +
+        "Használd a helyi INDITAS.bat-ot, vagy a Fly asztalos hubot az élő adatokhoz."
+      );
+    }
     if (msg === "not-found" || /not-found/i.test(msg)) {
       return (
         "A szállítási API nem elérhető. Indítsd újra a kalkulátort (INDITAS.bat), " +
@@ -52,6 +60,9 @@
   }
 
   function apiBase() {
+    if (window.__DIVIAN_DELIVERY_API_BASE__) {
+      return String(window.__DIVIAN_DELIVERY_API_BASE__).replace(/\/$/, "");
+    }
     return window.location.origin.replace(/\/$/, "");
   }
 
