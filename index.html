@@ -1,1 +1,599 @@
+<!DOCTYPE html>
+<html lang="hu">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Mesélő Liget — A két koma</title>
+  <meta name="description" content="Gyerekbarát magyar népmese lágy hanggal: A két koma." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@450;600;700&family=Nunito:wght@500;700;800&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --pine: #184a3c;
+      --meadow: #5fa86a;
+      --honey: #f0c14b;
+      --sky: #9fd0e4;
+      --berry: #d26674;
+      --cream: #fff8ef;
+      --ink: #24352f;
+      --mist: rgba(255, 248, 239, 0.86);
+      --shadow: 0 18px 50px rgba(24, 74, 60, 0.18);
+      --radius: 28px;
+    }
 
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      color: var(--ink);
+      font-family: "Nunito", sans-serif;
+      background:
+        radial-gradient(1200px 700px at 10% -10%, rgba(159, 208, 228, 0.55), transparent 55%),
+        radial-gradient(900px 600px at 100% 0%, rgba(240, 193, 75, 0.28), transparent 50%),
+        radial-gradient(800px 500px at 50% 100%, rgba(95, 168, 106, 0.22), transparent 55%),
+        linear-gradient(180deg, #e7f4ea 0%, #f7efe2 45%, #eef7f2 100%);
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    body::before {
+      content: "";
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      opacity: 0.18;
+      background-image:
+        radial-gradient(circle at 20% 30%, #5fa86a 0 2px, transparent 3px),
+        radial-gradient(circle at 70% 60%, #d26674 0 1.5px, transparent 2.5px),
+        radial-gradient(circle at 40% 80%, #f0c14b 0 1.5px, transparent 2.5px);
+      background-size: 140px 140px, 180px 180px, 160px 160px;
+      z-index: 0;
+    }
+
+    .leaf {
+      position: fixed;
+      top: -40px;
+      width: 18px;
+      height: 18px;
+      border-radius: 2px 70% 2px 70%;
+      background: var(--meadow);
+      opacity: 0.35;
+      z-index: 1;
+      pointer-events: none;
+      animation: fall linear infinite;
+    }
+    .leaf:nth-child(1) { left: 8%; animation-duration: 14s; background: #7cbc7a; }
+    .leaf:nth-child(2) { left: 28%; animation-duration: 18s; animation-delay: -4s; background: #e0a84a; }
+    .leaf:nth-child(3) { left: 55%; animation-duration: 16s; animation-delay: -8s; background: #d26674; }
+    .leaf:nth-child(4) { left: 78%; animation-duration: 20s; animation-delay: -2s; background: #6bb3c9; }
+    .leaf:nth-child(5) { left: 90%; animation-duration: 15s; animation-delay: -6s; background: #8dcf88; }
+
+    @keyframes fall {
+      0% { transform: translateY(0) rotate(0deg); opacity: 0; }
+      10% { opacity: 0.4; }
+      100% { transform: translateY(110vh) rotate(260deg); opacity: 0; }
+    }
+
+    .wrap {
+      position: relative;
+      z-index: 2;
+      width: min(980px, calc(100% - 2rem));
+      margin: 0 auto;
+      padding: 1.25rem 0 4rem;
+    }
+
+    .topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1rem;
+      margin-bottom: 1.25rem;
+    }
+
+    .brand {
+      font-family: "Fredoka", sans-serif;
+      font-weight: 700;
+      font-size: clamp(1.55rem, 4vw, 2.1rem);
+      color: var(--pine);
+      letter-spacing: 0.01em;
+      line-height: 1.1;
+    }
+
+    .sound-toggle {
+      border: 0;
+      border-radius: 999px;
+      background: var(--pine);
+      color: #fff;
+      font: inherit;
+      font-weight: 800;
+      padding: 0.7rem 1.05rem;
+      cursor: pointer;
+      box-shadow: var(--shadow);
+      transition: transform 0.2s ease, background 0.2s ease;
+    }
+    .sound-toggle[aria-pressed="true"] { background: var(--meadow); }
+    .sound-toggle:hover { transform: translateY(-2px) scale(1.02); }
+    .sound-toggle:active { transform: scale(0.98); }
+
+    .hero {
+      position: relative;
+      min-height: min(78vh, 720px);
+      border-radius: calc(var(--radius) + 8px);
+      overflow: hidden;
+      isolation: isolate;
+      box-shadow: var(--shadow);
+      display: grid;
+      align-content: end;
+      padding: clamp(1.4rem, 4vw, 2.6rem);
+      color: #fff;
+      background:
+        linear-gradient(180deg, rgba(24, 74, 60, 0.15) 0%, rgba(24, 74, 60, 0.72) 68%, rgba(24, 74, 60, 0.92) 100%),
+        url("assets/mese-hero.svg") center / cover no-repeat,
+        linear-gradient(135deg, #6bb3c9, #5fa86a 45%, #e0a84a);
+      animation: heroGlow 8s ease-in-out infinite alternate;
+    }
+
+    @keyframes heroGlow {
+      from { filter: saturate(1); }
+      to { filter: saturate(1.08) brightness(1.03); }
+    }
+
+    .hero-brand {
+      font-family: "Fredoka", sans-serif;
+      font-size: clamp(2.5rem, 9vw, 4.6rem);
+      font-weight: 700;
+      line-height: 0.95;
+      margin: 0 0 0.55rem;
+      text-shadow: 0 8px 28px rgba(0, 0, 0, 0.28);
+      animation: riseIn 0.9s ease both;
+    }
+
+    .hero p {
+      max-width: 34rem;
+      margin: 0 0 1.2rem;
+      font-size: clamp(1.05rem, 2.4vw, 1.25rem);
+      line-height: 1.45;
+      color: rgba(255, 255, 255, 0.94);
+      animation: riseIn 1s ease both 0.12s;
+    }
+
+    .cta-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.7rem;
+      animation: riseIn 1.05s ease both 0.22s;
+    }
+
+    .btn {
+      border: 0;
+      border-radius: 999px;
+      padding: 0.85rem 1.25rem;
+      font: inherit;
+      font-weight: 800;
+      cursor: pointer;
+      transition: transform 0.18s ease, box-shadow 0.18s ease;
+    }
+    .btn:hover { transform: translateY(-2px); }
+    .btn:active { transform: scale(0.98); }
+    .btn-primary {
+      background: var(--honey);
+      color: var(--pine);
+      box-shadow: 0 10px 24px rgba(240, 193, 75, 0.35);
+    }
+    .btn-secondary {
+      background: rgba(255, 255, 255, 0.18);
+      color: #fff;
+      backdrop-filter: blur(6px);
+      border: 1px solid rgba(255, 255, 255, 0.35);
+    }
+
+    @keyframes riseIn {
+      from { opacity: 0; transform: translateY(18px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    section {
+      margin-top: 2rem;
+    }
+
+    .section-title {
+      font-family: "Fredoka", sans-serif;
+      font-size: clamp(1.55rem, 4vw, 2rem);
+      color: var(--pine);
+      margin: 0 0 0.4rem;
+    }
+    .section-lead {
+      margin: 0 0 1.1rem;
+      color: #456257;
+      max-width: 40rem;
+      line-height: 1.5;
+    }
+
+    .story-shell {
+      background: var(--mist);
+      border: 1px solid rgba(24, 74, 60, 0.08);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      padding: clamp(1rem, 3vw, 1.6rem);
+      backdrop-filter: blur(8px);
+    }
+
+    .story-tools {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.6rem;
+      margin-bottom: 1rem;
+    }
+
+    .chip {
+      border: 0;
+      border-radius: 999px;
+      padding: 0.65rem 0.95rem;
+      font: inherit;
+      font-weight: 800;
+      cursor: pointer;
+      background: #e7f3ea;
+      color: var(--pine);
+      transition: background 0.2s ease, transform 0.2s ease;
+    }
+    .chip:hover { transform: translateY(-1px); }
+    .chip[aria-pressed="true"], .chip.is-active {
+      background: var(--pine);
+      color: #fff;
+    }
+    .chip.danger-soft {
+      background: #f8e8ea;
+      color: #8d3a46;
+    }
+
+    .story-progress {
+      height: 10px;
+      border-radius: 999px;
+      background: rgba(24, 74, 60, 0.08);
+      overflow: hidden;
+      margin-bottom: 1rem;
+    }
+    .story-progress > span {
+      display: block;
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, var(--meadow), var(--honey));
+      transition: width 0.45s ease;
+    }
+
+    .chapter {
+      display: none;
+      animation: chapterIn 0.55s ease both;
+    }
+    .chapter.is-active { display: block; }
+
+    @keyframes chapterIn {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .chapter h3 {
+      font-family: "Fredoka", sans-serif;
+      font-size: 1.35rem;
+      margin: 0 0 0.6rem;
+      color: var(--pine);
+    }
+    .chapter p {
+      margin: 0 0 0.85rem;
+      font-size: 1.12rem;
+      line-height: 1.65;
+    }
+    .chapter .highlight {
+      background: linear-gradient(180deg, transparent 60%, rgba(240, 193, 75, 0.45) 60%);
+      border-radius: 4px;
+      padding: 0 0.15em;
+    }
+
+    .nav-row {
+      display: flex;
+      justify-content: space-between;
+      gap: 0.75rem;
+      margin-top: 1.1rem;
+    }
+
+    .yt-frame {
+      position: relative;
+      width: 100%;
+      aspect-ratio: 16 / 9;
+      border-radius: var(--radius);
+      overflow: hidden;
+      box-shadow: var(--shadow);
+      background: #123;
+    }
+    .yt-frame iframe {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      border: 0;
+    }
+
+    .note {
+      margin-top: 0.85rem;
+      color: #5a7168;
+      font-size: 0.95rem;
+      line-height: 1.45;
+    }
+
+    .speaking {
+      outline: 3px solid rgba(95, 168, 106, 0.45);
+      outline-offset: 4px;
+      border-radius: 12px;
+    }
+
+    @media (max-width: 640px) {
+      .topbar { align-items: flex-start; }
+      .nav-row { flex-direction: column; }
+      .btn, .chip, .sound-toggle { width: 100%; text-align: center; }
+    }
+  </style>
+</head>
+<body>
+  <div class="leaf" aria-hidden="true"></div>
+  <div class="leaf" aria-hidden="true"></div>
+  <div class="leaf" aria-hidden="true"></div>
+  <div class="leaf" aria-hidden="true"></div>
+  <div class="leaf" aria-hidden="true"></div>
+
+  <div class="wrap">
+    <header class="topbar">
+      <div class="brand">Mesélő Liget</div>
+      <button type="button" class="sound-toggle" id="ambientToggle" aria-pressed="false">
+        Lágy zene: ki
+      </button>
+    </header>
+
+    <section class="hero" aria-label="Fő mese">
+      <h1 class="hero-brand">Mesélő Liget</h1>
+      <p><strong style="font-family:Fredoka,sans-serif;font-size:1.15em">A két koma</strong> — karácsonyi népmese lágy, gyerekbarát hanggal. Tréfás kaland, meleg szív, semmi ijesztő hanghatás.</p>
+      <div class="cta-row">
+        <button type="button" class="btn btn-primary" id="startStoryBtn">Mesélj nekem</button>
+        <a class="btn btn-secondary" href="#klasszikus">Klasszikus KEDD-változat</a>
+      </div>
+    </section>
+
+    <section id="mese" aria-labelledby="mese-title">
+      <h2 class="section-title" id="mese-title">A lágy hangú mese</h2>
+      <p class="section-lead">
+        Puha csengőhangok, nyugodt felolvasás, vidám zárlat. A hang szándékosan gyerekbarát: magasabb, melegebb, lassabb.
+      </p>
+
+      <div class="story-shell">
+        <div class="story-tools">
+          <button type="button" class="chip is-active" id="readAloudBtn" aria-pressed="true">Felolvasás</button>
+          <button type="button" class="chip" id="prevBtn">Előző</button>
+          <button type="button" class="chip" id="nextBtn">Következő</button>
+          <button type="button" class="chip danger-soft" id="stopBtn">Csönd</button>
+        </div>
+        <div class="story-progress" aria-hidden="true"><span id="progressBar"></span></div>
+
+        <article class="chapter is-active" data-chapter="0">
+          <h3>1. Karácsony előtt</h3>
+          <p>Volt egyszer két jó barát, két vidám koma. Mindkettőnek sok gyereke volt, de a kamrájuk majdnem üres.</p>
+          <p>Közeledett a <span class="highlight">karácsony</span>, és azt kívánták, hogy a kicsiknek legyen meleg étel az asztalon.</p>
+        </article>
+
+        <article class="chapter" data-chapter="1">
+          <h3>2. A látatlan csere</h3>
+          <p>Az egyik koma félzsák gubicsot szedett az erdőn, a másik félzsák mákot vitt a város felé.</p>
+          <p>Találkoztak az út szélén, és nevetve elcserélték a zsákokat — <span class="highlight">látatlanba</span>, ahogy a komák szokták.</p>
+        </article>
+
+        <article class="chapter" data-chapter="2">
+          <h3>3. Meglepetés otthon</h3>
+          <p>Otthon mindkettő boldogan kiabált: „Lesz karácsony!” — aztán kiöntötték a zsákot a teknőbe.</p>
+          <p>Az egyiknél gubics volt a mák helyett, a másiknál hamu a gubics helyett. Először elcsodálkoztak, aztán <span class="highlight">egymásra kacsintottak</span>: „Hát egymást sem tudtuk becsapni!”</p>
+        </article>
+
+        <article class="chapter" data-chapter="3">
+          <h3>4. Együtt a szerencséért</h3>
+          <p>Megbékéltek, és együtt mentek szolgálni egy jószívű urasághoz. Szorgalmasan dolgoztak, és fizetségül <span class="highlight">aranyat</span> kaptak.</p>
+          <p>Örömükben táncra perdültek — már látták maguk előtt a fényes karácsonyi asztalt.</p>
+        </article>
+
+        <article class="chapter" data-chapter="4">
+          <h3>5. Tréfák az úton</h3>
+          <p>Hazafelé még játszottak egy-két pajkos tréfát egymással: hol az egyik szaladt előre a zsákkal, hol a másik csalt ki egy nevetést.</p>
+          <p>De bármit találtak ki, mindig ugyanoda jutottak: <span class="highlight">„Nem tudjuk egymást becsapni!”</span></p>
+        </article>
+
+        <article class="chapter" data-chapter="5">
+          <h3>6. Boldog karácsony</h3>
+          <p>Végül szépen elosztották, ami járt nekik. Otthon a gyerekek tapsoltak, az asszonyok mosolyogtak, és tele lett az asztal.</p>
+          <p>Azóta is azt mesélik a ligetben: a legjobb kincs a <span class="highlight">barátság</span> — és egy lágy, nevetős karácsonyi este.</p>
+        </article>
+
+        <div class="nav-row">
+          <button type="button" class="btn btn-secondary" id="prevBtnBottom" style="background:#dceee1;color:var(--pine)">← Előző rész</button>
+          <button type="button" class="btn btn-primary" id="nextBtnBottom">Következő rész →</button>
+        </div>
+      </div>
+    </section>
+
+    <section id="klasszikus" aria-labelledby="yt-title">
+      <h2 class="section-title" id="yt-title">A klasszikus KEDD-mese</h2>
+      <p class="section-lead">Ha a régi, ismert animációt szeretnéd, itt a hivatalos YouTube-változat. A fenti felolvasás ettől független, lágyabb gyerekhangra hangolt.</p>
+      <div class="yt-frame">
+        <iframe
+          src="https://www.youtube-nocookie.com/embed/iDSRH2l7RiQ"
+          title="Magyar népmesék: A két koma — KEDD"
+          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+          allowfullscreen
+          loading="lazy"
+          referrerpolicy="strict-origin-when-cross-origin"
+        ></iframe>
+      </div>
+      <p class="note">Forrás: <a href="https://youtu.be/iDSRH2l7RiQ" rel="noopener noreferrer" target="_blank">youtu.be/iDSRH2l7RiQ</a> — KEDD: Magyar népmesék.</p>
+    </section>
+  </div>
+
+  <script>
+    (() => {
+      const chapters = Array.from(document.querySelectorAll(".chapter"));
+      const progressBar = document.getElementById("progressBar");
+      const ambientToggle = document.getElementById("ambientToggle");
+      const readAloudBtn = document.getElementById("readAloudBtn");
+      const stopBtn = document.getElementById("stopBtn");
+      const startStoryBtn = document.getElementById("startStoryBtn");
+      let index = 0;
+      let readAloud = true;
+      let unlocked = false;
+      let ambientAudio = null;
+      let ambientOn = false;
+
+      const sounds = {
+        start: new Audio("assets/sounds/chime-start.wav"),
+        page: new Audio("assets/sounds/page-soft.wav"),
+        end: new Audio("assets/sounds/ending-joy.wav"),
+        tap: new Audio("assets/sounds/tap-soft.wav"),
+        motif: new Audio("assets/sounds/soft-motif.wav")
+      };
+      Object.values(sounds).forEach((a) => {
+        a.preload = "auto";
+        a.volume = 0.42;
+      });
+      sounds.motif.loop = true;
+      sounds.motif.volume = 0.18;
+
+      function unlockAudio() {
+        if (unlocked) return;
+        unlocked = true;
+        Object.values(sounds).forEach((a) => {
+          try {
+            a.play().then(() => {
+              a.pause();
+              a.currentTime = 0;
+            }).catch(() => {});
+          } catch (_) {}
+        });
+      }
+
+      function playSound(key) {
+        const a = sounds[key];
+        if (!a) return;
+        try {
+          a.currentTime = 0;
+          a.play().catch(() => {});
+        } catch (_) {}
+      }
+
+      function preferredVoice() {
+        const voices = window.speechSynthesis ? speechSynthesis.getVoices() : [];
+        const hu = voices.filter((v) => /hu(-|_|$)|hungarian|magyar/i.test(`${v.lang} ${v.name}`));
+        const softName = (v) => /nő|female|woman|zira|nora|anna|eva|soft|child|girl/i.test(v.name);
+        return (
+          hu.find(softName) ||
+          hu[0] ||
+          voices.find(softName) ||
+          voices.find((v) => /hu/i.test(v.lang)) ||
+          null
+        );
+      }
+
+      function stopSpeech() {
+        if (!window.speechSynthesis) return;
+        speechSynthesis.cancel();
+        chapters.forEach((c) => c.classList.remove("speaking"));
+      }
+
+      function speakCurrent() {
+        stopSpeech();
+        if (!readAloud || !window.speechSynthesis) return;
+        const chapter = chapters[index];
+        if (!chapter) return;
+        const text = chapter.innerText.replace(/\s+/g, " ").trim();
+        const utter = new SpeechSynthesisUtterance(text);
+        const voice = preferredVoice();
+        if (voice) utter.voice = voice;
+        utter.lang = (voice && voice.lang) || "hu-HU";
+        // Gyerekbarát hangkarakter: lassabb, magasabb, melegebb
+        utter.rate = 0.88;
+        utter.pitch = 1.28;
+        utter.volume = 1;
+        chapter.classList.add("speaking");
+        utter.onend = () => chapter.classList.remove("speaking");
+        utter.onerror = () => chapter.classList.remove("speaking");
+        speechSynthesis.speak(utter);
+      }
+
+      function render() {
+        chapters.forEach((c, i) => c.classList.toggle("is-active", i === index));
+        progressBar.style.width = `${((index + 1) / chapters.length) * 100}%`;
+        const atEnd = index >= chapters.length - 1;
+        document.getElementById("nextBtnBottom").textContent = atEnd ? "Újra az elejétől ✨" : "Következő rész →";
+      }
+
+      function go(delta, { withSpeech = true } = {}) {
+        unlockAudio();
+        const prev = index;
+        index = (index + delta + chapters.length) % chapters.length;
+        render();
+        if (index === chapters.length - 1 && delta > 0) playSound("end");
+        else if (index !== prev) playSound("page");
+        else playSound("tap");
+        if (withSpeech && readAloud) speakCurrent();
+      }
+
+      function startStory() {
+        unlockAudio();
+        playSound("start");
+        index = 0;
+        render();
+        document.getElementById("mese").scrollIntoView({ behavior: "smooth", block: "start" });
+        if (readAloud) {
+          // kis szünet a csengő után
+          setTimeout(speakCurrent, 450);
+        }
+      }
+
+      ambientToggle.addEventListener("click", () => {
+        unlockAudio();
+        ambientOn = !ambientOn;
+        ambientToggle.setAttribute("aria-pressed", ambientOn ? "true" : "false");
+        ambientToggle.textContent = ambientOn ? "Lágy zene: be" : "Lágy zene: ki";
+        playSound("tap");
+        if (ambientOn) {
+          sounds.motif.currentTime = 0;
+          sounds.motif.play().catch(() => {});
+        } else {
+          sounds.motif.pause();
+        }
+      });
+
+      readAloudBtn.addEventListener("click", () => {
+        unlockAudio();
+        readAloud = !readAloud;
+        readAloudBtn.setAttribute("aria-pressed", readAloud ? "true" : "false");
+        readAloudBtn.classList.toggle("is-active", readAloud);
+        playSound("tap");
+        if (!readAloud) stopSpeech();
+        else speakCurrent();
+      });
+
+      stopBtn.addEventListener("click", () => {
+        stopSpeech();
+        playSound("tap");
+      });
+
+      startStoryBtn.addEventListener("click", startStory);
+      document.getElementById("prevBtn").addEventListener("click", () => go(-1));
+      document.getElementById("nextBtn").addEventListener("click", () => go(1));
+      document.getElementById("prevBtnBottom").addEventListener("click", () => go(-1));
+      document.getElementById("nextBtnBottom").addEventListener("click", () => go(1));
+
+      if (window.speechSynthesis) {
+        speechSynthesis.onvoiceschanged = () => {};
+        speechSynthesis.getVoices();
+      }
+
+      render();
+    })();
+  </script>
+</body>
+</html>
