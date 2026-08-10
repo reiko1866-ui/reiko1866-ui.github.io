@@ -1,7 +1,7 @@
 "use strict";
 
 /** Globális funkciókapcsolók — böngésző + Node.js */
-const DELIVERY_NOTE_DISABLED = true;
+const DELIVERY_NOTE_DISABLED = false;
 const DELIVERY_NOTE_DISABLED_MESSAGE =
   "A szállítólevél generálás ideiglenesen ki van kapcsolva (hibás adatok miatt).";
 
