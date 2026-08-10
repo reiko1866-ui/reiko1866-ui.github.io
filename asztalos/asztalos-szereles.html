@@ -1,0 +1,1322 @@
+<!DOCTYPE html>
+<html lang="hu">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#c9a227" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+    <meta http-equiv="Pragma" content="no-cache" />
+    <title>Divian — Asztalos szerelés</title>
+    <link rel="manifest" href="asztalos-szereles.webmanifest" />
+    <link rel="stylesheet" href="divian-brand.css" />
+    <style>
+      :root {
+        --bg: #0f1419;
+        --card: #1a222c;
+        --card-hover: #1f2833;
+        --text: #f2f4f7;
+        --muted: #8b97a5;
+        --gold: #c9a227;
+        --ok: #3ecf8e;
+        --err: #ff6b6b;
+        --warn: #ffb450;
+        --border: rgba(255, 255, 255, 0.07);
+        --radius: 16px;
+        --space: 1.25rem;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        font-family: "Segoe UI", system-ui, sans-serif;
+        background: var(--bg);
+        color: var(--text);
+        min-height: 100dvh;
+        line-height: 1.5;
+      }
+      .app {
+        max-width: 520px;
+        margin: 0 auto;
+        padding: 1.1rem 1rem calc(2rem + env(safe-area-inset-bottom));
+      }
+
+      /* —— Fejléc —— */
+      .app-header {
+        margin-bottom: var(--space);
+      }
+      .app-header.is-minimal {
+        margin-bottom: 0.75rem;
+      }
+      .app-header.is-minimal .app-tagline,
+      .app-header.is-minimal .app-intro {
+        display: none;
+      }
+      .app-header h1 {
+        margin: 0;
+        font-size: 1.4rem;
+        font-weight: 700;
+        color: var(--gold);
+        letter-spacing: -0.02em;
+      }
+      .app-tagline {
+        margin: 0.2rem 0 0;
+        color: var(--muted);
+        font-size: 0.9rem;
+      }
+      .app-intro {
+        margin: 0.75rem 0 0;
+        padding: 0.85rem 1rem;
+        border-radius: 12px;
+        background: rgba(255, 255, 255, 0.03);
+        border: 1px solid var(--border);
+        color: var(--muted);
+        font-size: 0.86rem;
+        line-height: 1.5;
+      }
+
+      /* —— Hálózati sáv —— */
+      .status-strip {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        min-height: 2.5rem;
+        padding: 0.55rem 0.85rem;
+        border-radius: 999px;
+        font-size: 0.84rem;
+        margin-bottom: var(--space);
+        border: 1px solid var(--border);
+        background: rgba(255, 255, 255, 0.03);
+        color: var(--muted);
+      }
+      .status-strip::before {
+        content: "";
+        flex-shrink: 0;
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: var(--muted);
+      }
+      .status-strip.is-ok {
+        border-color: rgba(62, 207, 142, 0.25);
+        background: rgba(62, 207, 142, 0.06);
+        color: #a8ebc8;
+      }
+      .status-strip.is-ok::before {
+        background: var(--ok);
+      }
+      .status-strip.is-offline {
+        border-color: rgba(255, 180, 80, 0.3);
+        background: rgba(255, 180, 80, 0.08);
+        color: #ffe2b8;
+      }
+      .status-strip.is-offline::before {
+        background: var(--warn);
+      }
+      .status-strip.is-pending {
+        border-color: rgba(100, 180, 255, 0.3);
+        background: rgba(100, 180, 255, 0.08);
+        color: #c8e4ff;
+      }
+      .status-strip.is-pending::before {
+        background: #64b4ff;
+      }
+      .status-strip.is-compact {
+        min-height: 0;
+        padding: 0.4rem 0.75rem;
+        font-size: 0.8rem;
+      }
+      .status-strip.hidden {
+        display: none;
+      }
+
+      /* —— Panelek —— */
+      .panel {
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        padding: 1.15rem;
+        margin-bottom: var(--space);
+      }
+      label {
+        display: block;
+        font-size: 0.82rem;
+        color: var(--muted);
+        margin-bottom: 0.45rem;
+        font-weight: 500;
+      }
+
+      input,
+      textarea,
+      button {
+        font: inherit;
+      }
+      input[type="text"],
+      input[type="password"],
+      input[type="url"] {
+        width: 100%;
+        padding: 0.85rem 1rem;
+        border-radius: 12px;
+        border: 1px solid var(--border);
+        background: #0c1015;
+        color: var(--text);
+      }
+      .btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.4rem;
+        width: 100%;
+        padding: 0.9rem 1rem;
+        border: none;
+        border-radius: 12px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: opacity 0.15s;
+      }
+      .btn:active:not(:disabled) {
+        opacity: 0.85;
+      }
+      .btn-primary {
+        background: linear-gradient(135deg, #d4af37, #a67c00);
+        color: #111;
+      }
+      .btn-secondary {
+        background: #243040;
+        color: var(--text);
+      }
+      .btn-ghost {
+        background: transparent;
+        border: 1px solid var(--border);
+        color: var(--muted);
+        padding: 0.65rem 0.85rem;
+        width: auto;
+      }
+      .btn-danger {
+        background: #5c1f1f;
+        color: #ffd7d7;
+      }
+      .btn:disabled {
+        opacity: 0.4;
+        cursor: not-allowed;
+      }
+      .btn-small {
+        padding: 0.6rem 0.85rem;
+        font-size: 0.88rem;
+      }
+      .btn-icon {
+        width: 2.75rem;
+        height: 2.75rem;
+        padding: 0;
+        flex-shrink: 0;
+        border-radius: 12px;
+        font-size: 1.15rem;
+      }
+      .status {
+        min-height: 1.2rem;
+        font-size: 0.86rem;
+        margin-top: 0.65rem;
+      }
+      .status.is-err {
+        color: var(--err);
+      }
+      .status.is-ok {
+        color: var(--ok);
+      }
+
+      /* —— Link beállítás —— */
+      .link-upload-box strong {
+        display: block;
+        color: var(--gold);
+        font-size: 1rem;
+        margin-bottom: 0.35rem;
+      }
+      .link-upload-hint {
+        display: block;
+        color: var(--muted);
+        font-size: 0.86rem;
+        line-height: 1.45;
+        margin-bottom: 0.85rem;
+      }
+      #apiBase {
+        width: 100%;
+        min-height: 4rem;
+        padding: 0.85rem 1rem;
+        border-radius: 12px;
+        border: 1px solid var(--border);
+        background: #0c1015;
+        color: var(--text);
+        resize: vertical;
+        word-break: break-all;
+      }
+      .link-actions {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 0.55rem;
+        margin-top: 0.85rem;
+      }
+      .saved-link-bar {
+        border: 1px solid rgba(62, 207, 142, 0.25);
+        background: rgba(62, 207, 142, 0.06);
+        border-radius: 12px;
+        padding: 0.85rem 1rem;
+      }
+      .saved-link-label {
+        font-size: 0.78rem;
+        color: var(--ok);
+        margin-bottom: 0.35rem;
+        font-weight: 600;
+      }
+      .saved-link-text {
+        font-size: 0.84rem;
+        word-break: break-all;
+        line-height: 1.45;
+        margin-bottom: 0.65rem;
+        color: var(--muted);
+      }
+
+      /* —— Bejelentkezés —— */
+      .login-hint {
+        margin: 1rem 0 0;
+        padding: 0;
+        color: var(--muted);
+        font-size: 0.82rem;
+        line-height: 1.45;
+        list-style: none;
+      }
+      .login-hint li {
+        padding-left: 1.1rem;
+        position: relative;
+        margin-bottom: 0.35rem;
+      }
+      .login-hint li::before {
+        content: "·";
+        position: absolute;
+        left: 0;
+        color: var(--gold);
+        font-weight: bold;
+      }
+
+      /* —— Munkalista —— */
+      .list-top {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 0.75rem;
+        margin-bottom: 1rem;
+      }
+      .list-top h2 {
+        margin: 0;
+        font-size: 1.15rem;
+        font-weight: 700;
+      }
+      .list-toolbar {
+        display: flex;
+        gap: 0.45rem;
+        flex-shrink: 0;
+      }
+      .crew-badge {
+        display: inline-block;
+        margin-top: 0.35rem;
+        padding: 0.25rem 0.65rem;
+        border-radius: 999px;
+        background: rgba(201, 162, 39, 0.12);
+        color: var(--gold);
+        font-size: 0.8rem;
+        font-weight: 600;
+      }
+      .crew-badge.hidden {
+        display: none;
+      }
+      .crew-badge.is-admin {
+        background: rgba(62, 207, 142, 0.12);
+        color: var(--ok);
+      }
+      .admin-bar {
+        margin: 0 0 1rem;
+        padding: 0.85rem 1rem;
+        border-radius: 12px;
+        border: 1px solid rgba(62, 207, 142, 0.25);
+        background: rgba(62, 207, 142, 0.06);
+        font-size: 0.84rem;
+        line-height: 1.45;
+      }
+      .admin-bar.hidden {
+        display: none;
+      }
+      .admin-bar-link {
+        color: var(--ok);
+        font-weight: 600;
+      }
+      .job-list {
+        display: grid;
+        gap: 0.85rem;
+      }
+      .job-card {
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        padding: 1.1rem 1.15rem;
+        cursor: pointer;
+        transition: background 0.15s, border-color 0.15s;
+      }
+      .job-card:active {
+        background: var(--card-hover);
+        border-color: rgba(201, 162, 39, 0.25);
+      }
+      .job-card-status {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.4rem;
+        margin-top: 0.75rem;
+      }
+      .status-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.3rem;
+        padding: 0.28rem 0.6rem;
+        border-radius: 999px;
+        font-size: 0.76rem;
+        font-weight: 600;
+        background: rgba(255, 255, 255, 0.06);
+        color: var(--muted);
+      }
+      .status-pill.is-ok {
+        background: rgba(62, 207, 142, 0.12);
+        color: var(--ok);
+      }
+      .status-pill.is-gold {
+        background: rgba(201, 162, 39, 0.12);
+        color: var(--gold);
+      }
+      .status-pill.is-warn {
+        background: rgba(255, 180, 80, 0.12);
+        color: var(--warn);
+      }
+      .empty-jobs {
+        text-align: center;
+        padding: 2rem 1rem;
+        color: var(--muted);
+      }
+      .empty-jobs strong {
+        display: block;
+        color: var(--text);
+        font-size: 1rem;
+        margin-bottom: 0.5rem;
+      }
+      .empty-jobs p {
+        margin: 0.35rem 0;
+        font-size: 0.88rem;
+        line-height: 1.45;
+      }
+
+      /* —— Ügyfél fejléc —— */
+      .customer-head {
+        margin: 0;
+      }
+      .customer-head-name {
+        margin: 0 0 0.2rem;
+        font-size: 1.05rem;
+        font-weight: 700;
+        color: var(--text);
+        line-height: 1.25;
+      }
+      .customer-head-line {
+        margin: 0.1rem 0;
+        color: var(--muted);
+        font-size: 0.86rem;
+        line-height: 1.4;
+      }
+      .customer-head a {
+        color: #e8d48a;
+        text-decoration: none;
+      }
+      .customer-actions {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 0.45rem;
+        margin-top: 0.75rem;
+      }
+      .customer-action-btn {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 0.15rem;
+        min-height: 3.6rem;
+        padding: 0.55rem 0.35rem;
+        border-radius: 12px;
+        border: 1px solid rgba(232, 238, 244, 0.14);
+        background: rgba(255, 255, 255, 0.05);
+        color: var(--text);
+        text-decoration: none;
+        font-weight: 700;
+        font-size: 0.82rem;
+        line-height: 1.15;
+        text-align: center;
+      }
+      .customer-action-btn:active {
+        opacity: 0.85;
+        transform: scale(0.98);
+      }
+      .customer-action-ico {
+        font-size: 1.15rem;
+        line-height: 1;
+      }
+      .customer-action-sub {
+        font-size: 0.68rem;
+        font-weight: 500;
+        opacity: 0.72;
+        max-width: 100%;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .customer-action-call {
+        border-color: rgba(62, 207, 142, 0.45);
+        background: rgba(62, 207, 142, 0.12);
+        color: #7dffb5;
+      }
+      .customer-action-waze {
+        border-color: rgba(61, 156, 253, 0.45);
+        background: rgba(61, 156, 253, 0.12);
+        color: #8ec5ff;
+      }
+      .customer-action-maps {
+        border-color: rgba(201, 162, 39, 0.4);
+        background: rgba(201, 162, 39, 0.1);
+        color: #e8d48a;
+      }
+      @media (max-width: 380px) {
+        .customer-actions {
+          grid-template-columns: 1fr;
+        }
+      }
+      .job-card .customer-head-name {
+        font-size: 1.02rem;
+      }
+      .detail-top {
+        display: flex;
+        align-items: flex-start;
+        gap: 0.65rem;
+        margin-bottom: 1.15rem;
+      }
+      .detail-top .customer-head {
+        flex: 1;
+        min-width: 0;
+      }
+      #customerBanner .customer-head-name {
+        font-size: 1.2rem;
+      }
+
+      /* —— Munkafolyamat szekciók —— */
+      .workflow-card {
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        padding: 1.15rem;
+        margin-bottom: 0.85rem;
+      }
+      .workflow-card.is-done {
+        opacity: 0.65;
+      }
+      .workflow-head {
+        display: flex;
+        align-items: center;
+        gap: 0.55rem;
+        margin-bottom: 0.85rem;
+      }
+      .workflow-icon {
+        width: 2.25rem;
+        height: 2.25rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 10px;
+        background: rgba(201, 162, 39, 0.12);
+        font-size: 1.1rem;
+        flex-shrink: 0;
+      }
+      .workflow-card.is-done .workflow-icon {
+        background: rgba(62, 207, 142, 0.12);
+      }
+      .workflow-head h3 {
+        margin: 0;
+        font-size: 1rem;
+        font-weight: 700;
+      }
+      .workflow-head p {
+        margin: 0.1rem 0 0;
+        font-size: 0.82rem;
+        color: var(--muted);
+      }
+      .media-block {
+        margin-bottom: 1.15rem;
+      }
+      .media-block:last-of-type {
+        margin-bottom: 0.75rem;
+      }
+      .media-block-title {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 0.55rem;
+        font-size: 0.88rem;
+        font-weight: 600;
+        color: var(--text);
+      }
+      .media-count {
+        font-size: 0.78rem;
+        font-weight: 600;
+        color: var(--muted);
+        padding: 0.15rem 0.5rem;
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.06);
+      }
+      .media-count.is-ok {
+        color: var(--ok);
+        background: rgba(62, 207, 142, 0.12);
+      }
+      .photo-grid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 0.45rem;
+        margin-bottom: 0.65rem;
+      }
+      .photo-grid img {
+        width: 100%;
+        aspect-ratio: 1;
+        object-fit: cover;
+        border-radius: 10px;
+        border: 1px solid var(--border);
+        background: #000;
+      }
+      .photo-grid img.is-local {
+        outline: 2px dashed rgba(255, 180, 80, 0.6);
+      }
+      .photo-empty {
+        color: var(--muted);
+        font-size: 0.84rem;
+        margin: 0 0 0.65rem;
+        padding: 0.75rem;
+        text-align: center;
+        border-radius: 10px;
+        border: 1px dashed var(--border);
+      }
+      .photo-grid:has(.photo-empty) {
+        display: block;
+      }
+      .camera-btn {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.55rem;
+        width: 100%;
+        padding: 0.85rem 1rem;
+        border-radius: 12px;
+        border: 1px dashed rgba(201, 162, 39, 0.4);
+        background: rgba(201, 162, 39, 0.06);
+        color: var(--gold);
+        font-weight: 600;
+        font-size: 0.9rem;
+        cursor: pointer;
+      }
+      .camera-btn:active {
+        background: rgba(201, 162, 39, 0.12);
+      }
+      .camera-btn-secondary {
+        margin-top: 0.55rem;
+        border-style: solid;
+        border-color: rgba(255, 255, 255, 0.12);
+        background: rgba(255, 255, 255, 0.04);
+        color: var(--text, #eee);
+      }
+      .media-hint {
+        margin: 0 0 0.65rem;
+        font-size: 0.88rem;
+        line-height: 1.35;
+        color: var(--muted);
+      }
+      .sign-overlay {
+        position: fixed;
+        inset: 0;
+        z-index: 80;
+        background: rgba(8, 8, 10, 0.72);
+        display: flex;
+        align-items: stretch;
+        justify-content: center;
+        padding: env(safe-area-inset-top) 0 env(safe-area-inset-bottom);
+      }
+      .sign-overlay.hidden {
+        display: none;
+      }
+      .sign-sheet {
+        width: min(560px, 100%);
+        margin: 0 auto;
+        background: #141218;
+        color: var(--text, #f3efe8);
+        display: flex;
+        flex-direction: column;
+        max-height: 100%;
+      }
+      .sign-sheet-top {
+        display: flex;
+        gap: 0.75rem;
+        align-items: flex-start;
+        padding: 0.75rem 1rem;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+      }
+      .sign-meta {
+        margin: 0.15rem 0 0;
+        font-size: 0.82rem;
+        color: var(--muted);
+      }
+      .sign-scroll {
+        flex: 1;
+        overflow: auto;
+        padding: 0.85rem 1rem 1rem;
+        -webkit-overflow-scrolling: touch;
+      }
+      .sign-scroll h3 {
+        margin: 0 0 0.45rem;
+        font-size: 1.05rem;
+      }
+      .sign-liability {
+        font-size: 0.86rem;
+        line-height: 1.4;
+        color: #d7d0c5;
+        margin: 0 0 0.85rem;
+        padding: 0.7rem 0.8rem;
+        border-radius: 12px;
+        background: rgba(255, 255, 255, 0.04);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+      }
+      .sign-liability ol {
+        margin: 0.45rem 0 0;
+        padding-left: 1.15rem;
+      }
+      .sign-liability li {
+        margin: 0.35rem 0;
+      }
+      .sign-checks {
+        display: grid;
+        gap: 0.45rem;
+        margin: 0 0 0.75rem;
+      }
+      .sign-checks label {
+        display: flex;
+        gap: 0.55rem;
+        align-items: flex-start;
+        font-size: 0.88rem;
+        line-height: 1.35;
+        padding: 0.55rem 0.65rem;
+        border-radius: 10px;
+        background: rgba(201, 162, 39, 0.08);
+        border: 1px solid rgba(201, 162, 39, 0.22);
+      }
+      .sign-checks input {
+        margin-top: 0.15rem;
+        width: 1.1rem;
+        height: 1.1rem;
+        flex: 0 0 auto;
+      }
+      .sign-notes-label {
+        display: block;
+        font-size: 0.82rem;
+        color: var(--muted);
+        margin-bottom: 0.35rem;
+      }
+      #signNotes {
+        width: 100%;
+        border-radius: 12px;
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        background: #0d0c10;
+        color: inherit;
+        padding: 0.65rem 0.75rem;
+        font: inherit;
+        resize: vertical;
+        margin-bottom: 0.85rem;
+      }
+      .sign-pad-wrap {
+        border-radius: 14px;
+        border: 2px solid rgba(201, 162, 39, 0.35);
+        background: #0a090c;
+        padding: 0.65rem;
+      }
+      .sign-pad-head {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 0.45rem;
+        font-size: 0.8rem;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        color: var(--muted);
+      }
+      .sign-canvas {
+        width: 100%;
+        height: 160px;
+        display: block;
+        border-radius: 10px;
+        background: #fff;
+        touch-action: none;
+        cursor: crosshair;
+      }
+      .sign-actions {
+        padding: 0.75rem 1rem 1rem;
+        border-top: 1px solid rgba(255, 255, 255, 0.08);
+      }
+      .camera-btn input {
+        display: none;
+      }
+      .req-checklist {
+        list-style: none;
+        margin: 0.85rem 0;
+        padding: 0;
+        display: grid;
+        gap: 0.4rem;
+      }
+      .req-checklist li {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        font-size: 0.84rem;
+        color: var(--muted);
+        padding: 0.45rem 0.65rem;
+        border-radius: 10px;
+        background: rgba(255, 255, 255, 0.03);
+      }
+      .req-checklist li::before {
+        content: "○";
+        flex-shrink: 0;
+        width: 1.1rem;
+        text-align: center;
+        color: var(--muted);
+      }
+      .req-checklist li.is-done {
+        color: #a8ebc8;
+      }
+      .req-checklist li.is-done::before {
+        content: "✓";
+        color: var(--ok);
+        font-weight: bold;
+      }
+      .req-checklist li.is-missing {
+        color: #ffc9c9;
+        background: rgba(255, 107, 107, 0.08);
+      }
+      .req-checklist li.is-missing::before {
+        content: "!";
+        color: var(--err);
+        font-weight: bold;
+      }
+      .workflow-actions {
+        margin-top: 0.85rem;
+      }
+
+      .admin-assign-card {
+        margin-bottom: 0.85rem;
+        border-color: rgba(201, 162, 39, 0.35);
+      }
+      .admin-assign-label {
+        display: block;
+        font-size: 0.8rem;
+        color: var(--muted);
+        margin: 0.35rem 0 0.4rem;
+      }
+      .admin-assign-row {
+        display: flex;
+        gap: 0.55rem;
+        align-items: stretch;
+      }
+      .admin-assign-row select {
+        flex: 1 1 auto;
+        min-width: 0;
+        padding: 0.7rem 0.75rem;
+        border-radius: 10px;
+        border: 1px solid var(--border);
+        background: #121820;
+        color: var(--text);
+        font: inherit;
+      }
+      .admin-assign-row .btn {
+        width: auto;
+        flex: 0 0 auto;
+        white-space: nowrap;
+      }
+      .job-card-assign {
+        margin-top: 0.55rem;
+        display: flex;
+        gap: 0.45rem;
+      }
+      .job-card-assign select {
+        flex: 1;
+        padding: 0.45rem 0.55rem;
+        border-radius: 8px;
+        border: 1px solid var(--border);
+        background: #121820;
+        color: var(--text);
+        font-size: 0.85rem;
+      }
+
+      /* —— Rajzok —— */
+      .drawings-block {
+        margin-bottom: 0.85rem;
+      }
+      .order-items-block {
+        margin-bottom: 1rem;
+        padding: 0.85rem 0.9rem;
+        border-radius: 14px;
+        border: 1px solid rgba(232, 238, 244, 0.12);
+        background: rgba(255, 255, 255, 0.03);
+      }
+      .order-items-group {
+        margin-top: 0.65rem;
+      }
+      .order-items-list {
+        list-style: none;
+        margin: 0.35rem 0 0;
+        padding: 0;
+        display: grid;
+        gap: 0.35rem;
+      }
+      .order-items-list li {
+        padding: 0.45rem 0.55rem;
+        border-radius: 10px;
+        background: rgba(0, 0, 0, 0.22);
+        font-size: 0.86rem;
+        line-height: 1.35;
+      }
+      .order-item-qty {
+        float: right;
+        opacity: 0.8;
+        font-variant-numeric: tabular-nums;
+        white-space: nowrap;
+      }
+      .drawing-group {
+        margin-bottom: 0.85rem;
+      }
+      .drawing-group-title {
+        display: block;
+        color: var(--gold);
+        font-size: 0.82rem;
+        font-weight: 600;
+        margin-bottom: 0.45rem;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+      }
+      .drawing-list {
+        display: grid;
+        gap: 0.45rem;
+      }
+      .drawing-link {
+        display: flex;
+        align-items: center;
+        gap: 0.55rem;
+        padding: 0.75rem 0.9rem;
+        border-radius: 12px;
+        border: 1px solid rgba(201, 162, 39, 0.25);
+        background: rgba(201, 162, 39, 0.06);
+        color: var(--gold);
+        text-decoration: none;
+        font-weight: 600;
+        font-size: 0.88rem;
+      }
+      .drawing-link:active {
+        opacity: 0.85;
+      }
+      .drawing-preview {
+        width: 100%;
+        border-radius: 10px;
+        border: 1px solid var(--border);
+        margin-top: 0.35rem;
+      }
+      .calendar-card {
+        margin: 0 0 1rem;
+        padding: 0.85rem 0.9rem 1rem;
+        border-radius: 14px;
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        background: rgba(255, 255, 255, 0.03);
+      }
+      .calendar-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 0.5rem;
+        margin-bottom: 0.35rem;
+      }
+      .calendar-grid {
+        display: grid;
+        grid-template-columns: repeat(7, 1fr);
+        gap: 0.28rem;
+      }
+      .cal-dow {
+        text-align: center;
+        font-size: 0.68rem;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        color: var(--muted);
+        padding: 0.2rem 0;
+      }
+      .cal-day {
+        aspect-ratio: 1;
+        border-radius: 10px;
+        border: 1px solid transparent;
+        background: rgba(255, 255, 255, 0.03);
+        color: inherit;
+        font: inherit;
+        font-size: 0.82rem;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 0.1rem;
+        padding: 0;
+        cursor: pointer;
+      }
+      .cal-day.is-muted {
+        opacity: 0.35;
+      }
+      .cal-day.is-today {
+        border-color: rgba(201, 162, 39, 0.55);
+      }
+      .cal-day.has-jobs {
+        background: rgba(201, 162, 39, 0.16);
+        color: var(--gold);
+        font-weight: 700;
+      }
+      .cal-day.is-selected {
+        outline: 2px solid rgba(201, 162, 39, 0.7);
+      }
+      .cal-dot {
+        width: 5px;
+        height: 5px;
+        border-radius: 50%;
+        background: var(--gold);
+      }
+      .calendar-day-list {
+        margin-top: 0.65rem;
+        display: grid;
+        gap: 0.4rem;
+        font-size: 0.86rem;
+      }
+      .calendar-day-list button {
+        text-align: left;
+        width: 100%;
+        border-radius: 10px;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        background: rgba(0, 0, 0, 0.2);
+        color: inherit;
+        padding: 0.55rem 0.7rem;
+        font: inherit;
+      }
+      .schedule-row {
+        display: grid;
+        grid-template-columns: 1fr auto;
+        gap: 0.55rem;
+        align-items: center;
+      }
+      .schedule-date-input {
+        width: 100%;
+        border-radius: 12px;
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        background: #0d0c10;
+        color: inherit;
+        padding: 0.7rem 0.75rem;
+        font: inherit;
+      }
+
+      .hidden {
+        display: none !important;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="app">
+      <header class="app-header" id="appHeader">
+        <h1>Divian szerelés</h1>
+        <p class="app-tagline">Felmérés és szerelés mobilról</p>
+        <p class="app-intro">
+          Távoli elérés mobilnetről. A szerelés lezárásához fénykép és aláírt dokumentum szükséges.
+        </p>
+      </header>
+
+      <div id="networkBanner" class="status-strip hidden" role="status"></div>
+
+      <section id="serverLinkPanel" class="panel">
+        <div id="linkSetupBox">
+          <strong>Szerver link</strong>
+          <span class="link-upload-hint">
+            Az irodától kapott HTTPS címet illeszd be ide.
+          </span>
+          <textarea
+            id="apiBase"
+            rows="2"
+            inputmode="url"
+            placeholder="https://….trycloudflare.com/asztalos-szereles.html"
+            autocomplete="off"
+            spellcheck="false"
+          ></textarea>
+          <div class="link-actions">
+            <button type="button" id="pasteLinkBtn" class="btn btn-secondary btn-small">Beillesztés</button>
+            <button type="button" id="saveLinkBtn" class="btn btn-primary btn-small">Mentés</button>
+          </div>
+          <div id="linkStatus" class="status"></div>
+        </div>
+        <div id="savedLinkBar" class="saved-link-bar hidden">
+          <div class="saved-link-label">Szerver csatlakozva</div>
+          <div id="savedLinkText" class="saved-link-text"></div>
+          <button type="button" id="editLinkBtn" class="btn btn-secondary btn-small">Link módosítása</button>
+        </div>
+      </section>
+
+      <section id="loginPanel" class="panel hidden">
+        <label for="carpenterPin">PIN kód</label>
+        <input
+          id="carpenterPin"
+          type="password"
+          inputmode="numeric"
+          maxlength="6"
+          pattern="[0-9]{4,6}"
+          placeholder="4 számjegy (asztalos) vagy 6 (admin)"
+          autocomplete="off"
+        />
+        <button type="button" id="loginBtn" class="btn btn-primary" style="margin-top: 0.85rem">Belépés</button>
+        <div id="loginStatus" class="status"></div>
+        <ul class="login-hint">
+          <li>Csak a saját PIN-ed kell</li>
+          <li>Felmérés és szerelés külön zárható</li>
+        </ul>
+      </section>
+
+      <section id="listPanel" class="hidden">
+        <div class="list-top">
+          <div>
+            <h2>Nyitott munkák</h2>
+            <div id="crewBadge" class="crew-badge hidden"></div>
+          </div>
+          <div class="list-toolbar">
+            <button type="button" id="refreshBtn" class="btn btn-ghost btn-icon" title="Frissítés" aria-label="Frissítés">↻</button>
+            <button type="button" id="logoutBtn" class="btn btn-ghost btn-icon" title="Kilépés" aria-label="Kilépés">⎋</button>
+          </div>
+        </div>
+        <div id="adminBar" class="admin-bar hidden"></div>
+        <div id="calendarCard" class="calendar-card">
+          <div class="calendar-head">
+            <button type="button" id="calPrevBtn" class="btn btn-ghost btn-icon" aria-label="Előző hónap">‹</button>
+            <strong id="calMonthLabel">Naptár</strong>
+            <button type="button" id="calNextBtn" class="btn btn-ghost btn-icon" aria-label="Következő hónap">›</button>
+          </div>
+          <p class="media-hint" style="margin-bottom:0.55rem">A napokon látszik, mikorra vállaltad el a szereléseket.</p>
+          <div id="calendarGrid" class="calendar-grid"></div>
+          <div id="calendarDayList" class="calendar-day-list"></div>
+        </div>
+        <div id="jobList" class="job-list"></div>
+        <div id="listStatus" class="status"></div>
+        <button type="button" id="enableNotifyBtn" class="btn btn-ghost btn-small hidden" style="margin-top:0.75rem">
+          🔔 Értesítések bekapcsolása
+        </button>
+      </section>
+
+      <section id="detailPanel" class="hidden">
+        <div class="detail-top">
+          <button type="button" id="backBtn" class="btn btn-ghost btn-icon" aria-label="Vissza">←</button>
+          <div id="customerBanner"></div>
+        </div>
+
+        <div id="adminAssignCard" class="workflow-card admin-assign-card hidden">
+          <div class="workflow-head">
+            <div class="workflow-icon">👷</div>
+            <div>
+              <h3>Asztalos kiosztása</h3>
+              <p>Admin — azonnal megjelenik az asztalos appjában</p>
+            </div>
+          </div>
+          <label class="admin-assign-label" for="adminCrewSelect">Asztalos</label>
+          <div class="admin-assign-row">
+            <select id="adminCrewSelect">
+              <option value="">— Asztalos —</option>
+              <option value="1">Misi</option>
+              <option value="2">Balázs</option>
+              <option value="3">Gombás</option>
+            </select>
+            <button type="button" id="adminAssignBtn" class="btn btn-primary">Kiosztás</button>
+          </div>
+        </div>
+
+        <div id="jobDetail" class="drawings-block"></div>
+
+        <div id="surveySection" class="workflow-card hidden">
+          <div class="workflow-head">
+            <div class="workflow-icon">📐</div>
+            <div>
+              <h3>Felmérés</h3>
+              <p>Fényképek és felmérés adatlap</p>
+            </div>
+          </div>
+
+          <div class="media-block">
+            <div class="media-block-title">
+              <span>Mikor lesz a felmérés?</span>
+            </div>
+            <p class="media-hint">Válassz napot — ez látszik az irodának és a naptárban is.</p>
+            <div class="schedule-row">
+              <input type="date" id="felmeresScheduleDate" class="schedule-date-input" />
+              <button type="button" id="saveFelmeresScheduleBtn" class="btn btn-secondary">Mentés</button>
+            </div>
+            <p id="felmeresScheduleSavedHint" class="media-hint" style="margin-top:0.45rem;margin-bottom:0"></p>
+          </div>
+
+          <div class="media-block">
+            <div class="media-block-title">
+              <span>Felmérés fényképek</span>
+              <span id="surveyPhotoCount" class="media-count">0 db</span>
+            </div>
+            <div id="surveyPhotos" class="photo-grid"></div>
+            <label class="camera-btn">
+              <input id="surveyCameraInput" type="file" accept="image/*" capture="environment" />
+              <span>📷</span>
+              <span>Fénykép készítése</span>
+            </label>
+          </div>
+          <div class="media-block">
+            <div class="media-block-title">
+              <span>Felmérés adatlap</span>
+              <span id="surveyFormCount" class="media-count">0 db</span>
+            </div>
+            <p class="media-hint">A kitöltött adatlapot a helyszínen fényképezd le, majd töltsd fel.</p>
+            <div id="surveyForms" class="drawing-list"></div>
+            <label class="camera-btn">
+              <input id="surveyFormCameraInput" type="file" accept="image/*" capture="environment" />
+              <span>📷</span>
+              <span>Adatlap lefényképezése</span>
+            </label>
+            <label class="camera-btn camera-btn-secondary">
+              <input id="surveyFormInput" type="file" accept=".pdf,application/pdf,image/*" multiple />
+              <span>📁</span>
+              <span>Galéria / PDF</span>
+            </label>
+          </div>
+          <ul id="surveyChecklist" class="req-checklist">
+            <li id="surveyReqPhoto">Legalább 1 felmérés fénykép</li>
+            <li id="surveyReqForm">Legalább 1 felmérés adatlap</li>
+          </ul>
+          <div class="workflow-actions">
+            <button type="button" id="closeSurveyBtn" class="btn btn-secondary" disabled>Felmérés lezárása</button>
+          </div>
+        </div>
+
+        <div id="installSection" class="workflow-card">
+          <div class="workflow-head">
+            <div class="workflow-icon">🔧</div>
+            <div>
+              <h3>Szerelés</h3>
+              <p>Fotók és aláírt beszerelés dokumentum</p>
+            </div>
+          </div>
+
+          <div class="media-block">
+            <div class="media-block-title">
+              <span>Mikor vállalod el?</span>
+            </div>
+            <p class="media-hint">Válassz napot a naptárból — ez megjelenik az irodának is.</p>
+            <div class="schedule-row">
+              <input type="date" id="installScheduleDate" class="schedule-date-input" />
+              <button type="button" id="saveScheduleBtn" class="btn btn-secondary">Mentés</button>
+            </div>
+            <p id="scheduleSavedHint" class="media-hint" style="margin-top:0.45rem;margin-bottom:0"></p>
+          </div>
+
+          <div class="media-block">
+            <div class="media-block-title">
+              <span>Szerelés fényképek</span>
+              <span id="installPhotoCount" class="media-count">0 db</span>
+            </div>
+            <div id="installPhotos" class="photo-grid"></div>
+            <label class="camera-btn">
+              <input id="cameraInput" type="file" accept="image/*" capture="environment" />
+              <span>📷</span>
+              <span>Fénykép készítése</span>
+            </label>
+          </div>
+
+          <div class="media-block">
+            <div class="media-block-title">
+              <span>Aláírt beszerelési dokumentum</span>
+              <span id="signedDocCount" class="media-count">0 db</span>
+            </div>
+            <p class="media-hint">
+              Mint a szállításnál: a vevő a telefonon elolvassa és aláírja. Papír csak tartalék.
+            </p>
+            <button type="button" id="openInstallDocBtn" class="camera-btn" style="border-style:solid">
+              <span>✍️</span>
+              <span>Digitális átvétel / aláírás</span>
+            </button>
+            <button type="button" id="printInstallDocBtn" class="camera-btn camera-btn-secondary">
+              <span>🖨️</span>
+              <span>Nyomtatás (papír)</span>
+            </button>
+            <div id="signedDocPhotos" class="photo-grid" style="margin-top:0.65rem"></div>
+            <label class="camera-btn camera-btn-secondary" style="margin-top:0.55rem">
+              <input id="signedDocInput" type="file" accept="image/*" capture="environment" />
+              <span>📷</span>
+              <span>Papír dokumentum fényképezése</span>
+            </label>
+          </div>
+
+          <ul id="installChecklist" class="req-checklist">
+            <li id="installReqPhoto">Legalább 1 szerelés fénykép</li>
+            <li id="installReqDoc">Digitális / aláírt beszerelési nyilatkozat</li>
+          </ul>
+          <div class="workflow-actions">
+            <button type="button" id="closeJobBtn" class="btn btn-primary" disabled>Szerelés lezárása</button>
+            <button type="button" id="deleteJobBtn" class="btn btn-danger hidden">Munka törlése (admin)</button>
+          </div>
+        </div>
+
+        <div id="detailStatus" class="status"></div>
+      </section>
+
+      <section id="signPanel" class="sign-overlay hidden" aria-hidden="true">
+        <div class="sign-sheet">
+          <div class="sign-sheet-top">
+            <button type="button" id="signCloseBtn" class="btn btn-ghost btn-icon" aria-label="Bezárás">←</button>
+            <div>
+              <strong>Digitális átvétel</strong>
+              <p id="signJobMeta" class="sign-meta"></p>
+            </div>
+          </div>
+          <div class="sign-scroll">
+            <h3>Beszerelési átvételi nyilatkozat</h3>
+            <p class="media-hint">Add át a telefont a vevőnek. Olvassa el, pipálja, írjon alá.</p>
+            <div id="signLiability" class="sign-liability"></div>
+            <div class="sign-checks" id="signChecks"></div>
+            <label class="sign-notes-label" for="signNotes">Észrevételek (ha nincs: „nincs”)</label>
+            <textarea id="signNotes" rows="2" placeholder="nincs"></textarea>
+            <div class="sign-pad-wrap">
+              <div class="sign-pad-head">
+                <span>Ügyfél aláírása</span>
+                <button type="button" id="signClearBtn" class="btn btn-ghost">Törlés</button>
+              </div>
+              <canvas id="installSignCanvas" class="sign-canvas" aria-label="Aláírás mező"></canvas>
+              <p class="media-hint" style="margin-top:0.4rem;text-align:center">Húzd az ujjad / tollal írj alá</p>
+            </div>
+          </div>
+          <div class="sign-actions">
+            <button type="button" id="signSaveBtn" class="btn btn-primary">Aláírás mentése a szerverre</button>
+          </div>
+          <div id="signStatus" class="status"></div>
+        </div>
+      </section>
+    </div>
+
+    <script src="https://cdn.socket.io/4.8.1/socket.io.min.js"></script>
+    <script src="divian-realtime-notify.js?v=20260717rt2"></script>
+    <script src="divian-customer-banner.js?v=20260804nav"></script>
+    <script src="divian-beszereles-dokumentum.js?v=20260722digital"></script>
+    <script src="asztalos-szereles-app.js?v=20260810felmeres"></script>
+  </body>
+</html>
