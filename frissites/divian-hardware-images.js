@@ -5,6 +5,14 @@
 (function (global) {
   "use strict";
   const MAP = {
+  "CONSOLE_DOUBLE_BLACK": "../assets/hardware/CONSOLE_DOUBLE_BLACK.svg",
+  "CONSOLE_DOUBLE_WHITE": "../assets/hardware/CONSOLE_DOUBLE_WHITE.svg",
+  "CONSOLE_L_BLACK": "../assets/hardware/CONSOLE_L_BLACK.svg",
+  "CONSOLE_L_WHITE": "../assets/hardware/CONSOLE_L_WHITE.svg",
+  "CONSOLE_SHELF_1100": "../assets/hardware/CONSOLE_SHELF_1100.svg",
+  "CONSOLE_SHELF_600": "../assets/hardware/CONSOLE_SHELF_600.svg",
+  "CONSOLE_SHELF_800": "../assets/hardware/CONSOLE_SHELF_800.svg",
+  "CONSOLE_SHELF_900": "../assets/hardware/CONSOLE_SHELF_900.svg",
   "DRAWER_ORG_ADJ_400": "../assets/hardware/DRAWER_ORG_ADJ_400.jpg",
   "DRAWER_ORG_ADJ_450": "../assets/hardware/DRAWER_ORG_ADJ_450.jpg",
   "DRAWER_ORG_ADJ_600": "../assets/hardware/DRAWER_ORG_ADJ_600.jpg",
@@ -13,6 +21,7 @@
   "DRAWER_ORG_CUT_401_450": "../assets/hardware/DRAWER_ORG_CUT_401_450.jpg",
   "DRAWER_ORG_CUT_501_600": "../assets/hardware/DRAWER_ORG_CUT_501_600.jpg",
   "DRAWER_ORG_CUT_701_800": "../assets/hardware/DRAWER_ORG_CUT_701_800.jpg",
+  "DUNAVOX_FLOW_88SS": "../assets/hardware/DUNAVOX_FLOW_88SS.svg",
   "FLEXON_45_2": "../assets/hardware/FLEXON_45_2.jpg",
   "FLEXON_60_2": "../assets/hardware/FLEXON_60_2.jpg",
   "FOLDING_STEP": "../assets/hardware/FOLDING_STEP.jpg",
@@ -33,13 +42,17 @@
   "MAGIC_GLASS": "../assets/hardware/MAGIC_GLASS.jpg",
   "MOVE": "../assets/hardware/MOVE.jpg",
   "MOVEX_PEDAL": "../assets/hardware/MOVEX_PEDAL.jpg",
+  "PULL_OUT_TRAY": "../assets/hardware/PULL_OUT_TRAY.svg",
   "SEPARATO45": "../assets/hardware/SEPARATO45.jpg",
   "SEPARATO60": "../assets/hardware/SEPARATO60.jpg",
   "SET_PAPER_HOOK": "../assets/hardware/SET_PAPER_HOOK.jpg",
   "SET_RAIL_HOOK": "../assets/hardware/SET_RAIL_HOOK.jpg",
   "SET_RAIL_PAPER": "../assets/hardware/SET_RAIL_PAPER.jpg",
   "SOLO20": "../assets/hardware/SOLO20.jpg",
-  "TANDEM1515": "../assets/hardware/TANDEM1515.jpg"
+  "TANDEM1515": "../assets/hardware/TANDEM1515.jpg",
+  "WORKTOP_LEG_BLACK": "../assets/hardware/WORKTOP_LEG_BLACK.svg",
+  "WORKTOP_LEG_CHROME": "../assets/hardware/WORKTOP_LEG_CHROME.svg",
+  "WORKTOP_LEG_WHITE": "../assets/hardware/WORKTOP_LEG_WHITE.svg"
 };
   function hardwareImageUrl(code) {
     const key = String(code || "").trim();
