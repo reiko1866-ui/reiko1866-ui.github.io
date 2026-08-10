@@ -1,0 +1,68 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 900" preserveAspectRatio="xMidYMid slice">
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#9fd0e4"/>
+      <stop offset="55%" stop-color="#cfe9d4"/>
+      <stop offset="100%" stop-color="#e7f0c9"/>
+    </linearGradient>
+    <linearGradient id="hillA" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#6fbe78"/>
+      <stop offset="100%" stop-color="#2f7a55"/>
+    </linearGradient>
+    <linearGradient id="hillB" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#88c98a"/>
+      <stop offset="100%" stop-color="#3c8b5f"/>
+    </linearGradient>
+    <radialGradient id="sun" cx="78%" cy="22%" r="18%">
+      <stop offset="0%" stop-color="#ffe29a"/>
+      <stop offset="55%" stop-color="#f0c14b"/>
+      <stop offset="100%" stop-color="#f0c14b" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <rect width="1600" height="900" fill="url(#sky)"/>
+  <circle cx="1240" cy="190" r="220" fill="url(#sun)"/>
+
+  <!-- distant trees -->
+  <g fill="#3f8f63" opacity="0.55">
+    <ellipse cx="180" cy="470" rx="70" ry="120"/>
+    <ellipse cx="280" cy="500" rx="60" ry="100"/>
+    <ellipse cx="980" cy="480" rx="80" ry="130"/>
+    <ellipse cx="1120" cy="510" rx="65" ry="110"/>
+    <ellipse cx="1460" cy="490" rx="90" ry="140"/>
+  </g>
+
+  <!-- hills -->
+  <path d="M0 560 C220 480, 420 620, 680 540 C900 470, 1100 610, 1600 520 L1600 900 L0 900 Z" fill="url(#hillB)"/>
+  <path d="M0 640 C260 560, 480 720, 760 630 C1040 540, 1260 700, 1600 620 L1600 900 L0 900 Z" fill="url(#hillA)"/>
+
+  <!-- cozy cottage -->
+  <g transform="translate(980 560)">
+    <rect x="0" y="60" width="220" height="150" rx="12" fill="#f7efe2"/>
+    <polygon points="-20,70 110,-30 240,70" fill="#d26674"/>
+    <rect x="88" y="120" width="44" height="90" rx="8" fill="#184a3c"/>
+    <rect x="28" y="110" width="42" height="42" rx="8" fill="#9fd0e4"/>
+    <rect x="152" y="110" width="42" height="42" rx="8" fill="#9fd0e4"/>
+    <circle cx="200" y="40" r="10" fill="#f0c14b"/>
+  </g>
+
+  <!-- two pals silhouettes -->
+  <g fill="#184a3c" opacity="0.85">
+    <circle cx="420" cy="690" r="28"/>
+    <rect x="395" y="720" width="50" height="90" rx="18"/>
+    <circle cx="520" cy="700" r="26"/>
+    <rect x="497" y="728" width="46" height="82" rx="16"/>
+  </g>
+
+  <!-- soft path -->
+  <path d="M250 900 C420 780, 560 820, 760 760 C980 690, 1120 780, 1400 720" fill="none" stroke="#f7efe2" stroke-width="46" stroke-linecap="round" opacity="0.55"/>
+
+  <!-- floating sparkles -->
+  <g fill="#fff8ef" opacity="0.75">
+    <circle cx="260" cy="220" r="5"/>
+    <circle cx="340" cy="160" r="3"/>
+    <circle cx="700" cy="210" r="4"/>
+    <circle cx="860" cy="140" r="3"/>
+    <circle cx="1320" cy="300" r="4"/>
+  </g>
+</svg>

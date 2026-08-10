@@ -1,1 +1,643 @@
+<!DOCTYPE html>
+<html lang="hu">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Mesélő Liget — Egyedi mese varázslat</title>
+  <meta name="description" content="Készíts egyedi magyar mesét, és hallgasd valósághű, ingyenes AI-felolvasással." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@450;600;700&family=Nunito:wght@500;700;800&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --pine: #184a3c;
+      --meadow: #5fa86a;
+      --honey: #f0c14b;
+      --sky: #9fd0e4;
+      --berry: #d26674;
+      --cream: #fff8ef;
+      --ink: #24352f;
+      --mist: rgba(255, 248, 239, 0.9);
+      --shadow: 0 18px 50px rgba(24, 74, 60, 0.18);
+      --radius: 28px;
+    }
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      color: var(--ink);
+      font-family: "Nunito", sans-serif;
+      background:
+        radial-gradient(1200px 700px at 10% -10%, rgba(159, 208, 228, 0.55), transparent 55%),
+        radial-gradient(900px 600px at 100% 0%, rgba(240, 193, 75, 0.28), transparent 50%),
+        radial-gradient(800px 500px at 50% 100%, rgba(95, 168, 106, 0.22), transparent 55%),
+        linear-gradient(180deg, #e7f4ea 0%, #f7efe2 45%, #eef7f2 100%);
+      min-height: 100vh;
+    }
+    body::before {
+      content: "";
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      opacity: 0.16;
+      background-image:
+        radial-gradient(circle at 20% 30%, #5fa86a 0 2px, transparent 3px),
+        radial-gradient(circle at 70% 60%, #d26674 0 1.5px, transparent 2.5px),
+        radial-gradient(circle at 40% 80%, #f0c14b 0 1.5px, transparent 2.5px);
+      background-size: 140px 140px, 180px 180px, 160px 160px;
+      z-index: 0;
+    }
+    .leaf {
+      position: fixed; top: -40px; width: 18px; height: 18px;
+      border-radius: 2px 70% 2px 70%; opacity: 0.35; z-index: 1;
+      pointer-events: none; animation: fall linear infinite;
+    }
+    .leaf:nth-child(1) { left: 8%; animation-duration: 14s; background: #7cbc7a; }
+    .leaf:nth-child(2) { left: 28%; animation-duration: 18s; animation-delay: -4s; background: #e0a84a; }
+    .leaf:nth-child(3) { left: 55%; animation-duration: 16s; animation-delay: -8s; background: #d26674; }
+    .leaf:nth-child(4) { left: 78%; animation-duration: 20s; animation-delay: -2s; background: #6bb3c9; }
+    .leaf:nth-child(5) { left: 90%; animation-duration: 15s; animation-delay: -6s; background: #8dcf88; }
+    @keyframes fall {
+      0% { transform: translateY(0) rotate(0deg); opacity: 0; }
+      10% { opacity: 0.4; }
+      100% { transform: translateY(110vh) rotate(260deg); opacity: 0; }
+    }
+    .wrap {
+      position: relative; z-index: 2;
+      width: min(980px, calc(100% - 2rem));
+      margin: 0 auto; padding: 1.25rem 0 4rem;
+    }
+    .topbar {
+      display: flex; align-items: center; justify-content: space-between;
+      gap: 1rem; margin-bottom: 1.25rem;
+    }
+    .brand {
+      font-family: "Fredoka", sans-serif; font-weight: 700;
+      font-size: clamp(1.55rem, 4vw, 2.1rem); color: var(--pine);
+    }
+    .pill {
+      border: 0; border-radius: 999px; padding: 0.65rem 1rem;
+      font: inherit; font-weight: 800; cursor: pointer;
+      background: var(--pine); color: #fff; box-shadow: var(--shadow);
+    }
+    .pill[aria-pressed="true"] { background: var(--meadow); }
+    .hero {
+      min-height: min(72vh, 640px);
+      border-radius: calc(var(--radius) + 8px);
+      overflow: hidden; isolation: isolate;
+      box-shadow: var(--shadow);
+      display: grid; align-content: end;
+      padding: clamp(1.4rem, 4vw, 2.6rem);
+      color: #fff;
+      background:
+        linear-gradient(180deg, rgba(24, 74, 60, 0.12) 0%, rgba(24, 74, 60, 0.72) 66%, rgba(24, 74, 60, 0.92) 100%),
+        url("assets/mese-hero.svg") center / cover no-repeat,
+        linear-gradient(135deg, #6bb3c9, #5fa86a 45%, #e0a84a);
+    }
+    .hero-brand {
+      font-family: "Fredoka", sans-serif;
+      font-size: clamp(2.5rem, 9vw, 4.6rem);
+      font-weight: 700; line-height: 0.95; margin: 0 0 0.55rem;
+      text-shadow: 0 8px 28px rgba(0, 0, 0, 0.28);
+      animation: riseIn 0.9s ease both;
+    }
+    .hero p {
+      max-width: 36rem; margin: 0 0 1.2rem;
+      font-size: clamp(1.05rem, 2.4vw, 1.22rem); line-height: 1.45;
+      color: rgba(255, 255, 255, 0.95);
+      animation: riseIn 1s ease both 0.1s;
+    }
+    .cta-row {
+      display: flex; flex-wrap: wrap; gap: 0.7rem;
+      animation: riseIn 1.05s ease both 0.2s;
+    }
+    .btn {
+      border: 0; border-radius: 999px; padding: 0.85rem 1.25rem;
+      font: inherit; font-weight: 800; cursor: pointer;
+      transition: transform 0.18s ease;
+      text-decoration: none; display: inline-flex; align-items: center; justify-content: center;
+    }
+    .btn:hover { transform: translateY(-2px); }
+    .btn:disabled { opacity: 0.55; cursor: wait; transform: none; }
+    .btn-primary { background: var(--honey); color: var(--pine); }
+    .btn-secondary {
+      background: rgba(255, 255, 255, 0.18); color: #fff;
+      border: 1px solid rgba(255, 255, 255, 0.35); backdrop-filter: blur(6px);
+    }
+    .btn-ghost {
+      background: #e7f3ea; color: var(--pine);
+    }
+    @keyframes riseIn {
+      from { opacity: 0; transform: translateY(18px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    section { margin-top: 2rem; }
+    .section-title {
+      font-family: "Fredoka", sans-serif;
+      font-size: clamp(1.55rem, 4vw, 2rem);
+      color: var(--pine); margin: 0 0 0.35rem;
+    }
+    .section-lead { margin: 0 0 1.1rem; color: #456257; max-width: 42rem; line-height: 1.5; }
+    .shell {
+      background: var(--mist);
+      border: 1px solid rgba(24, 74, 60, 0.08);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      padding: clamp(1rem, 3vw, 1.6rem);
+      backdrop-filter: blur(8px);
+    }
+    .group { margin-bottom: 1.25rem; }
+    .group h3 {
+      font-family: "Fredoka", sans-serif; font-size: 1.15rem;
+      margin: 0 0 0.55rem; color: var(--pine);
+    }
+    .chips {
+      display: flex; flex-wrap: wrap; gap: 0.55rem;
+    }
+    .chip {
+      border: 2px solid transparent;
+      border-radius: 999px;
+      padding: 0.62rem 0.95rem;
+      font: inherit; font-weight: 800;
+      background: #eef7f1; color: var(--pine);
+      cursor: pointer; transition: transform 0.15s ease, border-color 0.15s ease, background 0.15s ease;
+    }
+    .chip:hover { transform: translateY(-1px); }
+    .chip.is-selected {
+      background: var(--pine); color: #fff;
+      border-color: var(--honey);
+      box-shadow: 0 8px 18px rgba(24, 74, 60, 0.18);
+    }
+    .actions {
+      display: flex; flex-wrap: wrap; gap: 0.7rem; margin-top: 0.4rem;
+    }
+    .status {
+      min-height: 1.4rem; margin: 0.85rem 0 0;
+      color: #3f6a58; font-weight: 700;
+    }
+    .status[data-tone="err"] { color: #9b3b48; }
+    .story-box {
+      margin-top: 1.1rem;
+      white-space: pre-wrap;
+      line-height: 1.7;
+      font-size: 1.12rem;
+      background: rgba(255, 255, 255, 0.72);
+      border-radius: 20px;
+      padding: 1rem 1.1rem;
+      border: 1px solid rgba(24, 74, 60, 0.08);
+      min-height: 8rem;
+    }
+    .story-box:empty::before {
+      content: "Itt jelenik meg a te egyedi meséd…";
+      color: #7a9187;
+    }
+    audio.player {
+      width: 100%;
+      margin-top: 0.9rem;
+      border-radius: 999px;
+    }
+    .note { margin-top: 0.8rem; color: #5a7168; font-size: 0.95rem; line-height: 1.45; }
+    .spark {
+      display: inline-block;
+      animation: spark 1.2s ease-in-out infinite;
+    }
+    @keyframes spark {
+      0%, 100% { transform: scale(1); opacity: 0.7; }
+      50% { transform: scale(1.15); opacity: 1; }
+    }
+    @media (max-width: 640px) {
+      .topbar { align-items: flex-start; }
+      .btn, .pill { width: 100%; }
+    }
+  </style>
+</head>
+<body>
+  <div class="leaf" aria-hidden="true"></div>
+  <div class="leaf" aria-hidden="true"></div>
+  <div class="leaf" aria-hidden="true"></div>
+  <div class="leaf" aria-hidden="true"></div>
+  <div class="leaf" aria-hidden="true"></div>
 
+  <div class="wrap">
+    <header class="topbar">
+      <div class="brand">Mesélő Liget</div>
+      <button type="button" class="pill" id="ambientToggle" aria-pressed="false">Lágy zene: ki</button>
+    </header>
+
+    <section class="hero" aria-label="Egyedi mese">
+      <h1 class="hero-brand">Mesélő Liget</h1>
+      <p>Most te alkotsz — minden mese más. Válassz hősöket, helyet, hangulatot, és a liget megírja a tiédét. Felolvasás: valósághű, ingyenes AI-hang (Microsoft Edge · Noémi).</p>
+      <div class="cta-row">
+        <a class="btn btn-primary" href="#keszito">Alkoss egyedi mesét</a>
+        <button type="button" class="btn btn-secondary" id="surpriseBtn">Meglepetés-mese</button>
+      </div>
+    </section>
+
+    <section id="keszito" aria-labelledby="keszito-title">
+      <h2 class="section-title" id="keszito-title">Egyedi mese varázslat</h2>
+      <p class="section-lead">
+        Nincs kész forgatókönyv. Te kevered a hozzávalókat — belőlük születik egy új, gyerekbarát történet, majd folyékony neural hang olvassa fel.
+      </p>
+
+      <div class="shell">
+        <div class="group" data-group="hero">
+          <h3>1. Ki a hős?</h3>
+          <div class="chips" id="heroChips"></div>
+        </div>
+        <div class="group" data-group="place">
+          <h3>2. Hol játszódik?</h3>
+          <div class="chips" id="placeChips"></div>
+        </div>
+        <div class="group" data-group="friend">
+          <h3>3. Ki segít?</h3>
+          <div class="chips" id="friendChips"></div>
+        </div>
+        <div class="group" data-group="magic">
+          <h3>4. Milyen varázstárgy?</h3>
+          <div class="chips" id="magicChips"></div>
+        </div>
+        <div class="group" data-group="mood">
+          <h3>5. Milyen a hangulat?</h3>
+          <div class="chips" id="moodChips"></div>
+        </div>
+
+        <div class="actions">
+          <button type="button" class="btn btn-primary" id="craftBtn">Készítsd el a mesét <span class="spark">✨</span></button>
+          <button type="button" class="btn btn-ghost" id="readBtn" disabled>AI felolvasás (Noémi)</button>
+          <button type="button" class="btn btn-ghost" id="stopBtn">Csönd</button>
+        </div>
+        <p class="status" id="status" aria-live="polite"></p>
+        <div class="story-box" id="storyBox" aria-live="polite"></div>
+        <audio class="player" id="player" controls preload="none"></audio>
+        <p class="note">
+          Felolvasó: ingyenes Microsoft Edge neural hang — <strong>hu-HU-NoemiNeural</strong>
+          (Hugging Face Space: innoai/Edge-TTS). Ha a Space alszik, elsőre pár másodperc kell a felébresztéshez.
+          Tartalék: böngésző-hang, ha a hálózat nem engedi.
+        </p>
+      </div>
+    </section>
+  </div>
+
+  <script type="module">
+    import { Client } from "https://cdn.jsdelivr.net/npm/@gradio/client/+esm";
+
+    const CHOICES = {
+      hero: [
+        { id: "lili", label: "Lili róka", name: "Lili, a kíváncsi róka" },
+        { id: "misi", label: "Misi medve", name: "Misi, a puha mancsú medve" },
+        { id: "nati", label: "Nati nyúl", name: "Nati, a gyors nyúl" },
+        { id: "beni", label: "Béni bagoly", name: "Béni, a bölcs bagoly" },
+        { id: "sari", label: "Sári sün", name: "Sári, a nevetős sün" },
+        { id: "cili", label: "Cili cica", name: "Cili, a lágy mancsú cica" }
+      ],
+      place: [
+        { id: "liget", label: "Mézes liget", name: "a Mézes Ligetben" },
+        { id: "hegy", label: "Csillaghegy", name: "a Csillaghegyen" },
+        { id: "foly", label: "Folyópart", name: "a csillogó folyóparton" },
+        { id: "felho", label: "Felhővár", name: "a puha Felhővárban" },
+        { id: "ret", label: "Őszirózsás rét", name: "az őszirózsás réten" }
+      ],
+      friend: [
+        { id: "mano", label: "Kis manó", name: "Tücsök, a kedves manó" },
+        { id: "level", label: "Beszélő levél", name: "Liliom, a beszélő levél" },
+        { id: "bogar", label: "Aranybogár", name: "Csillag, az aranybogár" },
+        { id: "lampas", label: "Meleg lámpás", name: "Bóbita, a meleg fényű lámpás" },
+        { id: "szel", label: "Nevető szél", name: "Fuvallat, a nevető szél" }
+      ],
+      magic: [
+        { id: "kulcs", label: "Fényes kulcs", name: "egy fényes, csengő kulcs" },
+        { id: "ko", label: "Nevető kő", name: "egy kerek, nevető kő" },
+        { id: "terkep", label: "Holdtérkép", name: "egy puhán világító holdtérkép" },
+        { id: "dob", label: "Lágy dob", name: "egy lágy hangú kis dob" },
+        { id: "szalag", label: "Szivárványszalag", name: "egy könnyű szivárványszalag" }
+      ],
+      mood: [
+        { id: "vidam", label: "Vidám", tone: "vidám nevetéssel" },
+        { id: "bator", label: "Bátor", tone: "bátor, de óvatos léptekkel" },
+        { id: "csendes", label: "Csöndes", tone: "csöndes, álomszerű nyugalommal" },
+        { id: "kivancsi", label: "Kíváncsi", tone: "csillogó kíváncsisággal" },
+        { id: "meleg", label: "Barátságos", tone: "meleg, barátságos szívvel" }
+      ]
+    };
+
+    const OPENERS = [
+      "Egyszer volt, hol nem volt,",
+      "A liget egyik lágy reggelén",
+      "Amikor a nap még csak kacsintott a fák között,",
+      "Egy apró csengőhang után"
+    ];
+    const QUESTS = [
+      "elveszett egy kis ének a levegőben, és mindenki nagyon vágyott rá vissza",
+      "egy születésnapi meglepetést kellett időben eljuttatni a domb másik oldalára",
+      "egy új hidat kellett megtalálni, hogy a barátok újra átölelhessék egymást",
+      "egy eltévedt csillagfény keresett otthont a fűszálak között",
+      "egy félénk mosoly bújt el, és vissza kellett hívni a játékba"
+    ];
+    const TWISTS = [
+      "először rossz irányba indultak, de nevetve fordultak vissza",
+      "egy pocsolya tükrözte nekik a helyes utat",
+      "egy madár háromszor kacsintott, és az volt a jel",
+      "a varázstárgy egyszer csak lágyan felmelegedett a tenyerükben",
+      "egy régi dalocska jutott eszükbe, és attól megtalálták a ritmust"
+    ];
+    const ENDINGS = [
+      "Hazafelé még sokáig hallatszott a nevetésük, mint apró harang a levelek között.",
+      "Azóta is azt mesélik: a legszebb kincs az, amit együtt találunk meg.",
+      "És ha nagyon csendben figyelsz, ma is hallod a liget lágy tapsát.",
+      "Úgy aludtak el, hogy a szívük tele volt új, meleg történettel."
+    ];
+
+    const selected = {
+      hero: CHOICES.hero[0].id,
+      place: CHOICES.place[0].id,
+      friend: CHOICES.friend[0].id,
+      magic: CHOICES.magic[0].id,
+      mood: CHOICES.mood[0].id
+    };
+
+    const storyBox = document.getElementById("storyBox");
+    const statusEl = document.getElementById("status");
+    const craftBtn = document.getElementById("craftBtn");
+    const readBtn = document.getElementById("readBtn");
+    const stopBtn = document.getElementById("stopBtn");
+    const player = document.getElementById("player");
+    const ambientToggle = document.getElementById("ambientToggle");
+    const surpriseBtn = document.getElementById("surpriseBtn");
+
+    let currentStory = "";
+    let objectUrls = [];
+    let audioClient = null;
+    let speakingFallback = false;
+    let ambientOn = false;
+
+    const sounds = {
+      start: new Audio("assets/sounds/chime-start.wav"),
+      page: new Audio("assets/sounds/page-soft.wav"),
+      end: new Audio("assets/sounds/ending-joy.wav"),
+      tap: new Audio("assets/sounds/tap-soft.wav"),
+      motif: new Audio("assets/sounds/soft-motif.wav")
+    };
+    Object.values(sounds).forEach((a) => { a.preload = "auto"; a.volume = 0.4; });
+    sounds.motif.loop = true;
+    sounds.motif.volume = 0.16;
+
+    function playSound(key) {
+      const a = sounds[key];
+      if (!a) return;
+      try { a.currentTime = 0; a.play().catch(() => {}); } catch (_) {}
+    }
+
+    function setStatus(msg, tone) {
+      statusEl.textContent = msg || "";
+      statusEl.dataset.tone = tone || "";
+    }
+
+    function pick(arr, rnd) {
+      return arr[Math.floor(rnd() * arr.length)];
+    }
+
+    function mulberry32(seed) {
+      let t = seed >>> 0;
+      return function () {
+        t += 0x6D2B79F5;
+        let r = Math.imul(t ^ (t >>> 15), 1 | t);
+        r ^= r + Math.imul(r ^ (r >>> 7), 61 | r);
+        return ((r ^ (r >>> 14)) >>> 0) / 4294967296;
+      };
+    }
+
+    function byId(group, id) {
+      return CHOICES[group].find((x) => x.id === id) || CHOICES[group][0];
+    }
+
+    function renderChips() {
+      for (const group of Object.keys(CHOICES)) {
+        const root = document.getElementById(group + "Chips");
+        root.innerHTML = "";
+        for (const item of CHOICES[group]) {
+          const btn = document.createElement("button");
+          btn.type = "button";
+          btn.className = "chip" + (selected[group] === item.id ? " is-selected" : "");
+          btn.textContent = item.label;
+          btn.addEventListener("click", () => {
+            selected[group] = item.id;
+            playSound("tap");
+            renderChips();
+          });
+          root.appendChild(btn);
+        }
+      }
+    }
+
+    function craftStory(seed = Date.now()) {
+      const rnd = mulberry32(seed);
+      const hero = byId("hero", selected.hero);
+      const place = byId("place", selected.place);
+      const friend = byId("friend", selected.friend);
+      const magic = byId("magic", selected.magic);
+      const mood = byId("mood", selected.mood);
+      const opener = pick(OPENERS, rnd);
+      const quest = pick(QUESTS, rnd);
+      const twist = pick(TWISTS, rnd);
+      const ending = pick(ENDINGS, rnd);
+      const titleBit = pick([
+        "A nevető ösvény",
+        "A lágy fényű este",
+        "A három kacsintás",
+        "A megtalált hang",
+        "A meleg kulcs titka"
+      ], rnd);
+
+      const p1 = `${opener} élt ${place.name} ${hero.name}. Aznap ${mood.tone} indult útnak, mert ${quest}.`;
+      const p2 = `Nemsokára csatlakozott hozzá ${friend.name}. Ketten együtt találtak ${magic.name}-et, ami lágyan rezgett, mintha szíve volna.`;
+      const p3 = `Az út közepén ${twist}. ${hero.name.split(",")[0]} mélyet lélegzett, ${friend.name.split(",")[0]} pedig bátorítóan súgott: „Együtt megy.”`;
+      const p4 = `Végül a varázstárgy megmutatta a helyes irányt. Megtalálták, amit kerestek — nem kiabálással, hanem figyelemmel és kedvességgel.`;
+      const p5 = `${ending} És ez volt a mai mese címe: ${titleBit}.`;
+
+      return [p1, p2, p3, p4, p5].join("\n\n");
+    }
+
+    function surpriseSelect() {
+      for (const group of Object.keys(CHOICES)) {
+        const list = CHOICES[group];
+        selected[group] = list[Math.floor(Math.random() * list.length)].id;
+      }
+      renderChips();
+    }
+
+    function revokeUrls() {
+      objectUrls.forEach((u) => URL.revokeObjectURL(u));
+      objectUrls = [];
+    }
+
+    function stopAll() {
+      try { player.pause(); } catch (_) {}
+      player.removeAttribute("src");
+      player.load();
+      revokeUrls();
+      if (window.speechSynthesis) speechSynthesis.cancel();
+      speakingFallback = false;
+    }
+
+    function chunkText(text, maxLen = 420) {
+      const parts = text.split(/\n+/).map((s) => s.trim()).filter(Boolean);
+      const chunks = [];
+      let buf = "";
+      for (const part of parts) {
+        if ((buf + " " + part).trim().length <= maxLen) {
+          buf = (buf + " " + part).trim();
+        } else {
+          if (buf) chunks.push(buf);
+          if (part.length <= maxLen) buf = part;
+          else {
+            // hard split long paragraph
+            for (let i = 0; i < part.length; i += maxLen) chunks.push(part.slice(i, i + maxLen));
+            buf = "";
+          }
+        }
+      }
+      if (buf) chunks.push(buf);
+      return chunks;
+    }
+
+    async function getTtsClient() {
+      if (audioClient) return audioClient;
+      setStatus("A mesemondó hang felébred… (ingyenes Edge TTS)");
+      audioClient = await Client.connect("innoai/Edge-TTS-Text-to-Speech");
+      return audioClient;
+    }
+
+    function extractAudioUrl(payload) {
+      if (!payload) return null;
+      if (typeof payload === "string") return payload;
+      if (payload.url) return payload.url;
+      if (payload.path && /^https?:/i.test(payload.path)) return payload.path;
+      if (payload.data && typeof payload.data === "string" && payload.data.startsWith("data:")) return payload.data;
+      if (Array.isArray(payload) && payload[0]) return extractAudioUrl(payload[0]);
+      return null;
+    }
+
+    async function synthesizeEdge(text) {
+      const client = await getTtsClient();
+      const chunks = chunkText(text);
+      const urls = [];
+      for (let i = 0; i < chunks.length; i++) {
+        setStatus(`AI felolvasás készül… (${i + 1}/${chunks.length}) · Noémi hang`);
+        const result = await client.predict("/tts_interface", {
+          text: chunks[i],
+          voice: "hu-HU-NoemiNeural - hu-HU (Female)",
+          rate: -6,
+          pitch: 3
+        });
+        const data = result?.data ?? result;
+        const audioItem = Array.isArray(data) ? data[0] : data;
+        let url = extractAudioUrl(audioItem);
+        if (!url && audioItem instanceof Blob) {
+          url = URL.createObjectURL(audioItem);
+          objectUrls.push(url);
+        }
+        if (!url) throw new Error("Nem kaptunk hangfájlt a Space-től.");
+        // If HF returns a relative path object with path + url
+        if (typeof audioItem === "object" && audioItem.url) url = audioItem.url;
+        urls.push(url);
+      }
+      return urls;
+    }
+
+    async function playUrlSequence(urls) {
+      for (const url of urls) {
+        await new Promise((resolve, reject) => {
+          const onEnded = () => { cleanup(); resolve(); };
+          const onError = () => { cleanup(); reject(new Error("Lejátszási hiba")); };
+          const cleanup = () => {
+            player.removeEventListener("ended", onEnded);
+            player.removeEventListener("error", onError);
+          };
+          player.addEventListener("ended", onEnded);
+          player.addEventListener("error", onError);
+          player.src = url;
+          player.play().catch(onError);
+        });
+      }
+    }
+
+    function fallbackSpeak(text) {
+      if (!window.speechSynthesis) throw new Error("Nincs böngésző-felolvasás.");
+      speakingFallback = true;
+      const utter = new SpeechSynthesisUtterance(text);
+      const voices = speechSynthesis.getVoices();
+      const hu = voices.find((v) => /hu/i.test(v.lang)) || null;
+      if (hu) utter.voice = hu;
+      utter.lang = "hu-HU";
+      utter.rate = 0.9;
+      utter.pitch = 1.15;
+      setStatus("Tartalék böngésző-hang megy (kevésbé valósághű).");
+      speechSynthesis.speak(utter);
+    }
+
+    async function readStory() {
+      if (!currentStory) {
+        setStatus("Először készíts egy mesét.", "err");
+        return;
+      }
+      stopAll();
+      readBtn.disabled = true;
+      craftBtn.disabled = true;
+      try {
+        playSound("start");
+        const urls = await synthesizeEdge(currentStory);
+        setStatus("Felolvasás: Noémi (valósághű Edge TTS) ▶");
+        playSound("page");
+        await playUrlSequence(urls);
+        playSound("end");
+        setStatus("Kész. Új mesét is alkothatsz bármikor.");
+      } catch (err) {
+        console.warn(err);
+        try {
+          fallbackSpeak(currentStory);
+        } catch (e2) {
+          setStatus("Most nem sikerült a felolvasás. Próbáld újra egy perc múlva.", "err");
+        }
+      } finally {
+        readBtn.disabled = !currentStory;
+        craftBtn.disabled = false;
+      }
+    }
+
+    function makeStory({ surprise = false } = {}) {
+      stopAll();
+      if (surprise) surpriseSelect();
+      playSound("start");
+      currentStory = craftStory(Date.now() ^ (Math.random() * 1e9));
+      storyBox.textContent = currentStory;
+      readBtn.disabled = false;
+      setStatus("Új, egyedi mese kész. Nyomd meg: AI felolvasás (Noémi).");
+      document.getElementById("keszito").scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+
+    ambientToggle.addEventListener("click", () => {
+      ambientOn = !ambientOn;
+      ambientToggle.setAttribute("aria-pressed", ambientOn ? "true" : "false");
+      ambientToggle.textContent = ambientOn ? "Lágy zene: be" : "Lágy zene: ki";
+      playSound("tap");
+      if (ambientOn) {
+        sounds.motif.currentTime = 0;
+        sounds.motif.play().catch(() => {});
+      } else {
+        sounds.motif.pause();
+      }
+    });
+
+    craftBtn.addEventListener("click", () => makeStory());
+    surpriseBtn.addEventListener("click", () => makeStory({ surprise: true }));
+    readBtn.addEventListener("click", () => { readStory(); });
+    stopBtn.addEventListener("click", () => {
+      stopAll();
+      playSound("tap");
+      setStatus("Csönd.");
+    });
+
+    renderChips();
+  </script>
+</body>
+</html>
