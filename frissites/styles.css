@@ -704,14 +704,167 @@ details > summary {
   background: rgba(255, 255, 255, 0.65);
 }
 
+/* Nagyker · Levél oldalsó fiók — összezárva ne foglaljon helyet */
+.order-export-drawer {
+  position: relative;
+  z-index: 30;
+  margin: 0.75rem auto 0;
+  width: min(1120px, calc(100% - 2rem));
+}
+
+.order-export-drawer-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.55rem 0.9rem;
+  border-radius: 999px;
+  border: 1px solid var(--divian-burgundy-line);
+  background: #fff;
+  color: var(--divian-burgundy-deep);
+  font-family: var(--font);
+  font-weight: 800;
+  font-size: 0.86rem;
+  cursor: pointer;
+  box-shadow: var(--shadow-sm);
+}
+
+.order-export-drawer-panel {
+  margin-top: 0.65rem;
+  padding: 1rem 1.05rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--card-gradient);
+  box-shadow: var(--shadow-sm);
+}
+
+.order-export-drawer.is-collapsed .order-export-drawer-panel {
+  display: none;
+}
+
+.order-export-drawer-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.65rem;
+}
+
+.order-export-title {
+  margin: 0;
+  font-size: 1.05rem;
+  color: var(--divian-burgundy-deep);
+}
+
+.order-export-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+
+.site-header .logo {
+  color: var(--divian-mustard);
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-decoration: none;
+  font-size: 1.05rem;
+}
+
+.site-header .nav-wrap,
+.site-header .top-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.55rem 0.75rem;
+}
+
+.quote-wizard-header {
+  margin-bottom: 0.85rem;
+}
+
+.quote-wizard-heading {
+  margin: 0 0 0.55rem;
+  font-size: 1.25rem;
+  color: var(--divian-ink);
+}
+
+.quote-wizard-step-indicator {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.quote-wizard-step-dot span {
+  margin-right: 0.2rem;
+}
+
 @media (max-width: 720px) {
   .container {
     width: min(100% - 1.1rem, 1120px);
   }
 
   .site-header .container,
-  .site-header-inner {
-    align-items: flex-start;
+  .site-header-inner,
+  .site-header .nav-wrap,
+  .site-header .top-actions {
+    align-items: stretch;
+  }
+
+  .site-header .top-actions {
+    width: 100%;
+  }
+
+  .site-header .top-actions select,
+  .site-header .top-actions .btn {
+    flex: 1 1 auto;
+  }
+
+  /* Telefon: ne legyen hosszú magyarázat / iroda-szöveg */
+  .order-export-hint,
+  .pages-cloud-banner,
+  #activeStoreBadge,
+  .wizard-step-lead,
+  .empty-text.wizard-step-lead,
+  .kiadvany-extras-info,
+  .extras-kiadvany-lead,
+  .halado-actions-hint,
+  .order-export-nagyker-hint {
+    display: none !important;
+  }
+
+  .order-export-drawer {
+    width: min(100% - 1.1rem, 1120px);
+    margin-top: 0.55rem;
+  }
+
+  .order-export-drawer-panel {
+    padding: 0.75rem 0.8rem;
+  }
+
+  .order-export-actions .btn {
+    flex: 1 1 calc(50% - 0.45rem);
+    min-width: 8.5rem;
+    font-size: 0.82rem;
+    padding: 0.55rem 0.45rem;
+  }
+
+  .quote-wizard-heading {
+    font-size: 1.1rem;
+  }
+
+  /* Lépésjelző: csak számok, kevesebb szöveg */
+  .quote-wizard-step-dot {
+    font-size: 0;
+    width: 2.1rem;
+    height: 2.1rem;
+    padding: 0;
+  }
+
+  .quote-wizard-step-dot span {
+    font-size: 0.8rem;
+    margin: 0;
   }
 
   .setup-grid,
@@ -733,11 +886,18 @@ details > summary {
     height: 72px;
   }
 
+  .product-visual-grid {
+    max-height: min(46vh, 420px);
+  }
+
   .item-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  /* Telefonon is ugyanaz a világos Divian felület, mint asztalon */
+  .quote-advanced-summary-sub {
+    display: none;
+  }
+
   body.quote-app {
     background:
       radial-gradient(900px 420px at 8% -10%, rgba(128, 0, 64, 0.1), transparent 55%),
