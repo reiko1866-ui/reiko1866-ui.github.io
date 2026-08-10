@@ -1,2 +1,1 @@
-# Asztalos felhő — fix nyilvános URL (Fly.io deploy után)
-# Példa: https://divian-asztalos.fly.dev
+https://divian-asztalos.fly.dev
