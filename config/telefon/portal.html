@@ -1,63 +1,8 @@
 <!DOCTYPE html>
-<html lang="hu">
-<head>
-<meta charset="utf-8"/>
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
-<meta name="mobile-web-app-capable" content="yes"/>
-<meta name="apple-mobile-web-app-capable" content="yes"/>
-<title>Divian — telefon</title>
-<style>
-:root{--bg:#10161c;--card:#1a222c;--line:#2c3a48;--text:#e8eef4;--muted:#9aa8b5;--accent:#3ecf8e;--link:#7eb6ff}
-*{box-sizing:border-box}body{margin:0;min-height:100vh;font-family:"Segoe UI",system-ui,sans-serif;background:radial-gradient(900px 480px at 80% -20%,#1d3328,var(--bg));color:var(--text)}
-main{max-width:28rem;margin:0 auto;padding:1.25rem 1rem 2.5rem}
-h1{font-size:1.45rem;margin:0 0 .35rem;letter-spacing:-.02em}
-.sub{color:var(--muted);margin:0 0 1rem;line-height:1.45;font-size:.95rem}
-.badge{display:inline-block;margin:0 0 1rem;padding:.35rem .65rem;border-radius:999px;background:rgba(62,207,142,.14);color:var(--accent);font-size:.78rem;font-weight:700;letter-spacing:.04em;text-transform:uppercase}
-.card{display:block;margin:0 0 .75rem;padding:1rem 1.05rem;border:1px solid var(--line);border-radius:16px;background:var(--card);color:inherit;text-decoration:none}
-.card strong{display:block;font-size:1.05rem;margin-bottom:.2rem}
-.card span{display:block;color:var(--muted);font-size:.9rem;line-height:1.4}
-.card code{display:block;margin-top:.45rem;font-size:.72rem;word-break:break-all;color:var(--link)}
-.hint{color:var(--muted);font-size:.88rem;line-height:1.5;margin:1.25rem 0 0}
-.hint code{color:#b8d4f0;word-break:break-all}
-</style>
-</head>
-<body>
-<main>
-  <h1>Divian — telefon</h1>
-  <p class="sub">Váci úti szerver · zárolások feloldva ezen a hubon</p>
-  <div class="badge">Váci hub</div>
-  <div id="links"></div>
-  <p class="hint" id="hint">A linkek az aktuális tunnel URL-ből épülnek. Ha nem nyílnak: a Váci gépen fusson az <strong>INDITAS.bat</strong>.</p>
-</main>
-<script>
-(function () {
-  var FALLBACK = "https://divian-asztalos.fly.dev";
-  function trimSlash(u) { return String(u || "").trim().replace(/\/+$/, ""); }
-  function qs(name) {
-    try { return new URLSearchParams(location.search).get(name) || ""; } catch (_e) { return ""; }
-  }
-  var base = trimSlash(qs("base") || qs("url") || FALLBACK);
-  var items = [
-    { href: "/arajanlat.html", title: "Árajánlat", desc: "Ajánlatkészítő · szállítólevél feloldva" },
-    { href: "/szallitas/", title: "Szállítás", desc: "Futár / tételek" },
-    { href: "/szallitas/vezerlopult.html", title: "Szállítás vezérlőpult", desc: "Irodai élő nézet" },
-    { href: "/asztalos-szereles.html", title: "Asztalos szerelés", desc: "Helyszíni app" },
-    { href: "/admin-center.html", title: "Admin központ", desc: "Munkaszervezés" },
-    { href: "/dashboard.html", title: "Parancspult", desc: "Áttekintés" }
-  ];
-  var root = document.getElementById("links");
-  items.forEach(function (it) {
-    var a = document.createElement("a");
-    a.className = "card";
-    a.target = "_blank";
-    a.rel = "noopener";
-    a.href = base + it.href;
-    a.innerHTML = "<strong>" + it.title + "</strong><span>" + it.desc + "</span><code>" + base + it.href + "</code>";
-    root.appendChild(a);
-  });
-  document.getElementById("hint").innerHTML =
-    "Szerver: <code>" + base + "</code><br/>Ha elromlik a trycloudflare link, indítsd újra az INDITAS.bat-ot a Váci gépen, majd frissítsd ezt az oldalt az új URL-lel (<code>?base=https://…</code>).";
-})();
-</script>
-</body>
-</html>
+<html lang="hu"><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width, initial-scale=1"/>
+<meta http-equiv="refresh" content="0;url=../../telefon/"/>
+<title>Divian telefon</title></head>
+<body style="font-family:sans-serif;background:#10161c;color:#e8eef4;padding:2rem">
+<p>Átirányítás a telefonos menüre…</p>
+<p><a style="color:#7eb6ff" href="../../telefon/">Megnyitás</a></p>
+</body></html>

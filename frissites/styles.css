@@ -1,0 +1,435 @@
+/* Divian árajánlat — Pages / felhő alap stílus (divian-brand.css változókkal) */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body.quote-app {
+  margin: 0;
+  min-height: 100vh;
+  font-family: var(--font);
+  color: var(--text);
+  background:
+    radial-gradient(1200px 520px at 8% -10%, rgba(128, 0, 64, 0.08), transparent 55%),
+    radial-gradient(900px 480px at 100% 0%, rgba(243, 191, 53, 0.1), transparent 50%),
+    var(--bg);
+}
+
+.container {
+  width: min(1120px, calc(100% - 2rem));
+  margin: 0 auto;
+}
+
+/* Auth */
+.auth-gate {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 1.5rem;
+}
+
+.auth-card {
+  width: min(26rem, 100%);
+  padding: 1.5rem 1.35rem 1.35rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-xl);
+  background: var(--card-gradient);
+  box-shadow: var(--shadow-md);
+}
+
+.auth-card h1,
+.auth-card h2 {
+  margin: 0 0 0.35rem;
+  font-size: 1.35rem;
+  letter-spacing: -0.02em;
+  color: var(--divian-ink);
+}
+
+.auth-card p,
+.auth-hint,
+.empty-text {
+  color: var(--muted);
+  line-height: 1.45;
+  font-size: 0.92rem;
+}
+
+.auth-card label {
+  display: grid;
+  gap: 0.35rem;
+  margin: 0.75rem 0;
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: var(--divian-slate);
+}
+
+.auth-card input {
+  padding: 0.7rem 0.8rem;
+  font-size: 1rem;
+  background: #fff;
+}
+
+.auth-account-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5rem;
+  align-items: center;
+  padding: 0.45rem 0;
+  border-bottom: 1px solid var(--line);
+  font-size: 0.82rem;
+}
+
+/* Header */
+.site-header {
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  background: var(--header-gradient);
+  color: #f4f1ea;
+  border-bottom: 3px solid var(--divian-mustard);
+  box-shadow: var(--shadow-sm);
+}
+
+.site-header .container,
+.site-header-inner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem 1rem;
+  padding: 0.85rem 0;
+}
+
+.site-header h1,
+.brand-title {
+  margin: 0;
+  font-size: 1.15rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+
+.site-header select,
+.site-header input {
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+  border-color: rgba(255, 255, 255, 0.22);
+}
+
+.site-header option {
+  color: #111;
+}
+
+/* Main */
+.quote-page {
+  padding: 1.1rem 0 3rem;
+}
+
+.quote-wizard-root,
+.compact-form-box,
+.worktop-box,
+.setup-grid,
+.quote-wizard-panel {
+  background: var(--card-gradient);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+}
+
+.quote-wizard-root,
+.quote-wizard-panel,
+.compact-form-box,
+.worktop-box {
+  padding: 1rem 1.05rem;
+  margin: 0 0 1rem;
+}
+
+.wizard-step-title {
+  margin: 0 0 0.35rem;
+  font-size: 1.12rem;
+  color: var(--divian-burgundy-deep);
+}
+
+.wizard-step-lead,
+.order-export-hint {
+  margin: 0 0 0.85rem;
+  color: var(--muted);
+  font-size: 0.92rem;
+  line-height: 1.45;
+}
+
+.setup-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 0.75rem;
+  padding: 0.9rem;
+  margin: 0 0 0.9rem;
+}
+
+.setup-grid label,
+.compact-form-box label,
+.worktop-box label {
+  display: grid;
+  gap: 0.3rem;
+  font-size: 0.84rem;
+  font-weight: 650;
+  color: var(--divian-slate);
+}
+
+input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+select,
+textarea {
+  width: 100%;
+  padding: 0.55rem 0.65rem;
+  font-size: 0.95rem;
+  background: #fff;
+  color: var(--text);
+}
+
+textarea {
+  min-height: 5rem;
+  resize: vertical;
+}
+
+/* Buttons */
+.btn,
+button.btn,
+.btn-primary,
+.btn-secondary,
+.btn-small,
+.btn-compact,
+.halado-quick-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid transparent;
+  font-family: var(--font);
+  font-weight: 700;
+  cursor: pointer;
+  text-decoration: none;
+  transition:
+    transform 0.12s ease,
+    background 0.15s ease,
+    border-color 0.15s ease;
+}
+
+.btn:active,
+.btn-primary:active,
+.btn-secondary:active {
+  transform: translateY(1px);
+}
+
+.btn,
+.btn-primary {
+  padding: 0.65rem 1rem;
+  background: linear-gradient(180deg, var(--divian-burgundy) 0%, var(--divian-burgundy-deep) 100%);
+  color: #fff;
+}
+
+.btn:hover,
+.btn-primary:hover {
+  background: linear-gradient(180deg, var(--primary-soft) 0%, var(--divian-burgundy) 100%);
+}
+
+.btn-secondary {
+  padding: 0.65rem 1rem;
+  background: #fff;
+  color: var(--divian-burgundy-deep);
+  border-color: var(--divian-burgundy-line);
+}
+
+.btn-small,
+.btn-compact {
+  padding: 0.4rem 0.7rem;
+  font-size: 0.82rem;
+  background: var(--divian-slate);
+  color: #fff;
+}
+
+.btn:disabled,
+button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.setup-actions,
+.row-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+}
+
+/* Wizard dots */
+.quote-wizard-step-dot {
+  width: 2rem;
+  height: 2rem;
+  border-radius: 999px;
+  display: inline-grid;
+  place-items: center;
+  font-size: 0.8rem;
+  font-weight: 800;
+  background: #e8ebef;
+  color: var(--muted);
+  border: 2px solid transparent;
+}
+
+.quote-wizard-step-dot.is-active {
+  background: var(--divian-burgundy);
+  color: #fff;
+  box-shadow: 0 0 0 3px var(--divian-burgundy-soft);
+}
+
+/* Summary */
+.summary-row,
+.summary-total,
+.summary-discount,
+.fee-metrics-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: baseline;
+  padding: 0.35rem 0;
+  border-bottom: 1px dashed rgba(26, 28, 33, 0.08);
+  font-size: 0.92rem;
+}
+
+.summary-total {
+  font-weight: 800;
+  font-size: 1.05rem;
+  border-bottom: 0;
+  margin-top: 0.35rem;
+  color: var(--divian-ink);
+}
+
+.selected-items {
+  display: grid;
+  gap: 0.45rem;
+  margin: 0.5rem 0 0.85rem;
+}
+
+.wizard-compact-totals {
+  display: grid;
+  gap: 0.25rem;
+  margin: 0.75rem 0;
+  padding: 0.75rem 0.85rem;
+  border-radius: var(--radius-md);
+  background: rgba(128, 0, 64, 0.04);
+  border: 1px solid var(--divian-burgundy-line);
+}
+
+.wizard-felmeres-toggle {
+  display: flex;
+  gap: 0.55rem;
+  align-items: center;
+  font-weight: 600;
+  margin: 0.5rem 0;
+}
+
+details.wizard-step-secondary,
+details.kiadvany-extras-info {
+  margin: 0.75rem 0;
+  padding: 0.65rem 0.8rem;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.7);
+}
+
+details > summary {
+  cursor: pointer;
+  font-weight: 700;
+  color: var(--divian-slate);
+}
+
+/* Kiadvány tabs */
+.kiadvany-extras-tab {
+  border: 1px solid var(--line);
+  background: #fff;
+  color: var(--divian-slate);
+  padding: 0.45rem 0.7rem;
+  border-radius: 999px;
+  font-weight: 700;
+  font-size: 0.82rem;
+  cursor: pointer;
+}
+
+.kiadvany-extras-tab[aria-selected="true"] {
+  background: var(--divian-burgundy);
+  border-color: var(--divian-burgundy);
+  color: #fff;
+}
+
+.kiadvany-extras-form-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 0.65rem;
+  margin-top: 0.75rem;
+}
+
+.kiadvany-tab-count {
+  margin-left: 0.25rem;
+  opacity: 0.85;
+}
+
+/* Advanced / halado */
+.halado-quick-btn {
+  flex-direction: column;
+  min-width: 5.5rem;
+  padding: 0.65rem 0.5rem;
+  background: #fff;
+  border: 1px solid var(--line);
+  color: var(--divian-ink);
+}
+
+.halado-quick-icon {
+  font-size: 1.1rem;
+}
+
+.halado-quick-label {
+  font-size: 0.75rem;
+}
+
+.pages-cloud-banner {
+  margin: 0 0 1rem;
+  padding: 0.75rem 0.9rem;
+  border-radius: var(--radius-md);
+  border: 1px solid rgba(243, 191, 53, 0.45);
+  background: linear-gradient(180deg, rgba(243, 191, 53, 0.18), rgba(255, 255, 255, 0.9));
+  color: var(--divian-ink);
+  font-size: 0.9rem;
+  line-height: 1.45;
+}
+
+.pages-cloud-banner strong {
+  color: var(--divian-burgundy-deep);
+}
+
+.pages-cloud-banner a {
+  color: var(--divian-burgundy);
+  font-weight: 700;
+}
+
+.workflow-section-locked {
+  opacity: 0.72;
+}
+
+@media (max-width: 720px) {
+  .container {
+    width: min(100% - 1.1rem, 1120px);
+  }
+
+  .site-header .container,
+  .site-header-inner {
+    align-items: flex-start;
+  }
+
+  .setup-grid {
+    grid-template-columns: 1fr;
+  }
+}

@@ -17,6 +17,13 @@ Telefon:
   config\telefon\MEGNYITAS.bat  vagy  portal.html
   LAN-hoz: frissites\divian-lan-host.txt = a Vaci gep IPv4 cime
 
+Ingyenes felhő (GitHub Pages, main merge után):
+  https://reiko1866-ui.github.io/
+  https://reiko1866-ui.github.io/frissites/arajanlat.html
+  https://reiko1866-ui.github.io/szallitas/
+  https://reiko1866-ui.github.io/telefon/
+  Asztalos élő: https://divian-asztalos.fly.dev/asztalos-szereles.html
+
 ---
 Szallitolevel (2026-07)
 -----------------------

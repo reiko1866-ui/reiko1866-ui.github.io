@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="hu">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
+<meta name="mobile-web-app-capable" content="yes"/>
+<meta name="apple-mobile-web-app-capable" content="yes"/>
+<title>Divian — telefon</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;700;800&display=swap" rel="stylesheet"/>
+<style>
+:root{--bg:#10161c;--card:#1a222c;--line:#2c3a48;--text:#e8eef4;--muted:#9aa8b5;--accent:#3ecf8e;--link:#7eb6ff;--warn:#f0c674;--burgundy:#800040}
+*{box-sizing:border-box}body{margin:0;min-height:100vh;font-family:Manrope,system-ui,sans-serif;background:radial-gradient(900px 480px at 80% -20%,rgba(128,0,64,.28),var(--bg));color:var(--text)}
+main{max-width:28rem;margin:0 auto;padding:1.25rem 1rem 2.5rem}
+h1{font-size:1.45rem;margin:0 0 .35rem;letter-spacing:-.02em}
+.sub{color:var(--muted);margin:0 0 1rem;line-height:1.45;font-size:.95rem}
+.badge{display:inline-block;margin:0 0 1rem;padding:.35rem .65rem;border-radius:999px;background:rgba(62,207,142,.14);color:var(--accent);font-size:.78rem;font-weight:800;letter-spacing:.04em;text-transform:uppercase}
+.card{display:block;margin:0 0 .75rem;padding:1rem 1.05rem;border:1px solid var(--line);border-radius:16px;background:var(--card);color:inherit;text-decoration:none}
+.card strong{display:block;font-size:1.05rem;margin-bottom:.2rem}
+.card span{display:block;color:var(--muted);font-size:.9rem;line-height:1.4}
+.card code{display:block;margin-top:.45rem;font-size:.72rem;word-break:break-all;color:var(--link)}
+.hint{color:var(--muted);font-size:.88rem;line-height:1.5;margin:1.25rem 0 0}
+.warn{color:var(--warn)}
+a.back{color:var(--link);font-size:.9rem;font-weight:700;text-decoration:none}
+</style>
+</head>
+<body>
+<main>
+  <p><a class="back" href="../index.html">← Divian menü</a></p>
+  <h1>Divian — telefon</h1>
+  <p class="sub">Pages (ingyenes) + Fly asztalos (jelszó után)</p>
+  <div class="badge">Mobil</div>
+
+  <a class="card" href="../frissites/arajanlat.html">
+    <strong>Árajánlat</strong>
+    <span>Pages szerkesztő</span>
+    <code>/frissites/arajanlat.html</code>
+  </a>
+  <a class="card" href="../szallitas/">
+    <strong>Szállítás</strong>
+    <span>Futár nézet</span>
+    <code>/szallitas/</code>
+  </a>
+  <a class="card" href="../szallitas/vezerlopult.html">
+    <strong>Szállítás vezérlőpult</strong>
+    <span>Irodai nézet</span>
+    <code>/szallitas/vezerlopult.html</code>
+  </a>
+  <a class="card" href="https://divian-asztalos.fly.dev/asztalos-szereles.html" target="_blank" rel="noopener">
+    <strong>Asztalos szerelés (Fly)</strong>
+    <span>Tulajdonosi jelszó kell egyszer</span>
+    <code>divian-asztalos.fly.dev</code>
+  </a>
+  <a class="card" href="https://divian-asztalos.fly.dev/asztalos-munkaszervezes.html" target="_blank" rel="noopener">
+    <strong>Asztalos munkaszervezés</strong>
+    <span>Várólista</span>
+    <code>…/asztalos-munkaszervezes.html</code>
+  </a>
+  <a class="card" href="https://divian-budaors.fly.dev/tavoli/" target="_blank" rel="noopener">
+    <strong>Budaörs menü (Fly)</strong>
+    <span class="warn">Belépés OK; árajánlat upstream jelenleg 502</span>
+    <code>divian-budaors.fly.dev/tavoli/</code>
+  </a>
+
+  <p class="hint">Fly belépés: nyisd a linket → tulajdonosi jelszó → a böngésző megjegyzi (~14 nap).</p>
+</main>
+</body>
+</html>
