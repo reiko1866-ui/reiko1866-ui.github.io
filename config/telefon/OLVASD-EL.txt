@@ -1,22 +1,17 @@
-DIVIAN — TELEFONOS ELÉRÉS (Váci úti szerver)
-============================================
+DIVIAN — TELEFONOS ELÉRÉS (felhő)
+=================================
 
-A telefon a Váci úti gépre csatlakozik (ugyanaz a tunnel / Wi‑Fi).
-A Váci hubon a szállítólevél és a többi ideiglenes zárolás FELOLDVA.
+Élő felhő (Fly.io):
+  Asztalos: https://divian-asztalos.fly.dev/asztalos-szereles.html
+  Budaörs menü: https://divian-budaors.fly.dev/tavoli/
 
-Ugyanazon Wi‑Fi (boltban):
-  1) A Váci gépen fusson az INDITAS.bat
-  2) A frissites mappában legyen divian-lan-host.txt = a gép LAN IP-je
-     (pl. 192.168.1.50) — ettől a szerver 0.0.0.0-n hallgat
-  3) Telefon böngésző: http://<LAN-IP>:17321/arajanlat.html
-     vagy nyisd meg a portal.html-t erről a mappáról
+Első megnyitáskor: tulajdonosi jelszó (BELÉPÉS menü / kód).
+A böngésző ~14 napig megjegyzi a belépést.
 
-Internetről / más hálózatról:
-  1) Váci gépen fusson az INDITAS.bat (Cloudflare tunnel ablak nyitva)
-  2) Telefonon nyisd: portal.html — vagy az aktualis-tunnel-url.txt linkjét
-  3) Árajánlat: <tunnel>/arajanlat.html
-     Szállítás: <tunnel>/szallitas/
-     Asztalos:  <tunnel>/asztalos-szereles.html
+Ingyenes statikus (jelszó nélkül):
+  Árajánlat: https://reiko1866-ui.github.io/frissites/arajanlat.html
+  Szállítás: https://reiko1866-ui.github.io/szallitas/
 
-Ha a trycloudflare link elromlik: a Váci gépen indítsd újra az INDITAS.bat-ot,
-majd használd a friss URL-t (config/aktualis-tunnel-url.txt).
+Megjegyzés:
+  A Budaörs Fly proxy jelenleg egy halott trycloudflare upstream-re mutat,
+  ezért az árajánlat/szállítás ott 502 — amíg nincs új upstream.
