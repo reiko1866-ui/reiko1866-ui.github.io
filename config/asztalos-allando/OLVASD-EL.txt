@@ -6,3 +6,6 @@ A Váci úti gépen fusson: INDITAS-asztalos-allando.bat
 
 Boltzárás után is elérhető, HA a gép be van kapcsolva és nem alszik el.
 Küldd el az asztalosoknak az asztalos-url.txt tartalmát.
+
+Telefonos elérés (árajánlat / szállítás is): lásd config\telefon\OLVASD-EL.txt
+és config\telefon\portal.html — a Váci hubon a zárolások feloldva.

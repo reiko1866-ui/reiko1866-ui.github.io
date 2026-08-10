@@ -1,0 +1,22 @@
+DIVIAN — TELEFONOS ELÉRÉS (Váci úti szerver)
+============================================
+
+A telefon a Váci úti gépre csatlakozik (ugyanaz a tunnel / Wi‑Fi).
+A Váci hubon a szállítólevél és a többi ideiglenes zárolás FELOLDVA.
+
+Ugyanazon Wi‑Fi (boltban):
+  1) A Váci gépen fusson az INDITAS.bat
+  2) A frissites mappában legyen divian-lan-host.txt = a gép LAN IP-je
+     (pl. 192.168.1.50) — ettől a szerver 0.0.0.0-n hallgat
+  3) Telefon böngésző: http://<LAN-IP>:17321/arajanlat.html
+     vagy nyisd meg a portal.html-t erről a mappáról
+
+Internetről / más hálózatról:
+  1) Váci gépen fusson az INDITAS.bat (Cloudflare tunnel ablak nyitva)
+  2) Telefonon nyisd: portal.html — vagy az aktualis-tunnel-url.txt linkjét
+  3) Árajánlat: <tunnel>/arajanlat.html
+     Szállítás: <tunnel>/szallitas/
+     Asztalos:  <tunnel>/asztalos-szereles.html
+
+Ha a trycloudflare link elromlik: a Váci gépen indítsd újra az INDITAS.bat-ot,
+majd használd a friss URL-t (config/aktualis-tunnel-url.txt).

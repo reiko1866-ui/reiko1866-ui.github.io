@@ -9,6 +9,14 @@ Elso alkalom:
 
 Leallitas: leallitas-17321.bat
 
+Vaci uti hub feloldas:
+  config\divian-site.txt  →  vaci-server
+  (Budaors helyi masolatnal ezt NE add meg — ott marad a zarolas)
+
+Telefon:
+  config\telefon\MEGNYITAS.bat  vagy  portal.html
+  LAN-hoz: frissites\divian-lan-host.txt = a Vaci gep IPv4 cime
+
 ---
 Szallitolevel (2026-07)
 -----------------------
@@ -31,4 +39,5 @@ UTOLSO FRISSITES: 2026-07-15
   • Asztalos értesítések (szerver oldal, ha használjátok a várólistát)
   • package.json: form-data + axios (Számlázz API); install-fuggosegek.bat sorrend javítva
   • javitas-form-data.bat — ha Cannot find module form-data hiba
-  • Szállítólevél generálás újra engedélyezve (divian-feature-flags.js)
+  • Szállítólevél: alapból zárolva; Váci úti hubon feloldva (config/divian-site.txt)
+  • Telefon: config/telefon/portal.html + divian-lan-host.txt (LAN) / tunnel

@@ -53,7 +53,7 @@
     <script src="divian-extras-kiadvany.js?v=20260519"></script>
     <script src="divian-planner-url-client.js?v=20260708"></script>
     <script src="divian-cabinet-codes.js?v=20260711j"></script>
-    <script src="divian-feature-flags.js?v=20260810unlock"></script>
+    <script src="divian-feature-flags.js?v=20260810vaci"></script>
     <script src="divian-invoice-vat.js?v=20260714b"></script>
     <script src="partial-invoice-view.js?v=20260715dn"></script>
     <script src="divian-megrendelo-import.js?v=20260711j"></script>
@@ -1306,10 +1306,20 @@
           const loc = window.location;
           const p = String(loc.protocol || "");
           const port = String(loc.port || "");
+          const h = String(loc.hostname || "").toLowerCase();
           if ((p === "http:" || p === "https:") && port === "17321") {
             return loc.origin;
           }
-          const h = String(loc.hostname || "").toLowerCase();
+          // Tunnel / telefon: a nyilvános host a 17321-et proxyzza — ugyanaz az origin.
+          if (
+            (p === "http:" || p === "https:") &&
+            h &&
+            h !== "localhost" &&
+            h !== "127.0.0.1" &&
+            (h.endsWith(".trycloudflare.com") || h.endsWith(".loca.lt"))
+          ) {
+            return loc.origin;
+          }
           if ((p === "http:" || p === "https:") && h && h !== "localhost" && h !== "127.0.0.1") {
             return window.location.protocol + "//" + window.location.hostname + ":17321";
           }
@@ -6743,18 +6753,52 @@
         };
       }
 
-      /** Workflow szakaszzárolás feloldva — minden fázis szerkeszthető. */
-      function isWorkflowPhaseUnlocked(_phaseId) {
+      function isWorkflowPhaseUnlocked(phaseId) {
+        if (window.DivianFeatureFlags?.isWorkflowFullyUnlocked?.() === true) return true;
+        const state = computeQuoteWorkflowState();
+        if (phaseId === "cabinets") return true;
+        if (phaseId === "accessories_auto") return state.sequenceOk;
+        if (phaseId === "worktop") return state.sequenceOk && state.steps.find((s) => s.id === "accessories_auto")?.complete;
+        if (phaseId === "extras") {
+          const worktopStep = state.steps.find((s) => s.id === "worktop");
+          return state.sequenceOk && !!worktopStep?.complete;
+        }
+        if (phaseId === "close") return state.sequenceOk;
+        const idx = QUOTE_WORKFLOW_PHASE_ORDER.indexOf(phaseId);
+        if (idx <= 0) return true;
+        for (let i = 0; i < idx; i += 1) {
+          const step = state.steps.find((s) => s.id === QUOTE_WORKFLOW_PHASE_ORDER[i]);
+          if (!step?.complete) return false;
+        }
         return true;
       }
 
       function applyWorkflowSectionLocks() {
+        // UI: szakaszok szerkeszthetők maradnak (korábbi viselkedés).
+        // Váci hubon a szállítólevél flag külön oldja a bizonylat-zárolást.
         document.querySelectorAll("[data-workflow-phase]").forEach((el) => {
           el.classList.remove("workflow-section-locked");
           el.querySelectorAll("input, select, textarea, button").forEach((ctrl) => {
             ctrl.disabled = false;
           });
         });
+      }
+
+      async function syncFeatureFlagsFromHub() {
+        try {
+          let base = String(DIVIAN_FORWARDER_BASE || "").replace(/\/+$/, "");
+          try {
+            const p = String(location.protocol || "");
+            if (p === "http:" || p === "https:") base = String(location.origin || base).replace(/\/+$/, "");
+          } catch (_e) {}
+          if (!base || base.startsWith("file:")) return;
+          const res = await fetch(base + "/api/feature-flags", { cache: "no-store" });
+          if (!res.ok) return;
+          const data = await res.json();
+          window.DivianFeatureFlags?.applyRemoteFlags?.(data);
+        } catch (_err) {
+          /* helyi fájl / más gép — marad az alap zárolás */
+        }
       }
 
       function rebuildKiskerItemSelect() {
@@ -14001,7 +14045,11 @@
       rebuildHardwareSelector();
       renderHardwarePrice();
       rebuildKiadvanyExtrasSelectors();
-      hideDeliveryNoteUi();
+      void (async () => {
+        await syncFeatureFlagsFromHub();
+        hideDeliveryNoteUi();
+        applyWorkflowSectionLocks();
+      })();
       initKiadvanyExtrasTabs();
       renderKiadvanyExtrasLines();
       if (useKiskerPricebookInput) {
