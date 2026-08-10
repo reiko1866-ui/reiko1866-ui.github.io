@@ -14,7 +14,7 @@
       rel="stylesheet"
     />
     <link rel="stylesheet" href="divian-brand.css?v=20260810pages" />
-    <link rel="stylesheet" href="styles.css?v=20260810pages" />
+    <link rel="stylesheet" href="styles.css?v=20260810img" />
     <style>
       html.embed-dashboard body.quote-app {
         position: fixed;
@@ -51,6 +51,8 @@
     <script src="divian-fixed-pricebook.js?v=20260810pages"></script>
     <script src="divian-kisker-arlista.js?v=20260810pages"></script>
     <script src="divian-extras-kiadvany.js?v=20260810pages"></script>
+    <script src="divian-hardware-images.js?v=20260810img"></script>
+    <script src="divian-product-images.js?v=20260810img"></script>
     <script src="divian-planner-url-client.js?v=20260810pages"></script>
     <script src="divian-cabinet-codes.js?v=20260711j"></script>
     <script src="divian-feature-flags.js?v=20260810vaci"></script>
@@ -1028,25 +1030,38 @@
           </div>
           <div class="worktop-box" data-workflow-phase="extras" data-wizard-step="4">
             <h3>Vasalat választó</h3>
+            <p class="wizard-step-lead">
+              Kattints a képre a választáshoz — így nem lehet összekeverni a hasonló vasalatokat.
+            </p>
             <div class="setup-grid">
               <label>
                 Vasalat keresése
                 <input id="hardwareSearchInput" type="text" placeholder="kód vagy név alapján..." />
               </label>
             </div>
-            <div class="setup-grid">
-              <label>
-                Vasalat tétel
-                <select id="hardwareSelect"></select>
-              </label>
-              <label>
-                Darabszám
-                <input id="hardwareQtyInput" type="number" min="1" step="1" value="1" />
-              </label>
-              <label>
-                &nbsp;
-                <button id="addHardwareBtn" type="button" class="btn btn-secondary">+ Vasalat hozzáadása</button>
-              </label>
+            <div id="hardwareVisualGrid" class="product-visual-grid" aria-label="Vasalat képek"></div>
+            <div class="hardware-select-row">
+              <div id="hardwarePreview" class="product-preview" aria-live="polite">
+                <div class="product-preview-thumb" data-placeholder="Vasalat">?</div>
+                <div class="product-preview-meta">
+                  <strong>Válassz vasalatot a képek közül vagy a listából</strong>
+                  <span>A kiválasztott tétel képe itt jelenik meg.</span>
+                </div>
+              </div>
+              <div class="setup-grid hardware-select-controls">
+                <label>
+                  Vasalat tétel
+                  <select id="hardwareSelect"></select>
+                </label>
+                <label>
+                  Darabszám
+                  <input id="hardwareQtyInput" type="number" min="1" step="1" value="1" />
+                </label>
+                <label>
+                  &nbsp;
+                  <button id="addHardwareBtn" type="button" class="btn btn-secondary">+ Vasalat hozzáadása</button>
+                </label>
+              </div>
             </div>
             <div class="setup-grid">
               <label>
@@ -1080,6 +1095,13 @@
                 <button type="button" class="kiadvany-extras-tab" role="tab" aria-selected="false" data-kiadvany-tab="tap">
                   Csaptelepek <span class="kiadvany-tab-count" data-kiadvany-tab-count="tap" hidden></span>
                 </button>
+              </div>
+              <div id="kiadvanyProductPreview" class="product-preview product-preview--kiadvany" aria-live="polite">
+                <div class="product-preview-thumb" data-placeholder="Kiadvány">?</div>
+                <div class="product-preview-meta">
+                  <strong>Válassz kiadvány tételt</strong>
+                  <span>A kiválasztott gép / tálca / csap képe itt jelenik meg, ha megvan a katalógusban.</span>
+                </div>
               </div>
               <div class="kiadvany-extras-panes">
                 <div class="kiadvany-extras-pane is-active" data-kiadvany-pane="bundle" role="tabpanel">
@@ -11471,6 +11493,7 @@
           renderSummary();
         });
         hardwareSearchInput.addEventListener("input", rebuildHardwareSelector);
+        hardwareSelect?.addEventListener("change", syncHardwarePreview);
         hardwareQtyInput.addEventListener("input", renderHardwarePrice);
         addHardwareBtn.addEventListener("click", () => {
           const code = hardwareSelect.value;
@@ -11507,7 +11530,9 @@
             applianceExtrasColorNoteWrap,
             getKiadvanyExtrasCatalog().appliances || []
           );
+          syncKiadvanyProductPreview();
         });
+        bundleExtrasSelect?.addEventListener("change", syncKiadvanyProductPreview);
         addApplianceExtrasBtn?.addEventListener("click", () => {
           const pool = getKiadvanyExtrasCatalog().appliances || [];
           const picked = resolveKiadvanyAddSelection(
@@ -11589,6 +11614,7 @@
             getKiadvanyExtrasCatalog().traysDivian || [],
             KIADVANY_COLOR_UI.trayDivian
           );
+          syncKiadvanyProductPreview();
         });
         trayDivianExtrasColorSelect?.addEventListener("change", () => {
           syncKiadvanyColorNoteFromSelect(trayDivianExtrasColorSelect, trayDivianExtrasColorNote);
@@ -11654,6 +11680,7 @@
             trayBlancoExtrasColorNoteWrap,
             getKiadvanyExtrasCatalog().traysBlanco || []
           );
+          syncKiadvanyProductPreview();
         });
         addTrayBlancoExtrasBtn?.addEventListener("click", () => {
           const pool = getKiadvanyExtrasCatalog().traysBlanco || [];
@@ -11707,6 +11734,7 @@
             getKiadvanyExtrasCatalog().taps || [],
             KIADVANY_COLOR_UI.tap
           );
+          syncKiadvanyProductPreview();
         });
         tapExtrasColorSelect?.addEventListener("change", () => {
           syncKiadvanyColorNoteFromSelect(tapExtrasColorSelect, tapExtrasColorNote);
@@ -12870,17 +12898,153 @@
         );
       }
 
+      function resolveHardwareImageUrl(code, name) {
+        const fromCode =
+          typeof window.divianHardwareImageUrl === "function" ? window.divianHardwareImageUrl(code) : "";
+        if (fromCode) return fromCode;
+        const fromName =
+          typeof window.divianProductImageByName === "function" ? window.divianProductImageByName(name) : "";
+        return fromName || "";
+      }
+
+      function resolveProductImageUrl(name, code) {
+        if (code) {
+          const hw =
+            typeof window.divianHardwareImageUrl === "function" ? window.divianHardwareImageUrl(code) : "";
+          if (hw) return hw;
+        }
+        return typeof window.divianProductImageByName === "function"
+          ? window.divianProductImageByName(name) || ""
+          : "";
+      }
+
+      function productThumbHtml(url, label) {
+        const safeLabel = String(label || "?").replace(/"/g, "&quot;");
+        if (url) {
+          return (
+            '<img class="product-thumb-img" src="' +
+            String(url).replace(/"/g, "&quot;") +
+            '" alt="' +
+            safeLabel +
+            '" loading="lazy" decoding="async" />'
+          );
+        }
+        const initials = String(label || "?")
+          .replace(/Divian\s*/i, "")
+          .trim()
+          .slice(0, 18);
+        return '<div class="product-preview-thumb" data-placeholder="' + safeLabel + '">' + initials + "</div>";
+      }
+
+      function setProductPreview(el, title, subtitle, imageUrl) {
+        if (!el) return;
+        el.innerHTML =
+          '<div class="product-preview-media">' +
+          productThumbHtml(imageUrl, title) +
+          '</div><div class="product-preview-meta"><strong>' +
+          String(title || "—") +
+          "</strong><span>" +
+          String(subtitle || "") +
+          "</span></div>";
+      }
+
+      function syncHardwarePreview() {
+        const preview = document.getElementById("hardwarePreview");
+        const code = hardwareSelect?.value || "";
+        const item = HARDWARE_ITEMS.find((x) => x.code === code);
+        if (!item) {
+          setProductPreview(
+            preview,
+            "Válassz vasalatot a képek közül vagy a listából",
+            "A kiválasztott tétel képe itt jelenik meg.",
+            ""
+          );
+          return;
+        }
+        setProductPreview(
+          preview,
+          item.name,
+          item.category + " · " + item.code + " · " + huf(item.retail),
+          resolveHardwareImageUrl(item.code, item.name)
+        );
+        const grid = document.getElementById("hardwareVisualGrid");
+        if (grid) {
+          grid.querySelectorAll(".product-visual-card").forEach((card) => {
+            card.classList.toggle("is-selected", card.getAttribute("data-code") === item.code);
+          });
+        }
+      }
+
+      function rebuildHardwareVisualGrid(filteredItems) {
+        const grid = document.getElementById("hardwareVisualGrid");
+        if (!grid) return;
+        if (!filteredItems.length) {
+          grid.innerHTML = '<p class="empty-text">Nincs találat a keresésre.</p>';
+          return;
+        }
+        const byCategory = new Map();
+        filteredItems.forEach((item) => {
+          if (!byCategory.has(item.category)) byCategory.set(item.category, []);
+          byCategory.get(item.category).push(item);
+        });
+        grid.innerHTML = [...byCategory.entries()]
+          .map(([category, items]) => {
+            const cards = items
+              .sort((a, b) => String(a.name).localeCompare(String(b.name), "hu"))
+              .map((it) => {
+                const img = resolveHardwareImageUrl(it.code, it.name);
+                return (
+                  '<button type="button" class="product-visual-card" data-code="' +
+                  it.code +
+                  '" title="' +
+                  String(it.name).replace(/"/g, "&quot;") +
+                  '">' +
+                  '<span class="product-visual-thumb">' +
+                  productThumbHtml(img, it.name) +
+                  '</span><span class="product-visual-body"><strong>' +
+                  it.name +
+                  "</strong><span>" +
+                  it.code +
+                  " · " +
+                  huf(it.retail) +
+                  "</span></span></button>"
+                );
+              })
+              .join("");
+            return (
+              '<section class="product-visual-group"><h4 class="product-visual-group-title">' +
+              category +
+              '</h4><div class="product-visual-cards">' +
+              cards +
+              "</div></section>"
+            );
+          })
+          .join("");
+        grid.querySelectorAll(".product-visual-card").forEach((card) => {
+          card.addEventListener("click", () => {
+            const code = card.getAttribute("data-code");
+            if (!code || !hardwareSelect) return;
+            hardwareSelect.value = code;
+            syncHardwarePreview();
+          });
+        });
+        syncHardwarePreview();
+      }
+
       function rebuildHardwareSelector() {
         const query = normalizeText(hardwareSearchInput.value || "");
         const byCategory = new Map();
+        const filtered = [];
         HARDWARE_ITEMS.forEach((item) => {
           const searchable = normalizeText(item.code + " " + item.name + " " + item.category);
           if (query && !searchable.includes(query)) return;
+          filtered.push(item);
           if (!byCategory.has(item.category)) byCategory.set(item.category, []);
           byCategory.get(item.category).push(item);
         });
         if (!byCategory.size) {
           hardwareSelect.innerHTML = '<option value="">Nincs találat a keresésre</option>';
+          rebuildHardwareVisualGrid([]);
           return;
         }
         hardwareSelect.innerHTML = [...byCategory.entries()]
@@ -12892,6 +13056,7 @@
             return '<optgroup label="' + category + '">' + options + "</optgroup>";
           })
           .join("");
+        rebuildHardwareVisualGrid(filtered);
       }
 
       function renderHardwareLines() {
@@ -12900,9 +13065,12 @@
           return;
         }
         hardwareLinesEl.innerHTML = hardwareLines
-          .map(
-            (line, idx) =>
-              '<div class="summary-row"><div><strong>' +
+          .map((line, idx) => {
+            const img = resolveHardwareImageUrl(line.code, line.name);
+            return (
+              '<div class="summary-row summary-row--with-thumb"><div class="summary-row-thumb">' +
+              productThumbHtml(img, line.name) +
+              '</div><div><strong>' +
               line.code +
               " - " +
               line.name +
@@ -12915,7 +13083,8 @@
               '</p><button data-hardware-remove="' +
               idx +
               '">törlés</button></div></div>'
-          )
+            );
+          })
           .join("");
         hardwareLinesEl.querySelectorAll("button").forEach((btn) => {
           btn.addEventListener("click", () => {
@@ -13525,11 +13694,53 @@
             if (on) pane.removeAttribute("hidden");
             else pane.setAttribute("hidden", "");
           });
+          syncKiadvanyProductPreview();
         };
         tabs.forEach((tab) => {
           tab.addEventListener("click", () => activate(tab.dataset.kiadvanyTab));
         });
         updateKiadvanyExtrasTabCounts();
+        syncKiadvanyProductPreview();
+      }
+
+      function syncKiadvanyProductPreview() {
+        const preview = document.getElementById("kiadvanyProductPreview");
+        if (!preview) return;
+        const activePane = document.querySelector(".kiadvany-extras-pane.is-active");
+        const pane = activePane?.getAttribute("data-kiadvany-pane") || "bundle";
+        const selectMap = {
+          bundle: bundleExtrasSelect,
+          appliance: applianceExtrasSelect,
+          trayDivian: trayDivianExtrasSelect,
+          trayBlanco: trayBlancoExtrasSelect,
+          tap: tapExtrasSelect
+        };
+        const kindMap = {
+          bundle: "bundle",
+          appliance: "appliance",
+          trayDivian: "trayDivian",
+          trayBlanco: "trayBlanco",
+          tap: "tap"
+        };
+        const selectEl = selectMap[pane];
+        const code = String(selectEl?.value || "").trim();
+        const item = code ? findKiadvanyCatalogItem(kindMap[pane], code) : null;
+        if (!item) {
+          setProductPreview(
+            preview,
+            "Válassz kiadvány tételt",
+            "A kiválasztott gép / tálca / csap képe itt jelenik meg, ha megvan a katalógusban.",
+            ""
+          );
+          return;
+        }
+        const img = resolveProductImageUrl(item.name, item.code);
+        setProductPreview(
+          preview,
+          item.name,
+          (item.brand ? item.brand + " · " : "") + item.code + " · " + huf(Math.max(0, Math.floor(Number(item.retail) || 0))),
+          img
+        );
       }
 
       function renderKiadvanyExtrasLines() {
@@ -13542,10 +13753,13 @@
           kiadvanyExtrasLinesEl.innerHTML = kiadvanyExtrasLines
             .map((line, idx) => {
               const missingColor = divianKiadvanyLineNeedsColor(line);
+              const img = resolveProductImageUrl(line.name || kiadvanyLineTitle(line), line.code);
               return (
-                '<div class="summary-row' +
+                '<div class="summary-row summary-row--with-thumb' +
                 (missingColor ? " is-color-missing" : "") +
-                '"><div><strong>' +
+                '"><div class="summary-row-thumb">' +
+                productThumbHtml(img, line.name || line.code) +
+                "</div><div><strong>" +
                 kiadvanyLineTitle(line) +
                 (missingColor
                   ? ' <span style="color:#ff6b6b;font-size:0.82rem">— hiányzik a szín!</span>'
@@ -13577,6 +13791,7 @@
           kiadvanyExtrasTotalPrice.value = huf(t);
         }
         updateKiadvanyExtrasTabCounts();
+        syncKiadvanyProductPreview();
       }
 
       function getSelectedSpecialFinish() {
