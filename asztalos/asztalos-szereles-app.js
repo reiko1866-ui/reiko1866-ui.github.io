@@ -1,7 +1,7 @@
 (function () {
   "use strict";
 
-  const APP_VERSION = "20260810felmeres";
+  const APP_VERSION = "20260812felmeres";
   const LS_PIN = "divian_szereles_pin";
   const LS_NAME = "divian_szereles_name";
   const LS_CREW_ID = "divian_szereles_crew_id";
@@ -1882,15 +1882,17 @@
             }
           })
         });
-        entry = json.entry || Object.assign({}, currentJob, {
-          felmeresScheduledDate: date,
-          felmeresScheduledBy: carpenterName() || null
-        });
+        entry = json.entry || null;
+        if (entry && String(entry.felmeresScheduledDate || "").trim() !== date) {
+          entry = null;
+        }
       }
-      currentJob = entry || Object.assign({}, currentJob, {
-        felmeresScheduledDate: date,
-        felmeresScheduledBy: carpenterName() || null
-      });
+      if (!entry || String(entry.felmeresScheduledDate || "").trim() !== date) {
+        throw new Error(
+          "A szerver nem mentette a felmérés dátumát. Az iroda a munkaszervezésből (admin PIN) be tudja írni."
+        );
+      }
+      currentJob = entry;
       cachedOpenJobs = (cachedOpenJobs || []).map((j) =>
         String(j.id) === String(currentJob.id) ? Object.assign({}, j, currentJob) : j
       );

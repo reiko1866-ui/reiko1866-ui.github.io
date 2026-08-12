@@ -139,6 +139,70 @@ async function updateFelmeresEntry(id, patch) {
   return { ok: true, entry: rows[idx], file: QUEUE_FILE };
 }
 
+function isIsoDate(value) {
+  return /^\d{4}-\d{2}-\d{2}$/.test(String(value || "").trim());
+}
+
+const SCHEDULE_PATCH_KEYS = [
+  "felmeresScheduledDate",
+  "felmeresScheduledBy",
+  "felmeresScheduledAt",
+  "installationScheduledDate",
+  "installationScheduledBy",
+  "installationScheduledAt"
+];
+
+/** Ha a szerver oldali prepareFelmeresPatch eldobná, ezeket visszaírjuk. */
+function preserveScheduleFields(patch, rawPatch) {
+  const out = patch && typeof patch === "object" ? patch : {};
+  const raw = rawPatch && typeof rawPatch === "object" ? rawPatch : {};
+  SCHEDULE_PATCH_KEYS.forEach((key) => {
+    if (Object.prototype.hasOwnProperty.call(raw, key)) out[key] = raw[key];
+  });
+  return out;
+}
+
+/**
+ * Asztalos / iroda ütemezés: felmérés és/vagy szerelés nap.
+ * Carpenter PIN-nel is hívható — a mezőket közvetlenül a várólistára írja.
+ */
+async function applySzerelesSchedule(id, body) {
+  const key = String(id || "").trim();
+  if (!key) return { ok: false, error: "missing-id" };
+  const payload = body && typeof body === "object" ? body : {};
+  const kind = String(payload.kind || "").trim().toLowerCase();
+  const by =
+    String(payload.carpenterName || payload.scheduledBy || payload.crewName || "").trim() || null;
+  const now = new Date().toISOString();
+  const patch = {};
+
+  const felmeresDate = String(payload.felmeresScheduledDate || "").trim();
+  const installDate = String(payload.installationScheduledDate || "").trim();
+  const wantsFelmeres = kind === "felmeres" || !!felmeresDate;
+  const wantsInstall =
+    kind === "install" ||
+    kind === "szereles" ||
+    kind === "installation" ||
+    (!kind && !!installDate) ||
+    (kind !== "felmeres" && !!installDate);
+
+  if (wantsFelmeres) {
+    if (!isIsoDate(felmeresDate)) return { ok: false, error: "invalid-felmeres-date" };
+    patch.felmeresScheduledDate = felmeresDate;
+    patch.felmeresScheduledBy = by;
+    patch.felmeresScheduledAt = now;
+    patch.felmeresRequested = true;
+  }
+  if (wantsInstall) {
+    if (!isIsoDate(installDate)) return { ok: false, error: "invalid-install-date" };
+    patch.installationScheduledDate = installDate;
+    patch.installationScheduledBy = by;
+    patch.installationScheduledAt = now;
+  }
+  if (!Object.keys(patch).length) return { ok: false, error: "missing-date" };
+  return updateFelmeresEntry(key, patch);
+}
+
 async function deleteFelmeresEntry(id) {
   const key = String(id || "").trim();
   if (!key) return { ok: false, error: "missing-id" };
@@ -157,5 +221,9 @@ module.exports = {
   appendFelmeresEntry,
   updateFelmeresEntry,
   deleteFelmeresEntry,
-  dedupeFelmeresQueue
+  dedupeFelmeresQueue,
+  isIsoDate,
+  preserveScheduleFields,
+  applySzerelesSchedule,
+  SCHEDULE_PATCH_KEYS
 };

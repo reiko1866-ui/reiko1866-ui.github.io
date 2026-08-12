@@ -85,6 +85,8 @@ const {
   appendFelmeresEntry,
   updateFelmeresEntry,
   deleteFelmeresEntry,
+  applySzerelesSchedule,
+  preserveScheduleFields,
   QUEUE_FILE
 } = require("./divian-felmeres-queue");
 const { readAdminSettings, writeAdminSettings, SETTINGS_FILE } = require("./divian-admin-settings");
@@ -2239,6 +2241,7 @@ async function capturePlannerScreenshotPayload(label = "Aktuális nézet", plann
               "/api/minicrm/projects GET",
               "/api/minicrm/project GET",
               "/api/szereles-jobs GET",
+              "/api/szereles-schedule POST",
               "/api/szereles-photo POST",
               "/api/szereles-close POST",
               "/api/felmeres-close POST",
@@ -2532,7 +2535,10 @@ async function capturePlannerScreenshotPayload(label = "Aktuális nézet", plann
           const entry = rows.find((r) => String(r?.id || "") === String(parsed.id || ""));
           const rawPatch =
             parsed.patch && typeof parsed.patch === "object" ? parsed.patch : {};
-          const patch = prepareFelmeresPatch(entry, rawPatch);
+          const patch = preserveScheduleFields(
+            prepareFelmeresPatch(entry, rawPatch),
+            rawPatch
+          );
           if (entry) {
             const validation = validateFelmeresPatch(entry, patch);
             if (!validation.ok) {
@@ -2556,6 +2562,57 @@ async function capturePlannerScreenshotPayload(label = "Aktuális nézet", plann
         try {
           const result = await deleteFelmeresEntry(id);
           res.writeHead(result.ok ? 200 : 404, { "Content-Type": "application/json" });
+          res.end(JSON.stringify(result));
+        } catch (err) {
+          res.writeHead(500, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ ok: false, error: String(err?.message || err) }));
+        }
+        return;
+      }
+      if (pathname === "/api/szereles-schedule" && req.method === "POST") {
+        let body = "";
+        req.on("data", (chunk) => {
+          body += String(chunk || "");
+        });
+        await new Promise((resolve) => req.on("end", resolve));
+        let parsed = {};
+        try {
+          parsed = body ? JSON.parse(body) : {};
+        } catch (_err) {
+          res.writeHead(400, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ ok: false, error: "invalid-json" }));
+          return;
+        }
+        try {
+          const pin = String(parsed.pin || parsed.carpenterPin || "").trim();
+          const auth = await authenticateCarpenter(pin);
+          if (!auth.ok) {
+            res.writeHead(401, { "Content-Type": "application/json" });
+            res.end(JSON.stringify({ ok: false, error: "invalid-pin" }));
+            return;
+          }
+          const jobId = String(parsed.id || parsed.jobId || "").trim();
+          const entry = await findSzerelesJobById(jobId);
+          if (!entry) {
+            res.writeHead(404, { "Content-Type": "application/json" });
+            res.end(JSON.stringify({ ok: false, error: "not-found" }));
+            return;
+          }
+          const access = await assertCarpenterJobAccess(entry, pin);
+          if (!access.ok) {
+            res.writeHead(access.error === "forbidden" ? 403 : 401, {
+              "Content-Type": "application/json"
+            });
+            res.end(JSON.stringify(access));
+            return;
+          }
+          const result = await applySzerelesSchedule(jobId, {
+            kind: parsed.kind,
+            felmeresScheduledDate: parsed.felmeresScheduledDate,
+            installationScheduledDate: parsed.installationScheduledDate,
+            carpenterName: parsed.carpenterName || auth.crewName || null
+          });
+          res.writeHead(result.ok ? 200 : 400, { "Content-Type": "application/json" });
           res.end(JSON.stringify(result));
         } catch (err) {
           res.writeHead(500, { "Content-Type": "application/json" });
