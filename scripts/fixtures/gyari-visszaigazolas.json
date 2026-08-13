@@ -1,0 +1,32 @@
+{
+  "confirmationNumber": "GYAR-26-0100",
+  "kitchen": {
+    "korpuszColor": "Antracit",
+    "lowerFront": "Tölgy Halifax",
+    "upperFront": "Fehér",
+    "kamraUpperFront": "Fehér"
+  },
+  "items": [
+    {
+      "code": "AML60",
+      "name": "Alsó 60",
+      "qty": 1,
+      "dimensions": { "width": 600, "height": 720, "depth": 500 },
+      "colors": { "korpusz": "Fehér", "front": "Tölgy Halifax" }
+    },
+    {
+      "code": "AF60",
+      "qty": 1,
+      "widthMm": 600,
+      "heightMm": 720,
+      "depthMm": 330,
+      "korpuszColor": "Fehér",
+      "frontColor": "Fehér"
+    },
+    {
+      "code": "AAP540",
+      "name": "Sarok alsó",
+      "qty": 1
+    }
+  ]
+}

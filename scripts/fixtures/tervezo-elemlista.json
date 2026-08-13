@@ -1,0 +1,40 @@
+{
+  "quoteNumber": "MRDH-VACI-26-0100",
+  "kitchen": {
+    "store": "vaci",
+    "korpuszColor": "Fehér",
+    "lowerFront": "Tölgy Halifax",
+    "upperFront": "Fehér",
+    "kamraUpperFront": "Fehér"
+  },
+  "items": [
+    {
+      "cikkszam": "AML60",
+      "nev": "Alsó szekrény 60",
+      "mennyiseg": 2,
+      "szelesseg": 600,
+      "magassag": 720,
+      "melyseg": 560,
+      "korpusz": "Fehér",
+      "front": "Tölgy Halifax"
+    },
+    {
+      "cikkszam": "AF60",
+      "nev": "Felső szekrény 60",
+      "mennyiseg": 1,
+      "meretek": "600x720x330",
+      "korpusz": "Fehér",
+      "front": "Fehér"
+    },
+    {
+      "cikkszam": "K60",
+      "nev": "Kamra 60",
+      "mennyiseg": 1,
+      "width": 60,
+      "height": 210,
+      "depth": 56,
+      "korpusz": "Fehér",
+      "front": "Fehér"
+    }
+  ]
+}
