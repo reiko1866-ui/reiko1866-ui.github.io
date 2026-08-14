@@ -54,7 +54,9 @@
     katyu: { icon: "🕳️", label: "Kátyú" },
     dugo: { icon: "🚗", label: "Dugó" },
     veszely: { icon: "⚠️", label: "Veszély" },
-    munka: { icon: "🚧", label: "Útépítés" }
+    munka: { icon: "🚧", label: "Útépítés" },
+    rendor: { icon: "🚓", label: "Rendőr" },
+    traffipax: { icon: "📷", label: "Traffipax" }
   };
 
   const OSRM_ENDPOINTS = {
@@ -117,7 +119,8 @@
     avoidToll: false,
     hazards: [],
     hazardMarkers: [],
-    lastHazardSpeak: ""
+    lastHazardSpeak: "",
+    lastSpeedSpeak: 0
   };
 
   function setStatus(message, isError) {
@@ -1052,20 +1055,98 @@
     state.hazards.push(h);
     saveHazards();
     addHazardMarker(h);
-    speak("Köszönöm. " + h.label + " jelzés rögzítve.");
+    speak(hazardReportLine(h.type));
     setStatus(h.label + " jelzés a térképen.");
+  }
+
+  function hazardReportLine(type) {
+    if (type === "rendor") {
+      return pick([
+        "Rendőr a környéken. Mosolyogjunk. A kamera azt szereti.",
+        "Köszönöm. A törvény keze felkerült a térképre.",
+        "Rendőrség. Mostantól mindenki mintadiák."
+      ]);
+    }
+    if (type === "traffipax") {
+      return pick([
+        "Traffipax rögzítve. A lábunkat vegyük le a gázról, a büszkeségünket tartsuk.",
+        "Sebességmérő. Ő nem viccel. Mi igen, de ő nem.",
+        "Köszönöm. A vaku innentől a mi barátunk. Elvileg."
+      ]);
+    }
+    return "Köszönöm. " + (HAZARD_META[type] || HAZARD_META.veszely).label + " jelzés rögzítve.";
+  }
+
+  function hazardWarnLine(type, kmh) {
+    if (type === "rendor") {
+      return pick([
+        "Figyelem! Rendőr elöl. Integetni szabad, gyorsítani nem.",
+        "Kedves utazó! A törvény keze közeledik. Mi lassítsunk, ők majd integetnek.",
+        "Rendőr a láthatáron. Mostantól mindenki mintaszerűen közlekedik. Még te is."
+      ]);
+    }
+    if (type === "traffipax") {
+      if (kmh >= 60) {
+        return pick([
+          "Traffipax! Mondd csak, nem mész egy kicsit gyorsan?!",
+          "Sebességmérő, és te épp sztár szeretnél lenni a fotón. Lassíts!",
+          "Vaku közeleg. A láb, a gáz, a büntetés: válassz kettőt. Inkább egyet: a lábat."
+        ]);
+      }
+      return pick([
+        "Traffipax elöl. Szépen, ahogy a nagykönyvben megírták.",
+        "Sebességmérő. Te most egy reklámfilm hőse vagy: szabályos, nyugodt, filmcsillogás.",
+        "Mérőpont. A radar számol. Mi mosolygunk."
+      ]);
+    }
+    return "Figyelem! " + (HAZARD_META[type] || HAZARD_META.veszely).label + " az úton, lassíts.";
+  }
+
+  function maybeSpeedingQuip() {
+    if (!state.navigating || !state.voice) return;
+    const kmh = Math.round((state.speedMps || 0) * 3.6);
+    const now = Date.now();
+    if (now - state.lastSpeedSpeak < 50000) return;
+    const nearCam = state.origin && state.hazards.find((h) =>
+      (h.type === "traffipax" || h.type === "rendor") &&
+      haversineMeters(state.origin, { lat: h.lat, lng: h.lng }) < 220
+    );
+    if (nearCam && kmh >= 55) {
+      state.lastSpeedSpeak = now;
+      speak(pick([
+        "Mondd csak, nem mész egy kicsit gyorsan?!",
+        "A traffipax is lát. És nem nevet.",
+        "Lassíts, mielőtt a vaku a főszereplővé tesz."
+      ]));
+      return;
+    }
+    if (kmh >= 115) {
+      state.lastSpeedSpeak = now;
+      speak(pick([
+        "Mondd csak, nem mész egy kicsit gyorsan?!",
+        "Ez már nem utazás, ez űrprogram. A földön maradunk, köszönöm.",
+        "Kedves utazó! A pedál nem versenyző. Engedd el egy kicsit."
+      ]));
+    } else if (kmh >= 95) {
+      state.lastSpeedSpeak = now;
+      speak(pick([
+        "Mondd csak, nem mész egy kicsit gyorsan?!",
+        "Szép a lendület, de a bírság még szebb szokott lenni. Lassítsunk.",
+        "Egy kicsit vissza a gázból. A filmnek nincs szüksége üldözéses jelenetre."
+      ]));
+    }
   }
 
   function warnNearbyHazards() {
     if (!state.navigating || !state.origin) return;
-    const near = state.hazards.find((h) => haversineMeters(state.origin, { lat: h.lat, lng: h.lng }) < 140);
+    const near = state.hazards.find((h) => haversineMeters(state.origin, { lat: h.lat, lng: h.lng }) < 160);
     if (!near) return;
     const key = near.type + ":" + near.lat.toFixed(4);
     if (state.lastHazardSpeak === key) return;
     state.lastHazardSpeak = key;
-    const meta = HAZARD_META[near.type] || HAZARD_META.veszely;
-    speak("Figyelem! " + meta.label + " az úton, lassíts.");
-    setStatus("Veszély az úton: " + meta.label, true);
+    const kmh = Math.round((state.speedMps || 0) * 3.6);
+    speak(hazardWarnLine(near.type, kmh));
+    setStatus((HAZARD_META[near.type] || HAZARD_META.veszely).label + " közeleg");
   }
 
   async function fetchOsmHazards() {
@@ -1077,12 +1158,16 @@
       minLat = Math.min(minLat, c[1]);
       maxLat = Math.max(maxLat, c[1]);
     });
+    const box = minLat + "," + minLng + "," + maxLat + "," + maxLng;
     const q =
-      "[out:json][timeout:12];(" +
-      'way["highway"="construction"](' + minLat + "," + minLng + "," + maxLat + "," + maxLng + ");" +
-      'way["construction"]["highway"](' + minLat + "," + minLng + "," + maxLat + "," + maxLng + ");" +
-      'node["hazard"](' + minLat + "," + minLng + "," + maxLat + "," + maxLng + ");" +
-      ");out center 40;";
+      "[out:json][timeout:15];(" +
+      'way["highway"="construction"](' + box + ");" +
+      'way["construction"]["highway"](' + box + ");" +
+      'node["hazard"](' + box + ");" +
+      'node["highway"="speed_camera"](' + box + ");" +
+      'node["enforcement"="maxspeed"](' + box + ");" +
+      'node["amenity"="police"](' + box + ");" +
+      ");out center 80;";
     try {
       const res = await fetch("https://overpass-api.de/api/interpreter", {
         method: "POST",
@@ -1094,7 +1179,12 @@
         const lat = el.lat || (el.center && el.center.lat);
         const lng = el.lon || (el.center && el.center.lon);
         if (lat == null) return;
-        const h = { type: "munka", lat, lng, at: Date.now(), label: "Útépítés" };
+        const tags = el.tags || {};
+        let type = "munka";
+        if (tags.highway === "speed_camera" || tags.enforcement === "maxspeed") type = "traffipax";
+        else if (tags.amenity === "police") type = "rendor";
+        else if (tags.hazard) type = "veszely";
+        const h = { type, lat, lng, at: Date.now(), label: (HAZARD_META[type] || HAZARD_META.munka).label };
         if (!state.hazards.some((x) => haversineMeters(x, h) < 40)) {
           state.hazards.push(h);
           addHazardMarker(h);
@@ -1328,6 +1418,7 @@
       rotateFlavor(false);
     }
     maybeIdleQuip();
+    maybeSpeedingQuip();
     updateStreetView(lngLat.lat, lngLat.lng, state.heading, false);
     updateCamera(false);
   }
