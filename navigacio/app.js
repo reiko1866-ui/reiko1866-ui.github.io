@@ -106,6 +106,7 @@
     streetPano: null,
     googleReady: false,
     lastStreet: null,
+    streetLoading: false,
     ghostMarker: null,
     arrived: false,
     lastMovedAt: Date.now(),
@@ -601,57 +602,89 @@
     });
   }
 
+  function swapStreetIframe(url) {
+    const a = $("streetViewFrame");
+    const b = $("streetViewFrameB");
+    if (!a || !b) return;
+    const shown = a.classList.contains("is-front") ? a : b;
+    const hidden = shown === a ? b : a;
+    if (shown.getAttribute("src") === url || hidden.getAttribute("src") === url) {
+      state.streetLoading = false;
+      return;
+    }
+    state.streetLoading = true;
+    hidden.onload = () => {
+      hidden.classList.add("is-front");
+      shown.classList.remove("is-front");
+      state.streetLoading = false;
+    };
+    hidden.src = url;
+  }
+
+  function streetLookAhead(lat, lng, heading) {
+    if (state.routeCoords.length) {
+      const ahead = alongLine(state.routeCoords, state.traveledMeters + 28);
+      if (ahead) return { lat: ahead.lat, lng: ahead.lng, heading: ahead.bearing };
+    }
+    return { lat, lng, heading: heading || 0 };
+  }
+
   function updateStreetView(lat, lng, heading, force) {
     if (!state.streetViewOn) return;
     const pane = $("streetViewPane");
-    const frame = $("streetViewFrame");
     const jsBox = $("streetViewJs");
     const open = $("streetViewOpen");
     if (!pane || lat == null || lng == null) return;
     pane.hidden = false;
-    if (open) open.href = streetViewOpenUrl(lat, lng, heading || 0);
-    if (!force && state.lastStreet) return;
-    state.lastStreet = { lat, lng, heading: heading || 0, t: performance.now() };
+    const look = streetLookAhead(lat, lng, heading);
+    if (open) open.href = streetViewOpenUrl(look.lat, look.lng, look.heading);
+    const now = performance.now();
+    if (!force && state.lastStreet) {
+      const moved = haversineMeters(state.lastStreet, { lat: look.lat, lng: look.lng });
+      const turn = Math.abs(((look.heading || 0) - state.lastStreet.heading + 540) % 360 - 180);
+      if ((moved < 70 && turn < 40) || now - state.lastStreet.t < 4500 || state.streetLoading) return;
+    }
+    state.lastStreet = { lat: look.lat, lng: look.lng, heading: look.heading || 0, t: now };
 
     const key = String($("gmapsKey")?.value || localStorage.getItem(GMAPS_KEY) || "").trim();
     if (key && window.google && window.google.maps && state.streetPano) {
-      frame.hidden = true;
+      $("streetViewFrame").hidden = true;
+      $("streetViewFrameB").hidden = true;
       jsBox.hidden = false;
-      state.streetPano.setPosition({ lat, lng });
-      state.streetPano.setPov({ heading: heading || 0, pitch: 0 });
+      state.streetPano.setPosition({ lat: look.lat, lng: look.lng });
+      state.streetPano.setPov({ heading: look.heading || 0, pitch: 0 });
       return;
     }
     if (key) {
       loadGoogleMaps(key)
         .then(() => {
           if (!state.streetViewOn) return;
-          frame.hidden = true;
+          $("streetViewFrame").hidden = true;
+          $("streetViewFrameB").hidden = true;
           jsBox.hidden = false;
           jsBox.style.display = "block";
           if (!state.streetPano) {
             state.streetPano = new window.google.maps.StreetViewPanorama(jsBox, {
-              position: { lat, lng },
-              pov: { heading: heading || 0, pitch: 0 },
+              position: { lat: look.lat, lng: look.lng },
+              pov: { heading: look.heading || 0, pitch: 0 },
               zoom: 1,
               addressControl: false,
               fullscreenControl: false,
               motionTracking: false
             });
           } else {
-            state.streetPano.setPosition({ lat, lng });
-            state.streetPano.setPov({ heading: heading || 0, pitch: 0 });
+            state.streetPano.setPosition({ lat: look.lat, lng: look.lng });
+            state.streetPano.setPov({ heading: look.heading || 0, pitch: 0 });
           }
         })
         .catch(() => {
-          frame.hidden = false;
           jsBox.hidden = true;
-          frame.src = streetViewUrl(lat, lng, heading || 0);
+          swapStreetIframe(streetViewUrl(look.lat, look.lng, look.heading || 0));
         });
       return;
     }
-    frame.hidden = false;
-    jsBox.hidden = true;
-    frame.src = streetViewUrl(lat, lng, heading || 0);
+    if (jsBox) jsBox.hidden = true;
+    swapStreetIframe(streetViewUrl(look.lat, look.lng, look.heading || 0));
   }
 
   function setStreetView(on, refresh) {
@@ -661,12 +694,19 @@
     $("streetBtn").setAttribute("aria-pressed", state.streetViewOn ? "true" : "false");
     $("streetViewPane").hidden = !state.streetViewOn;
     if (!state.streetViewOn) {
-      const frame = $("streetViewFrame");
-      if (frame) frame.removeAttribute("src");
+      ["streetViewFrame", "streetViewFrameB"].forEach((id) => {
+        const frame = $(id);
+        if (frame) {
+          frame.removeAttribute("src");
+          frame.classList.toggle("is-front", id === "streetViewFrame");
+        }
+      });
+      state.lastStreet = null;
+      state.streetLoading = false;
       return;
     }
     if (state.origin) {
-      updateStreetView(state.origin.lat, state.origin.lng, state.heading, !!refresh || !state.lastStreet);
+      updateStreetView(state.origin.lat, state.origin.lng, state.heading, true);
     }
   }
 
@@ -1422,6 +1462,7 @@
     }
     maybeIdleQuip();
     maybeSpeedingQuip();
+    updateStreetView(lngLat.lat, lngLat.lng, state.heading, false);
     updateCamera(false);
   }
 

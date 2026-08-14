@@ -66,12 +66,15 @@
 
     <div class="street-view" id="streetViewPane" hidden>
       <div class="street-view-bar">
-        <span>Street View — rögzített utcakép</span>
+        <span>Street View — követi az utcát</span>
         <button type="button" id="streetRefresh" class="street-refresh">Frissítés</button>
         <a id="streetViewOpen" href="https://www.google.com/maps" target="_blank" rel="noopener">Megnyitás</a>
       </div>
-      <iframe id="streetViewFrame" title="Google Street View" allowfullscreen loading="lazy" referrerpolicy="no-referrer-when-downgrade"></iframe>
-      <div id="streetViewJs" hidden></div>
+      <div class="street-stage">
+        <iframe id="streetViewFrame" class="is-front" title="Google Street View" allowfullscreen loading="lazy" referrerpolicy="no-referrer-when-downgrade"></iframe>
+        <iframe id="streetViewFrameB" title="Google Street View következő" allowfullscreen loading="lazy" referrerpolicy="no-referrer-when-downgrade"></iframe>
+        <div id="streetViewJs" hidden></div>
+      </div>
     </div>
 
     <button type="button" class="fab fab-follow is-active" id="followBtn" aria-pressed="true" title="Követés">

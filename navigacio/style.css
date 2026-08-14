@@ -309,6 +309,27 @@ body {
   min-height: 0;
 }
 
+.street-stage {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+}
+
+.street-stage iframe {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.35s ease;
+}
+
+.street-stage iframe.is-front {
+  opacity: 1;
+  pointer-events: auto;
+}
+
 .lane-assist {
   position: absolute;
   top: calc(5.55rem + env(safe-area-inset-top));
