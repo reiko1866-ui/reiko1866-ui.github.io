@@ -3,40 +3,84 @@
 <head>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
-  <meta name="theme-color" content="#f4f6f8"/>
+  <meta name="theme-color" content="#1a73e8"/>
   <meta name="mobile-web-app-capable" content="yes"/>
   <meta name="apple-mobile-web-app-capable" content="yes"/>
-  <meta name="apple-mobile-web-app-status-bar-style" content="default"/>
-  <title>Navigáció</title>
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
+  <title>Navigáció 4D</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/maplibre-gl@5.5.0/dist/maplibre-gl.css"/>
   <link rel="stylesheet" href="style.css"/>
 </head>
 <body>
   <div class="app">
+    <div id="map" role="application" aria-label="3D térkép"></div>
+
+    <section class="maneuver-banner" id="maneuverBanner" hidden>
+      <div class="maneuver-icon" id="maneuverIcon" aria-hidden="true">↑</div>
+      <div class="maneuver-text">
+        <p class="maneuver-distance" id="maneuverDistance">—</p>
+        <p class="maneuver-instruction" id="maneuverInstruction">Útvonal keresése…</p>
+        <p class="maneuver-street" id="maneuverStreet"></p>
+      </div>
+    </section>
+
+    <div class="speed-badge" id="speedBadge" hidden>
+      <span class="speed-value" id="speedValue">0</span>
+      <span class="speed-unit">km/h</span>
+    </div>
+
+    <div class="top-actions">
+      <div class="view-switch" role="radiogroup" aria-label="Nézet">
+        <label><input type="radio" name="viewMode" value="2d"/><span>2D</span></label>
+        <label><input type="radio" name="viewMode" value="3d"/><span>3D</span></label>
+        <label><input type="radio" name="viewMode" value="4d" checked/><span>4D</span></label>
+      </div>
+      <button type="button" class="icon-btn" id="voiceBtn" aria-pressed="false" title="Hangutasítás">🔇</button>
+      <button type="button" class="icon-btn" id="themeToggle" aria-pressed="false" title="Sötét mód">
+        <span class="theme-icon theme-icon-moon" aria-hidden="true">☾</span>
+        <span class="theme-icon theme-icon-sun" aria-hidden="true">☀</span>
+        <span class="visually-hidden">Világos / sötét téma</span>
+      </button>
+    </div>
+
+    <button type="button" class="fab fab-follow is-active" id="followBtn" aria-pressed="true" title="Követés">
+      ⌖
+      <span class="visually-hidden">Pozíció követése</span>
+    </button>
+
     <aside class="sidebar" id="sidebar" aria-label="Navigációs panel">
       <button type="button" class="sheet-handle" id="sheetHandle" aria-expanded="false" aria-controls="sidebar">
         <span class="sheet-handle-bar" aria-hidden="true"></span>
         <span class="visually-hidden">Panel kinyitása vagy becsukása</span>
       </button>
 
-      <header class="sidebar-header">
-        <h1>Navigáció</h1>
-        <button type="button" class="icon-btn" id="themeToggle" aria-pressed="false" title="Sötét mód">
-          <span class="theme-icon theme-icon-moon" aria-hidden="true">☾</span>
-          <span class="theme-icon theme-icon-sun" aria-hidden="true">☀</span>
-          <span class="visually-hidden">Világos / sötét téma</span>
-        </button>
-      </header>
+      <div class="eta-bar" id="etaBar" hidden>
+        <div>
+          <span class="eta-value" id="etaClock">—</span>
+          <span class="eta-label">érkezés</span>
+        </div>
+        <div>
+          <span class="eta-value" id="routeDuration">—</span>
+          <span class="eta-label">idő</span>
+        </div>
+        <div>
+          <span class="eta-value" id="routeDistance">—</span>
+          <span class="eta-label">táv</span>
+        </div>
+      </div>
+      <div class="progress-track" id="progressTrack" hidden>
+        <div class="progress-fill" id="progressFill"></div>
+      </div>
 
       <form class="search-form" id="searchForm" autocomplete="off">
-        <label class="field-label" for="addressInput">Célállomás címe</label>
+        <label class="field-label" for="addressInput">Hova?</label>
         <div class="search-row">
           <input
             id="addressInput"
             name="address"
             type="search"
             inputmode="search"
-            placeholder="pl. Budapest, Váci út 1."
+            placeholder="Cím vagy hely keresése"
             enterkeyhint="search"
           />
           <button type="submit" class="btn-primary" id="searchBtn">Keresés</button>
@@ -62,33 +106,13 @@
         </div>
       </fieldset>
 
-      <section class="route-card" id="routeCard" hidden>
-        <p class="route-label">Útvonal</p>
-        <p class="route-destination" id="routeDestination">—</p>
-        <div class="route-metrics">
-          <div>
-            <span class="metric-value" id="routeDistance">—</span>
-            <span class="metric-label">távolság</span>
-          </div>
-          <div>
-            <span class="metric-value" id="routeDuration">—</span>
-            <span class="metric-label">időtartam</span>
-          </div>
-        </div>
-      </section>
-
+      <p class="route-destination" id="routeDestination" hidden></p>
+      <button type="button" class="btn-preview" id="previewBtn" hidden>4D útvonal-előnézet</button>
       <p class="status" id="statusText">GPS indítása…</p>
     </aside>
-
-    <div id="map" role="application" aria-label="Térkép"></div>
-
-    <button type="button" class="fab fab-follow is-active" id="followBtn" aria-pressed="true" title="Kövesse a pozíciómat">
-      ⌖
-      <span class="visually-hidden">Pozíció követése</span>
-    </button>
   </div>
 
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+  <script src="https://cdn.jsdelivr.net/npm/maplibre-gl@5.5.0/dist/maplibre-gl.js"></script>
   <script src="app.js"></script>
 </body>
 </html>
