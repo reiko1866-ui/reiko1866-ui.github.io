@@ -12,7 +12,7 @@
   <link rel="stylesheet" href="style.css"/>
 </head>
 <body>
-  <div class="app is-cinema">
+  <div class="app">
     <div class="letterbox letterbox-top" aria-hidden="true"></div>
     <div class="letterbox letterbox-bottom" aria-hidden="true"></div>
     <div class="film-grain" aria-hidden="true"></div>
@@ -49,13 +49,18 @@
         <label><input type="radio" name="viewMode" value="3d"/><span>3D</span></label>
         <label><input type="radio" name="viewMode" value="4d" checked/><span>4D</span></label>
       </div>
-      <button type="button" class="icon-btn is-on" id="cinemaBtn" aria-pressed="true" title="Mozi mód">🎬</button>
+      <button type="button" class="icon-btn is-on" id="satBtn" aria-pressed="true" title="Műhold">🛰️</button>
+      <button type="button" class="icon-btn" id="cinemaBtn" aria-pressed="false" title="Mozi mód">🎬</button>
       <button type="button" class="icon-btn is-on" id="voiceBtn" aria-pressed="true" title="Bemondó hang">🔊</button>
       <button type="button" class="icon-btn" id="themeToggle" aria-pressed="false" title="Sötét mód">
         <span class="theme-icon theme-icon-moon" aria-hidden="true">☾</span>
         <span class="theme-icon theme-icon-sun" aria-hidden="true">☀</span>
         <span class="visually-hidden">Világos / sötét téma</span>
       </button>
+    </div>
+
+    <div class="junction-view" id="junctionPane" hidden>
+      <canvas id="junctionCanvas" aria-label="3D sávnézet"></canvas>
     </div>
 
     <div class="street-view" id="streetViewPane" hidden>
@@ -130,12 +135,45 @@
         </div>
       </fieldset>
 
+      <div class="nav-options">
+        <label class="check"><input type="checkbox" id="avoidMotorway"/> Autópálya elkerülése</label>
+        <label class="check"><input type="checkbox" id="avoidToll"/> Fizetős utak elkerülése</label>
+      </div>
+
       <p class="route-destination" id="routeDestination" hidden></p>
+      <button type="button" class="btn-start" id="startBtn" hidden>Indulhatunk</button>
+      <button type="button" class="btn-stop" id="stopBtn" hidden>Navigáció leállítása</button>
       <button type="button" class="btn-preview" id="previewBtn" hidden>4D útvonal-előnézet</button>
-      <label class="field-label" for="gmapsKey">Google Maps API kulcs (Street View, opcionális)</label>
-      <input id="gmapsKey" type="password" autocomplete="off" placeholder="Ha van kulcsod, simább a 4D Street View"/>
+
+      <div class="hazard-box">
+        <p class="field-label">Jelzés útközben</p>
+        <div class="hazard-row">
+          <button type="button" class="hazard-btn" data-hazard="baleset">💥 Baleset</button>
+          <button type="button" class="hazard-btn" data-hazard="katyu">🕳️ Kátyú</button>
+          <button type="button" class="hazard-btn" data-hazard="dugo">🚗 Dugó</button>
+          <button type="button" class="hazard-btn" data-hazard="veszely">⚠️ Veszély</button>
+        </div>
+      </div>
+
+      <details class="more-details">
+        <summary>Street View kulcs (opcionális)</summary>
+        <label class="field-label" for="gmapsKey">Google Maps API kulcs</label>
+        <input id="gmapsKey" type="password" autocomplete="off" placeholder="Simább 4D Street View-hoz"/>
+      </details>
       <p class="status" id="statusText">GPS indítása…</p>
     </aside>
+
+    <footer class="drive-bar" id="driveBar" hidden>
+      <div class="drive-speed">
+        <span id="driveSpeed">0</span>
+        <small>km/h</small>
+      </div>
+      <p class="drive-road" id="driveRoad">—</p>
+      <div class="drive-eta">
+        <span id="driveEta">—</span>
+        <small>érkezés</small>
+      </div>
+    </footer>
 
     <div id="arrivalOverlay" class="arrival-overlay" hidden>
       <p class="arrival-kicker">Vége a jelenetnek</p>

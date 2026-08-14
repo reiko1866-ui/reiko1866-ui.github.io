@@ -5,14 +5,56 @@
   const THEME_KEY = "nav_theme";
   const VIEW_KEY = "nav_view_mode";
   const GMAPS_KEY = "nav_gmaps_key";
+  const HAZARD_KEY = "nav_hazards_v1";
+  const PINK = "#e20074";
   const NOMINATIM_URL = "https://nominatim.openstreetmap.org/search";
   const OSRM_QUERY = "overview=full&geometries=geojson&alternatives=false&steps=true";
   const REROUTE_METERS = 45;
   const EMPTY_LINE = { type: "FeatureCollection", features: [] };
 
+  function satelliteStyle() {
+    return {
+      version: 8,
+      sources: {
+        satellite: {
+          type: "raster",
+          tiles: ["https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"],
+          tileSize: 256,
+          maxzoom: 19,
+          attribution: "Tiles © Esri — Source: Esri, Maxar, Earthstar Geographics"
+        },
+        roads: {
+          type: "raster",
+          tiles: ["https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Transportation/MapServer/tile/{z}/{y}/{x}"],
+          tileSize: 256,
+          maxzoom: 19
+        },
+        places: {
+          type: "raster",
+          tiles: ["https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}"],
+          tileSize: 256,
+          maxzoom: 19
+        }
+      },
+      layers: [
+        { id: "sat", type: "raster", source: "satellite" },
+        { id: "sat-roads", type: "raster", source: "roads", paint: { "raster-opacity": 0.72 } },
+        { id: "sat-places", type: "raster", source: "places" }
+      ]
+    };
+  }
+
   const STYLES = {
     light: "https://tiles.openfreemap.org/styles/liberty",
     dark: "https://tiles.openfreemap.org/styles/dark"
+  };
+
+  const HAZARD_META = {
+    baleset: { icon: "💥", label: "Baleset" },
+    katyu: { icon: "🕳️", label: "Kátyú" },
+    dugo: { icon: "🚗", label: "Dugó" },
+    veszely: { icon: "⚠️", label: "Veszély" },
+    munka: { icon: "🚧", label: "Útépítés" }
   };
 
   const OSRM_ENDPOINTS = {
@@ -68,7 +110,14 @@
     lastIdleSpeak: 0,
     lastFlavorAt: 0,
     cinema: true,
-    mood: "day"
+    mood: "day",
+    satellite: true,
+    navigating: false,
+    avoidMotorway: false,
+    avoidToll: false,
+    hazards: [],
+    hazardMarkers: [],
+    lastHazardSpeak: ""
   };
 
   function setStatus(message, isError) {
@@ -642,13 +691,15 @@
     $("maneuverInstruction").textContent = copy.text;
     $("maneuverStreet").textContent = copy.street;
     renderLanes(lanes, hint);
-    if (cur.index !== state.lastSpokenStep && cur.until < 220) {
+    if (cur.index !== state.lastSpokenStep && cur.until < 220 && state.navigating) {
       state.lastSpokenStep = cur.index;
       speak(presenterLine(copy, cur.until, hint));
-    } else if (lanes.length && cur.index !== state.lastSpokenLane && cur.until < 90) {
+    } else if (lanes.length && cur.index !== state.lastSpokenLane && cur.until < 90 && state.navigating) {
       state.lastSpokenLane = cur.index;
       if (hint) speak("Sávasszisztens. " + hint.replace("Válaszd", "Szépen válasszuk").replace("Tartsd", "Tartsuk"));
     }
+    drawJunction();
+    warnNearbyHazards();
   }
 
   function remainingSeconds() {
@@ -678,6 +729,11 @@
     $("routeDestination").textContent = state.destinationLabel;
     const frac = Math.max(0, Math.min(1, state.traveledMeters / (lineLength(state.routeCoords) || 1)));
     $("progressFill").style.width = frac * 100 + "%";
+    $("startBtn").hidden = !state.route || state.navigating;
+    $("stopBtn").hidden = !state.navigating;
+    $("driveEta").textContent = formatClock(sec);
+    const cur = currentStep();
+    $("driveRoad").textContent = (cur && cur.step && cur.step.name) || shortPlace(state.destinationLabel);
   }
 
   function firstLabelLayerId() {
@@ -752,7 +808,8 @@
       }
     }
     if (state.map.getLayer("3d-buildings")) {
-      state.map.setLayoutProperty("3d-buildings", "visibility", state.viewMode === "2d" ? "none" : "visible");
+      const show = !state.satellite && state.viewMode !== "2d";
+      state.map.setLayoutProperty("3d-buildings", "visibility", show ? "visible" : "none");
     }
   }
 
@@ -764,13 +821,13 @@
         id: "route-rest-casing",
         type: "line",
         source: "route-rest",
-        paint: { "line-color": "#fff", "line-width": 12, "line-opacity": 0.95 }
+        paint: { "line-color": "#fff", "line-width": 14, "line-opacity": 0.95 }
       });
       state.map.addLayer({
         id: "route-rest-line",
         type: "line",
         source: "route-rest",
-        paint: { "line-color": "#1a73e8", "line-width": 7, "line-opacity": 1, "line-blur": 0.2 }
+        paint: { "line-color": PINK, "line-width": 8, "line-opacity": 1, "line-blur": 0.15 }
       });
       state.map.addLayer({
         id: "route-done-line",
@@ -784,11 +841,7 @@
   function paintRouteMood() {
     if (!state.map || !state.map.getLayer("route-rest-line")) return;
     const frac = Math.max(0, Math.min(1, state.traveledMeters / (lineLength(state.routeCoords) || 1)));
-    const color =
-      state.mood === "night" ? (frac > 0.7 ? "#e879f9" : "#7c3aed") :
-      state.mood === "golden" ? (frac > 0.7 ? "#2a9d8f" : "#e76f51") :
-      state.mood === "dawn" ? "#e07a3d" :
-      frac > 0.75 ? "#05c46b" : "#1a73e8";
+    const color = frac > 0.8 ? "#05c46b" : PINK;
     state.map.setPaintProperty("route-rest-line", "line-color", color);
   }
 
@@ -797,6 +850,7 @@
     addRouteLayers();
     state.overlaysReady = true;
     if (state.routeCoords.length) drawRouteProgress();
+    loadHazardsOntoMap();
   }
 
   function setGeoJson(sourceId, coords) {
@@ -815,6 +869,247 @@
     setGeoJson("route-done", parts.done);
     setGeoJson("route-rest", parts.rest);
     paintRouteMood();
+  }
+
+  function resizeJunction() {
+    const canvas = $("junctionCanvas");
+    const pane = $("junctionPane");
+    if (!canvas || !pane || pane.hidden) return;
+    const dpr = window.devicePixelRatio || 1;
+    const w = pane.clientWidth;
+    const h = pane.clientHeight;
+    canvas.width = Math.max(1, Math.floor(w * dpr));
+    canvas.height = Math.max(1, Math.floor(h * dpr));
+    canvas.style.width = w + "px";
+    canvas.style.height = h + "px";
+  }
+
+  function drawJunction() {
+    const pane = $("junctionPane");
+    const canvas = $("junctionCanvas");
+    if (!pane || !canvas) return;
+    pane.hidden = !state.navigating;
+    if (!state.navigating) return;
+    resizeJunction();
+    const ctx = canvas.getContext("2d");
+    const w = canvas.width;
+    const h = canvas.height;
+    ctx.clearRect(0, 0, w, h);
+    const sky = ctx.createLinearGradient(0, 0, 0, h * 0.42);
+    sky.addColorStop(0, state.mood === "night" ? "#0b1220" : "#7ec8ff");
+    sky.addColorStop(1, state.mood === "night" ? "#1b2838" : "#d7eefc");
+    ctx.fillStyle = sky;
+    ctx.fillRect(0, 0, w, h * 0.42);
+    ctx.fillStyle = state.mood === "night" ? "#16351d" : "#3fa34d";
+    ctx.fillRect(0, h * 0.38, w, h);
+    ctx.beginPath();
+    ctx.moveTo(w * 0.36, h * 0.4);
+    ctx.lineTo(w * 0.64, h * 0.4);
+    ctx.lineTo(w * 1.05, h);
+    ctx.lineTo(-w * 0.05, h);
+    ctx.closePath();
+    ctx.fillStyle = "#4a4f55";
+    ctx.fill();
+    ctx.strokeStyle = "#2e3236";
+    ctx.lineWidth = 8;
+    ctx.stroke();
+    const cur = currentStep();
+    const lanes = cur ? lanesFromStep(cur.step) : [];
+    const n = Math.max(lanes.length, 3);
+    const copy = cur ? maneuverCopy(cur.step) : { icon: "↑", text: "Haladj tovább", street: "" };
+    for (let i = 1; i < n; i++) {
+      const t = i / n;
+      ctx.beginPath();
+      ctx.strokeStyle = "rgba(255,255,255,0.85)";
+      ctx.setLineDash([18, 22]);
+      ctx.lineWidth = 4;
+      const topX = w * (0.36 + t * 0.28);
+      const botX = w * (-0.05 + t * 1.1);
+      ctx.moveTo(topX, h * 0.42);
+      ctx.lineTo(botX, h);
+      ctx.stroke();
+      ctx.setLineDash([]);
+    }
+    const valid = [];
+    for (let i = 0; i < n; i++) {
+      if (!lanes.length || (lanes[i] && lanes[i].valid)) valid.push(i);
+    }
+    valid.forEach((i) => {
+      const t0 = i / n;
+      const t1 = (i + 1) / n;
+      ctx.beginPath();
+      ctx.moveTo(w * (0.36 + t0 * 0.28), h * 0.42);
+      ctx.lineTo(w * (0.36 + t1 * 0.28), h * 0.42);
+      ctx.lineTo(w * (-0.05 + t1 * 1.1), h);
+      ctx.lineTo(w * (-0.05 + t0 * 1.1), h);
+      ctx.closePath();
+      ctx.fillStyle = "rgba(226,0,116,0.38)";
+      ctx.fill();
+    });
+    ctx.fillStyle = PINK;
+    ctx.beginPath();
+    const mid = valid.length ? (valid[0] + valid[valid.length - 1] + 1) / 2 / n : 0.5;
+    const ax = w * (0.36 + mid * 0.28);
+    const bx = w * (-0.05 + mid * 1.1);
+    ctx.moveTo(ax, h * 0.46);
+    ctx.lineTo(ax + w * 0.05, h * 0.58);
+    ctx.lineTo(ax + w * 0.02, h * 0.58);
+    ctx.lineTo(bx + w * 0.03, h * 0.92);
+    ctx.lineTo(bx - w * 0.03, h * 0.92);
+    ctx.lineTo(ax - w * 0.02, h * 0.58);
+    ctx.lineTo(ax - w * 0.05, h * 0.58);
+    ctx.closePath();
+    ctx.fill();
+    ctx.fillStyle = "#1a73e8";
+    const gw = w * 0.72;
+    const gx = (w - gw) / 2;
+    ctx.fillRect(gx, h * 0.06, gw, h * 0.2);
+    ctx.fillStyle = "#fff";
+    ctx.font = "700 " + Math.round(h * 0.055) + "px system-ui, sans-serif";
+    ctx.textAlign = "center";
+    const dist = cur ? formatDistance(cur.until) : "";
+    ctx.fillText(copy.icon + "  " + dist, w / 2, h * 0.14);
+    ctx.font = "800 " + Math.round(h * 0.048) + "px system-ui, sans-serif";
+    ctx.fillText((copy.street || copy.text).slice(0, 28), w / 2, h * 0.21);
+  }
+
+  function startNavigation() {
+    if (!state.route) return;
+    state.navigating = true;
+    document.querySelector(".app").classList.add("is-nav");
+    $("driveBar").hidden = false;
+    $("startBtn").hidden = true;
+    $("stopBtn").hidden = false;
+    $("sidebar").classList.remove("is-expanded");
+    setCinema(false);
+    setFollow(true);
+    drawJunction();
+    window.setTimeout(() => {
+      if (state.map) state.map.resize();
+      drawJunction();
+    }, 280);
+    speak(pick([
+      "Kedves utazó! Indulhatunk. Kövesd a rózsaszín vonalat.",
+      "Csend a stúdióban. Motor, kamera, navigáció.",
+      "A nagy utazás most kezdődik. Én bemondom, te viszed."
+    ]));
+    setStatus("Navigáció elindult");
+    updateCamera(true);
+  }
+
+  function stopNavigation() {
+    state.navigating = false;
+    document.querySelector(".app").classList.remove("is-nav");
+    $("driveBar").hidden = true;
+    $("junctionPane").hidden = true;
+    $("startBtn").hidden = !state.route;
+    $("stopBtn").hidden = true;
+    setFollow(false);
+    if (state.map) window.setTimeout(() => state.map.resize(), 280);
+    setStatus("Navigáció leállítva");
+  }
+
+  function loadStoredHazards() {
+    try {
+      state.hazards = JSON.parse(localStorage.getItem(HAZARD_KEY) || "[]");
+    } catch (_e) {
+      state.hazards = [];
+    }
+    if (!Array.isArray(state.hazards)) state.hazards = [];
+  }
+
+  function saveHazards() {
+    localStorage.setItem(HAZARD_KEY, JSON.stringify(state.hazards.slice(-80)));
+  }
+
+  function addHazardMarker(h) {
+    if (!state.map) return;
+    const el = document.createElement("div");
+    el.className = "hazard-map-pin";
+    el.textContent = (HAZARD_META[h.type] || HAZARD_META.veszely).icon;
+    const marker = new maplibregl.Marker({ element: el }).setLngLat([h.lng, h.lat]).addTo(state.map);
+    state.hazardMarkers.push(marker);
+  }
+
+  function loadHazardsOntoMap() {
+    state.hazardMarkers.forEach((m) => m.remove());
+    state.hazardMarkers = [];
+    state.hazards.forEach(addHazardMarker);
+  }
+
+  function reportHazard(type) {
+    if (!state.origin) {
+      setStatus("Előbb kell GPS-pozíció a jelzéshez.", true);
+      return;
+    }
+    const h = {
+      type,
+      lat: state.origin.lat,
+      lng: state.origin.lng,
+      at: Date.now(),
+      label: (HAZARD_META[type] || HAZARD_META.veszely).label
+    };
+    state.hazards.push(h);
+    saveHazards();
+    addHazardMarker(h);
+    speak("Köszönöm. " + h.label + " jelzés rögzítve.");
+    setStatus(h.label + " jelzés a térképen.");
+  }
+
+  function warnNearbyHazards() {
+    if (!state.navigating || !state.origin) return;
+    const near = state.hazards.find((h) => haversineMeters(state.origin, { lat: h.lat, lng: h.lng }) < 140);
+    if (!near) return;
+    const key = near.type + ":" + near.lat.toFixed(4);
+    if (state.lastHazardSpeak === key) return;
+    state.lastHazardSpeak = key;
+    const meta = HAZARD_META[near.type] || HAZARD_META.veszely;
+    speak("Figyelem! " + meta.label + " az úton, lassíts.");
+    setStatus("Veszély az úton: " + meta.label, true);
+  }
+
+  async function fetchOsmHazards() {
+    if (!state.routeCoords.length) return;
+    let minLat = 90, maxLat = -90, minLng = 180, maxLng = -180;
+    state.routeCoords.forEach((c) => {
+      minLng = Math.min(minLng, c[0]);
+      maxLng = Math.max(maxLng, c[0]);
+      minLat = Math.min(minLat, c[1]);
+      maxLat = Math.max(maxLat, c[1]);
+    });
+    const q =
+      "[out:json][timeout:12];(" +
+      'way["highway"="construction"](' + minLat + "," + minLng + "," + maxLat + "," + maxLng + ");" +
+      'way["construction"]["highway"](' + minLat + "," + minLng + "," + maxLat + "," + maxLng + ");" +
+      'node["hazard"](' + minLat + "," + minLng + "," + maxLat + "," + maxLng + ");" +
+      ");out center 40;";
+    try {
+      const res = await fetch("https://overpass-api.de/api/interpreter", {
+        method: "POST",
+        body: "data=" + encodeURIComponent(q)
+      });
+      if (!res.ok) return;
+      const data = await res.json();
+      (data.elements || []).forEach((el) => {
+        const lat = el.lat || (el.center && el.center.lat);
+        const lng = el.lon || (el.center && el.center.lon);
+        if (lat == null) return;
+        const h = { type: "munka", lat, lng, at: Date.now(), label: "Útépítés" };
+        if (!state.hazards.some((x) => haversineMeters(x, h) < 40)) {
+          state.hazards.push(h);
+          addHazardMarker(h);
+        }
+      });
+    } catch (_e) {}
+  }
+
+  function setSatellite(on) {
+    state.satellite = !!on;
+    $("satBtn").classList.toggle("is-on", state.satellite);
+    $("satBtn").setAttribute("aria-pressed", state.satellite ? "true" : "false");
+    if (!state.map) return;
+    state.overlaysReady = false;
+    state.map.setStyle(state.satellite ? satelliteStyle() : STYLES[state.theme]);
   }
 
   function cameraForMode(center, bearing) {
@@ -842,7 +1137,7 @@
   }
 
   function updateCamera(force) {
-    if (!state.map || !state.origin || !state.follow || state.previewing) return;
+    if (!state.map || !state.origin || !state.follow || state.previewing || !state.navigating) return;
     const now = performance.now();
     if (!force && now - state.lastCameraAt < 280) return;
     state.lastCameraAt = now;
@@ -877,7 +1172,7 @@
     localStorage.setItem(THEME_KEY, state.theme);
     if (reloadStyle && state.map) {
       state.overlaysReady = false;
-      state.map.setStyle(STYLES[state.theme]);
+      state.map.setStyle(state.satellite ? satelliteStyle() : STYLES[state.theme]);
     }
   }
 
@@ -1018,6 +1313,7 @@
     const kmh = Math.round((state.speedMps || 0) * 3.6);
     $("speedBadge").hidden = false;
     $("speedValue").textContent = String(kmh);
+    if ($("driveSpeed")) $("driveSpeed").textContent = String(kmh);
     const puckEl = state.puckMarker.getElement();
     if (puckEl) puckEl.classList.toggle("is-fast", kmh >= 48);
     if (state.routeCoords.length) {
@@ -1100,13 +1396,23 @@
     return data;
   }
 
+  function osrmQuery() {
+    let q = OSRM_QUERY;
+    const ex = [];
+    if (state.avoidMotorway) ex.push("motorway");
+    if (state.avoidToll) ex.push("toll");
+    if (ex.length) q += "&exclude=" + ex.join(",");
+    return q;
+  }
+
   async function fetchOsrmRoute(from, to, mode) {
     const coord = from.lng + "," + from.lat + ";" + to.lng + "," + to.lat;
     const urls = OSRM_ENDPOINTS[mode] || OSRM_ENDPOINTS.driving;
+    const query = osrmQuery();
     let lastError = null;
     for (const base of urls) {
       try {
-        const res = await fetch(base + "/" + coord + "?" + OSRM_QUERY);
+        const res = await fetch(base + "/" + coord + "?" + query);
         if (!res.ok) {
           lastError = new Error("OSRM HTTP " + res.status);
           continue;
@@ -1148,15 +1454,19 @@
       if (state.overlaysReady) drawRouteProgress();
       updateManeuverUi();
       updateEtaUi();
-      setFollow(true);
-      updateCamera(true);
-      setStatus("4D navigáció aktív");
-      const first = currentStep();
-      if (first) {
-        const copy = maneuverCopy(first.step);
-        const lanes = lanesFromStep(first.step);
-        speak(presenterLine(copy, first.until, laneHintText(lanes)));
+      $("startBtn").hidden = false;
+      $("stopBtn").hidden = true;
+      $("previewBtn").hidden = false;
+      if (state.routeCoords.length && state.map) {
+        const b = new maplibregl.LngLatBounds(state.routeCoords[0], state.routeCoords[0]);
+        state.routeCoords.forEach((c) => b.extend(c));
+        state.map.fitBounds(b, { padding: 70, maxZoom: 15, duration: 900, pitch: state.satellite ? 45 : 0 });
       }
+      setFollow(false);
+      loadHazardsOntoMap();
+      fetchOsmHazards();
+      setStatus("Útvonal kész. Nyomd meg: Indulhatunk.");
+      drawJunction();
     } catch (err) {
       setStatus(err.message || "Az útvonaltervezés sikertelen.", true);
     }
@@ -1200,7 +1510,7 @@
   }
 
   function maybeReroute() {
-    if (!state.origin || !state.destination || state.previewing) return;
+    if (!state.origin || !state.destination || state.previewing || !state.navigating) return;
     if (!state.lastRouteOrigin) {
       planRoute();
       return;
@@ -1322,7 +1632,7 @@
   function initMap() {
     state.map = new maplibregl.Map({
       container: "map",
-      style: STYLES[state.theme],
+      style: satelliteStyle(),
       center: DEFAULT_CENTER,
       zoom: 13.4,
       pitch: 62,
@@ -1347,6 +1657,24 @@
     $("followBtn").addEventListener("click", () => setFollow(!state.follow));
     $("previewBtn").addEventListener("click", playPreview);
     $("cinemaBtn").addEventListener("click", () => setCinema(!state.cinema));
+    $("startBtn").addEventListener("click", startNavigation);
+    $("stopBtn").addEventListener("click", stopNavigation);
+    $("satBtn").addEventListener("click", () => setSatellite(!state.satellite));
+    $("avoidMotorway").addEventListener("change", () => {
+      state.avoidMotorway = $("avoidMotorway").checked;
+      if (state.origin && state.destination) planRoute();
+    });
+    $("avoidToll").addEventListener("change", () => {
+      state.avoidToll = $("avoidToll").checked;
+      if (state.origin && state.destination) planRoute();
+    });
+    document.querySelectorAll("[data-hazard]").forEach((btn) => {
+      btn.addEventListener("click", () => reportHazard(btn.getAttribute("data-hazard")));
+    });
+    window.addEventListener("resize", () => {
+      if (state.map) state.map.resize();
+      drawJunction();
+    });
     $("arrivalOk").addEventListener("click", () => {
       $("arrivalOverlay").hidden = true;
       state.arrived = false;
@@ -1384,7 +1712,8 @@
   applyTheme(state.theme, false);
   applyViewMode(state.viewMode);
   applyMood(true);
-  setCinema(true);
+  setCinema(false);
+  loadStoredHazards();
   initMap();
   bindUi();
   setupSheet();
