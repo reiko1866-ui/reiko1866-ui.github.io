@@ -49,6 +49,7 @@
         <label><input type="radio" name="viewMode" value="3d"/><span>3D</span></label>
         <label><input type="radio" name="viewMode" value="4d" checked/><span>4D</span></label>
       </div>
+      <button type="button" class="icon-btn" id="streetBtn" aria-pressed="false" title="Street View">🛣️</button>
       <button type="button" class="icon-btn is-on" id="satBtn" aria-pressed="true" title="Műhold">🛰️</button>
       <button type="button" class="icon-btn" id="cinemaBtn" aria-pressed="false" title="Mozi mód">🎬</button>
       <button type="button" class="icon-btn is-on" id="voiceBtn" aria-pressed="true" title="Bemondó hang">🔊</button>
@@ -65,7 +66,8 @@
 
     <div class="street-view" id="streetViewPane" hidden>
       <div class="street-view-bar">
-        <span>Street View · 4D</span>
+        <span>Street View — rögzített utcakép</span>
+        <button type="button" id="streetRefresh" class="street-refresh">Frissítés</button>
         <a id="streetViewOpen" href="https://www.google.com/maps" target="_blank" rel="noopener">Megnyitás</a>
       </div>
       <iframe id="streetViewFrame" title="Google Street View" allowfullscreen loading="lazy" referrerpolicy="no-referrer-when-downgrade"></iframe>

@@ -114,6 +114,7 @@
     cinema: true,
     mood: "day",
     satellite: true,
+    streetViewOn: false,
     navigating: false,
     avoidMotorway: false,
     avoidToll: false,
@@ -601,7 +602,7 @@
   }
 
   function updateStreetView(lat, lng, heading, force) {
-    if (state.viewMode !== "4d") return;
+    if (!state.streetViewOn) return;
     const pane = $("streetViewPane");
     const frame = $("streetViewFrame");
     const jsBox = $("streetViewJs");
@@ -609,13 +610,8 @@
     if (!pane || lat == null || lng == null) return;
     pane.hidden = false;
     if (open) open.href = streetViewOpenUrl(lat, lng, heading || 0);
-    const now = performance.now();
-    if (!force && state.lastStreet) {
-      const moved = haversineMeters(state.lastStreet, { lat, lng });
-      const turn = Math.abs(((heading || 0) - state.lastStreet.heading + 540) % 360 - 180);
-      if (moved < 16 && turn < 18 && now - state.lastStreet.t < 1600) return;
-    }
-    state.lastStreet = { lat, lng, heading: heading || 0, t: now };
+    if (!force && state.lastStreet) return;
+    state.lastStreet = { lat, lng, heading: heading || 0, t: performance.now() };
 
     const key = String($("gmapsKey")?.value || localStorage.getItem(GMAPS_KEY) || "").trim();
     if (key && window.google && window.google.maps && state.streetPano) {
@@ -628,6 +624,7 @@
     if (key) {
       loadGoogleMaps(key)
         .then(() => {
+          if (!state.streetViewOn) return;
           frame.hidden = true;
           jsBox.hidden = false;
           jsBox.style.display = "block";
@@ -648,28 +645,34 @@
         .catch(() => {
           frame.hidden = false;
           jsBox.hidden = true;
-          if (frame.src !== streetViewUrl(lat, lng, heading || 0)) {
-            frame.src = streetViewUrl(lat, lng, heading || 0);
-          }
+          frame.src = streetViewUrl(lat, lng, heading || 0);
         });
       return;
     }
     frame.hidden = false;
     jsBox.hidden = true;
-    const next = streetViewUrl(lat, lng, heading || 0);
-    if (frame.src !== next) frame.src = next;
+    frame.src = streetViewUrl(lat, lng, heading || 0);
+  }
+
+  function setStreetView(on, refresh) {
+    state.streetViewOn = !!on;
+    document.querySelector(".app").classList.toggle("is-streetview", state.streetViewOn);
+    $("streetBtn").classList.toggle("is-on", state.streetViewOn);
+    $("streetBtn").setAttribute("aria-pressed", state.streetViewOn ? "true" : "false");
+    $("streetViewPane").hidden = !state.streetViewOn;
+    if (!state.streetViewOn) {
+      const frame = $("streetViewFrame");
+      if (frame) frame.removeAttribute("src");
+      return;
+    }
+    if (state.origin) {
+      updateStreetView(state.origin.lat, state.origin.lng, state.heading, !!refresh || !state.lastStreet);
+    }
   }
 
   function syncStreetViewPane() {
-    const on = state.viewMode === "4d";
-    document.querySelector(".app").classList.toggle("is-4d", on);
-    $("streetViewPane").hidden = !on;
-    if (state.map) {
-      window.setTimeout(() => state.map.resize(), 280);
-    }
-    if (on && state.origin) {
-      updateStreetView(state.origin.lat, state.origin.lng, state.heading, true);
-    }
+    document.querySelector(".app").classList.toggle("is-4d", state.viewMode === "4d");
+    $("streetViewPane").hidden = !state.streetViewOn;
   }
 
   function updateManeuverUi() {
@@ -1229,7 +1232,7 @@
   function updateCamera(force) {
     if (!state.map || !state.origin || !state.follow || state.previewing || !state.navigating) return;
     const now = performance.now();
-    if (!force && now - state.lastCameraAt < 280) return;
+    if (!force && now - state.lastCameraAt < 900) return;
     state.lastCameraAt = now;
     const cam = cameraForMode([state.origin.lng, state.origin.lat], state.heading);
     state.map.easeTo({
@@ -1419,7 +1422,6 @@
     }
     maybeIdleQuip();
     maybeSpeedingQuip();
-    updateStreetView(lngLat.lat, lngLat.lng, state.heading, false);
     updateCamera(false);
   }
 
@@ -1683,7 +1685,6 @@
         drawRouteProgress();
         updateManeuverUi();
         updateEtaUi();
-        updateStreetView(here.lat, here.lng, here.bearing, false);
       }
       if (t < 1) {
         state.previewRaf = requestAnimationFrame(tick);
@@ -1751,6 +1752,10 @@
     $("startBtn").addEventListener("click", startNavigation);
     $("stopBtn").addEventListener("click", stopNavigation);
     $("satBtn").addEventListener("click", () => setSatellite(!state.satellite));
+    $("streetBtn").addEventListener("click", () => setStreetView(!state.streetViewOn, true));
+    $("streetRefresh").addEventListener("click", () => {
+      if (state.origin) updateStreetView(state.origin.lat, state.origin.lng, state.heading, true);
+    });
     $("avoidMotorway").addEventListener("change", () => {
       state.avoidMotorway = $("avoidMotorway").checked;
       if (state.origin && state.destination) planRoute();

@@ -246,23 +246,27 @@ body {
   transition: bottom 0.28s ease, right 0.28s ease;
 }
 
-.app.is-4d #map {
-  bottom: 36%;
+.app.is-streetview .street-view {
+  display: flex;
+  flex-direction: column;
 }
 
 .street-view {
   position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  height: 36%;
-  z-index: 12;
+  right: 0.7rem;
+  bottom: calc(var(--sheet-peek) + 4.2rem + env(safe-area-inset-bottom));
+  width: min(78vw, 22rem);
+  height: 10.5rem;
+  z-index: 16;
   display: none;
   background: #0b1220;
-  border-top: 1px solid var(--line);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  overflow: hidden;
+  box-shadow: var(--shadow);
 }
 
-.app.is-4d .street-view {
+.app.is-streetview .street-view {
   display: flex;
   flex-direction: column;
 }
@@ -271,6 +275,7 @@ body {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 0.5rem;
   padding: 0.35rem 0.7rem;
   background: rgba(11, 18, 32, 0.92);
   color: #e8eaed;
@@ -278,6 +283,17 @@ body {
   font-weight: 800;
   letter-spacing: 0.06em;
   text-transform: uppercase;
+}
+
+.street-refresh {
+  margin-left: auto;
+  border: 0;
+  background: transparent;
+  color: #f3bf35;
+  font: inherit;
+  font-size: 0.72rem;
+  font-weight: 800;
+  cursor: pointer;
 }
 
 .street-view-bar a {
@@ -844,17 +860,11 @@ html.dark .btn-preview {
     right: 5.4rem;
   }
 
-  .app.is-4d #map {
-    bottom: calc(32% + var(--sheet-peek) + env(safe-area-inset-bottom));
-  }
-
-  .app.is-4d .street-view {
+  .app.is-nav .junction-view {
+    left: 0;
+    right: 0;
+    height: 34%;
     bottom: calc(var(--sheet-peek) + env(safe-area-inset-bottom));
-    height: 32%;
-  }
-
-  .app.is-4d .fab {
-    bottom: calc(32% + var(--sheet-peek) + 0.85rem + env(safe-area-inset-bottom));
   }
 }
 
@@ -870,27 +880,6 @@ html.dark .btn-preview {
   }
 
   .fab {
-    bottom: 1.2rem;
-  }
-
-  .app.is-4d #map {
-    bottom: 0;
-    right: 38%;
-  }
-
-  .app.is-4d .street-view {
-    left: auto;
-    right: 0;
-    top: 0;
-    bottom: 0;
-    width: 38%;
-    height: auto;
-    border-top: 0;
-    border-left: 1px solid var(--line);
-  }
-
-  .app.is-4d .fab {
-    right: calc(38% + 0.75rem);
     bottom: 1.2rem;
   }
 }
@@ -1002,12 +991,16 @@ html.dark .btn-preview {
   bottom: calc(var(--sheet-peek) + env(safe-area-inset-bottom));
 }
 
-.app.is-nav.is-4d .street-view {
-  display: none;
+.app.is-nav.is-streetview .street-view {
+  bottom: calc(34% + var(--sheet-peek) + 0.6rem + env(safe-area-inset-bottom));
 }
 
-.app.is-nav .drive-bar {
-  display: flex;
+.app.is-nav .mood-chip,
+.app.is-nav .mission,
+.app.is-nav .flavor,
+.app.is-nav .letterbox,
+.app.is-nav .film-grain {
+  display: none !important;
 }
 
 .app.is-nav .sidebar {
