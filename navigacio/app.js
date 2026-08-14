@@ -4,6 +4,7 @@
   const DEFAULT_CENTER = [19.0402, 47.4979];
   const THEME_KEY = "nav_theme";
   const VIEW_KEY = "nav_view_mode";
+  const GMAPS_KEY = "nav_gmaps_key";
   const NOMINATIM_URL = "https://nominatim.openstreetmap.org/search";
   const OSRM_QUERY = "overview=full&geometries=geojson&alternatives=false&steps=true";
   const REROUTE_METERS = 45;
@@ -54,9 +55,13 @@
     lastCameraAt: 0,
     previewing: false,
     previewRaf: 0,
-    voice: false,
+    voice: true,
     lastSpokenStep: -1,
-    overlaysReady: false
+    lastSpokenLane: -1,
+    overlaysReady: false,
+    streetPano: null,
+    googleReady: false,
+    lastStreet: null
   };
 
   function setStatus(message, isError) {
@@ -255,6 +260,91 @@
     return { icon: hit[0], text: hit[1], street: name };
   }
 
+  function lanesFromStep(step) {
+    const intersections = step && Array.isArray(step.intersections) ? step.intersections : [];
+    for (let i = 0; i < intersections.length; i++) {
+      const lanes = intersections[i] && intersections[i].lanes;
+      if (Array.isArray(lanes) && lanes.length) return lanes;
+    }
+    return [];
+  }
+
+  function laneArrow(indications) {
+    const ind = (indications || []).map((x) => String(x).toLowerCase());
+    if (ind.includes("uturn") || ind.includes("u-turn")) return "↩";
+    if (ind.includes("sharp left")) return "↙";
+    if (ind.includes("sharp right")) return "↘";
+    if (ind.includes("slight left")) return "↖";
+    if (ind.includes("slight right")) return "↗";
+    if (ind.includes("left") && ind.includes("straight")) return "↑←";
+    if (ind.includes("right") && ind.includes("straight")) return "↑→";
+    if (ind.includes("left")) return "←";
+    if (ind.includes("right")) return "→";
+    if (ind.includes("straight") || ind.includes("none") || !ind.length) return "↑";
+    return "↑";
+  }
+
+  function laneHintText(lanes) {
+    if (!lanes.length) return "";
+    const valid = [];
+    lanes.forEach((lane, i) => {
+      if (lane.valid) valid.push(i);
+    });
+    if (!valid.length) return "Nincs sávadat ehhez a kanyarhoz.";
+    if (valid.length === lanes.length) return "Bármelyik sáv jó.";
+    const n = lanes.length;
+    const left = valid.filter((i) => i < n / 3).length;
+    const right = valid.filter((i) => i >= (2 * n) / 3).length;
+    const mid = valid.length - left - right;
+    if (right && !left && !mid) return "Válaszd a jobb oldali sávot.";
+    if (left && !right && !mid) return "Válaszd a bal oldali sávot.";
+    if (mid && !left && !right) return "Tartsd a középső sávot.";
+    return "A zöld sávokat tartsd. A szürkék nem a te irányod.";
+  }
+
+  function renderLanes(lanes, hint) {
+    const box = $("laneAssist");
+    const row = $("laneRow");
+    if (!lanes.length) {
+      box.hidden = true;
+      row.innerHTML = "";
+      return;
+    }
+    box.hidden = false;
+    row.innerHTML = "";
+    lanes.forEach((lane) => {
+      const el = document.createElement("div");
+      el.className = "lane" + (lane.valid ? " is-valid" : "");
+      el.textContent = laneArrow(lane.indications);
+      row.appendChild(el);
+    });
+    $("laneHint").textContent = hint || "";
+  }
+
+  function presenterLine(copy, until, laneHint) {
+    const dist =
+      until >= 1000
+        ? Math.round(until / 100) / 10 + " kilométer"
+        : Math.max(10, Math.round(until / 10) * 10) + " méter";
+    const street = copy.street ? ", " + copy.street : "";
+    if (/Megérkezt/i.test(copy.text)) {
+      return "Kedves utazó! Megérkeztünk. Gratulálok, ez egy szép menet volt.";
+    }
+    if (/Indulás/i.test(copy.text)) {
+      return "Kedves utazó! Indulhatunk. Kövesse a kék vonalat, én majd szólok időben.";
+    }
+    let line = "Figyelem! " + dist + " múlva jön a jelenet: " + copy.text.toLowerCase() + street + ".";
+    if (laneHint) line += " " + laneHint.replace("Válaszd", "Szépen válasszuk").replace("Tartsd", "Tartsuk");
+    return line;
+  }
+
+  function pickPresenterVoice() {
+    const voices = window.speechSynthesis ? window.speechSynthesis.getVoices() : [];
+    const hu = voices.filter((v) => /hu(-|_)?HU|Hungarian|Magyar/i.test((v.lang || "") + " " + (v.name || "")));
+    const male = hu.filter((v) => /male|férfi|man|istván|istvan|gábor|gabor|lászló|laszlo|béla|bela/i.test(v.name));
+    return male[0] || hu[0] || voices.find((v) => String(v.lang || "").toLowerCase().startsWith("hu")) || null;
+  }
+
   function currentStep() {
     if (!state.steps.length) return null;
     let acc = 0;
@@ -269,34 +359,169 @@
   }
 
   function speak(text) {
-    if (!state.voice || !window.speechSynthesis) return;
+    if (!state.voice || !window.speechSynthesis || !text) return;
     window.speechSynthesis.cancel();
     const u = new SpeechSynthesisUtterance(text);
     u.lang = "hu-HU";
-    u.rate = 1.05;
+    u.rate = 0.88;
+    u.pitch = 0.72;
+    const voice = pickPresenterVoice();
+    if (voice) u.voice = voice;
     window.speechSynthesis.speak(u);
+  }
+
+  function streetViewUrl(lat, lng, heading) {
+    const h = Math.round(((heading % 360) + 360) % 360);
+    return (
+      "https://www.google.com/maps?layer=c&cbll=" +
+      lat +
+      "," +
+      lng +
+      "&cbp=12," +
+      h +
+      ",,0,0&hl=hu&output=svembed"
+    );
+  }
+
+  function streetViewOpenUrl(lat, lng, heading) {
+    return (
+      "https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=" +
+      lat +
+      "," +
+      lng +
+      "&heading=" +
+      Math.round(heading) +
+      "&pitch=0"
+    );
+  }
+
+  function loadGoogleMaps(key) {
+    if (state.googleReady && window.google && window.google.maps) return Promise.resolve();
+    if (!key) return Promise.reject(new Error("no-key"));
+    if (window.google && window.google.maps) {
+      state.googleReady = true;
+      return Promise.resolve();
+    }
+    return new Promise((resolve, reject) => {
+      const existing = document.getElementById("gmapsScript");
+      if (existing) {
+        existing.addEventListener("load", () => resolve());
+        existing.addEventListener("error", () => reject(new Error("gmaps")));
+        return;
+      }
+      const s = document.createElement("script");
+      s.id = "gmapsScript";
+      s.src = "https://maps.googleapis.com/maps/api/js?key=" + encodeURIComponent(key);
+      s.async = true;
+      s.onload = () => {
+        state.googleReady = true;
+        resolve();
+      };
+      s.onerror = () => reject(new Error("gmaps"));
+      document.head.appendChild(s);
+    });
+  }
+
+  function updateStreetView(lat, lng, heading, force) {
+    if (state.viewMode !== "4d") return;
+    const pane = $("streetViewPane");
+    const frame = $("streetViewFrame");
+    const jsBox = $("streetViewJs");
+    const open = $("streetViewOpen");
+    if (!pane || lat == null || lng == null) return;
+    pane.hidden = false;
+    if (open) open.href = streetViewOpenUrl(lat, lng, heading || 0);
+    const now = performance.now();
+    if (!force && state.lastStreet) {
+      const moved = haversineMeters(state.lastStreet, { lat, lng });
+      const turn = Math.abs(((heading || 0) - state.lastStreet.heading + 540) % 360 - 180);
+      if (moved < 16 && turn < 18 && now - state.lastStreet.t < 1600) return;
+    }
+    state.lastStreet = { lat, lng, heading: heading || 0, t: now };
+
+    const key = String($("gmapsKey")?.value || localStorage.getItem(GMAPS_KEY) || "").trim();
+    if (key && window.google && window.google.maps && state.streetPano) {
+      frame.hidden = true;
+      jsBox.hidden = false;
+      state.streetPano.setPosition({ lat, lng });
+      state.streetPano.setPov({ heading: heading || 0, pitch: 0 });
+      return;
+    }
+    if (key) {
+      loadGoogleMaps(key)
+        .then(() => {
+          frame.hidden = true;
+          jsBox.hidden = false;
+          jsBox.style.display = "block";
+          if (!state.streetPano) {
+            state.streetPano = new window.google.maps.StreetViewPanorama(jsBox, {
+              position: { lat, lng },
+              pov: { heading: heading || 0, pitch: 0 },
+              zoom: 1,
+              addressControl: false,
+              fullscreenControl: false,
+              motionTracking: false
+            });
+          } else {
+            state.streetPano.setPosition({ lat, lng });
+            state.streetPano.setPov({ heading: heading || 0, pitch: 0 });
+          }
+        })
+        .catch(() => {
+          frame.hidden = false;
+          jsBox.hidden = true;
+          if (frame.src !== streetViewUrl(lat, lng, heading || 0)) {
+            frame.src = streetViewUrl(lat, lng, heading || 0);
+          }
+        });
+      return;
+    }
+    frame.hidden = false;
+    jsBox.hidden = true;
+    const next = streetViewUrl(lat, lng, heading || 0);
+    if (frame.src !== next) frame.src = next;
+  }
+
+  function syncStreetViewPane() {
+    const on = state.viewMode === "4d";
+    document.querySelector(".app").classList.toggle("is-4d", on);
+    $("streetViewPane").hidden = !on;
+    if (state.map) {
+      window.setTimeout(() => state.map.resize(), 280);
+    }
+    if (on && state.origin) {
+      updateStreetView(state.origin.lat, state.origin.lng, state.heading, true);
+    }
   }
 
   function updateManeuverUi() {
     const banner = $("maneuverBanner");
     if (!state.route || !state.steps.length) {
       banner.hidden = true;
+      renderLanes([], "");
       return;
     }
     const cur = currentStep();
     if (!cur) {
       banner.hidden = true;
+      renderLanes([], "");
       return;
     }
     const copy = maneuverCopy(cur.step);
+    const lanes = lanesFromStep(cur.step);
+    const hint = laneHintText(lanes);
     banner.hidden = false;
     $("maneuverIcon").textContent = copy.icon;
     $("maneuverDistance").textContent = formatDistance(cur.until);
     $("maneuverInstruction").textContent = copy.text;
     $("maneuverStreet").textContent = copy.street;
-    if (cur.index !== state.lastSpokenStep && cur.until < 180) {
+    renderLanes(lanes, hint);
+    if (cur.index !== state.lastSpokenStep && cur.until < 220) {
       state.lastSpokenStep = cur.index;
-      speak(copy.text + (copy.street ? " " + copy.street : ""));
+      speak(presenterLine(copy, cur.until, hint));
+    } else if (lanes.length && cur.index !== state.lastSpokenLane && cur.until < 90) {
+      state.lastSpokenLane = cur.index;
+      if (hint) speak("Sávasszisztens. " + hint.replace("Válaszd", "Szépen válasszuk").replace("Tartsd", "Tartsuk"));
     }
   }
 
@@ -499,6 +724,7 @@
     const radio = document.querySelector('input[name="viewMode"][value="' + mode + '"]');
     if (radio) radio.checked = true;
     if (state.overlaysReady) add3dWorld();
+    syncStreetViewPane();
     updateCamera(true);
   }
 
@@ -552,6 +778,7 @@
       updateManeuverUi();
       updateEtaUi();
     }
+    updateStreetView(lngLat.lat, lngLat.lng, state.heading, false);
     updateCamera(false);
   }
 
@@ -657,6 +884,7 @@
       state.lastRouteOrigin = { lat: state.origin.lat, lng: state.origin.lng };
       state.traveledMeters = 0;
       state.lastSpokenStep = -1;
+      state.lastSpokenLane = -1;
       if (state.overlaysReady) drawRouteProgress();
       updateManeuverUi();
       updateEtaUi();
@@ -666,7 +894,8 @@
       const first = currentStep();
       if (first) {
         const copy = maneuverCopy(first.step);
-        speak(copy.text);
+        const lanes = lanesFromStep(first.step);
+        speak(presenterLine(copy, first.until, laneHintText(lanes)));
       }
     } catch (err) {
       setStatus(err.message || "Az útvonaltervezés sikertelen.", true);
@@ -793,6 +1022,7 @@
         drawRouteProgress();
         updateManeuverUi();
         updateEtaUi();
+        updateStreetView(here.lat, here.lng, here.bearing, false);
       }
       if (t < 1) {
         state.previewRaf = requestAnimationFrame(tick);
@@ -858,10 +1088,21 @@
     $("previewBtn").addEventListener("click", playPreview);
     $("voiceBtn").addEventListener("click", () => {
       state.voice = !state.voice;
+      $("voiceBtn").classList.toggle("is-on", state.voice);
       $("voiceBtn").setAttribute("aria-pressed", state.voice ? "true" : "false");
       $("voiceBtn").textContent = state.voice ? "🔊" : "🔇";
-      if (state.voice) speak("Hangutasítás bekapcsolva");
+      if (state.voice) speak("Kedves utazó! A bemondó hang bekapcsolva. Én navigálok.");
     });
+    const keyInput = $("gmapsKey");
+    if (keyInput) {
+      keyInput.value = localStorage.getItem(GMAPS_KEY) || "";
+      keyInput.addEventListener("change", () => {
+        localStorage.setItem(GMAPS_KEY, keyInput.value.trim());
+        state.streetPano = null;
+        state.googleReady = false;
+        if (state.origin) updateStreetView(state.origin.lat, state.origin.lng, state.heading, true);
+      });
+    }
     document.querySelectorAll('input[name="travelMode"]').forEach((input) => {
       input.addEventListener("change", () => {
         state.travelMode = selectedTravelMode();
@@ -881,4 +1122,7 @@
   bindUi();
   setupSheet();
   startGpsTracking();
+  if (window.speechSynthesis) {
+    window.speechSynthesis.addEventListener("voiceschanged", () => {});
+  }
 })();

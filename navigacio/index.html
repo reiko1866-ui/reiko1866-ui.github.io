@@ -24,6 +24,12 @@
       </div>
     </section>
 
+    <section class="lane-assist" id="laneAssist" hidden>
+      <p class="lane-label">Sávasszisztens</p>
+      <div class="lane-row" id="laneRow"></div>
+      <p class="lane-hint" id="laneHint"></p>
+    </section>
+
     <div class="speed-badge" id="speedBadge" hidden>
       <span class="speed-value" id="speedValue">0</span>
       <span class="speed-unit">km/h</span>
@@ -35,12 +41,21 @@
         <label><input type="radio" name="viewMode" value="3d"/><span>3D</span></label>
         <label><input type="radio" name="viewMode" value="4d" checked/><span>4D</span></label>
       </div>
-      <button type="button" class="icon-btn" id="voiceBtn" aria-pressed="false" title="Hangutasítás">🔇</button>
+      <button type="button" class="icon-btn is-on" id="voiceBtn" aria-pressed="true" title="Bemondó hang">🔊</button>
       <button type="button" class="icon-btn" id="themeToggle" aria-pressed="false" title="Sötét mód">
         <span class="theme-icon theme-icon-moon" aria-hidden="true">☾</span>
         <span class="theme-icon theme-icon-sun" aria-hidden="true">☀</span>
         <span class="visually-hidden">Világos / sötét téma</span>
       </button>
+    </div>
+
+    <div class="street-view" id="streetViewPane" hidden>
+      <div class="street-view-bar">
+        <span>Street View · 4D</span>
+        <a id="streetViewOpen" href="https://www.google.com/maps" target="_blank" rel="noopener">Megnyitás</a>
+      </div>
+      <iframe id="streetViewFrame" title="Google Street View" allowfullscreen loading="lazy" referrerpolicy="no-referrer-when-downgrade"></iframe>
+      <div id="streetViewJs" hidden></div>
     </div>
 
     <button type="button" class="fab fab-follow is-active" id="followBtn" aria-pressed="true" title="Követés">
@@ -108,6 +123,8 @@
 
       <p class="route-destination" id="routeDestination" hidden></p>
       <button type="button" class="btn-preview" id="previewBtn" hidden>4D útvonal-előnézet</button>
+      <label class="field-label" for="gmapsKey">Google Maps API kulcs (Street View, opcionális)</label>
+      <input id="gmapsKey" type="password" autocomplete="off" placeholder="Ha van kulcsod, simább a 4D Street View"/>
       <p class="status" id="statusText">GPS indítása…</p>
     </aside>
   </div>
