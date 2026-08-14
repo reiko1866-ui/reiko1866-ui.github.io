@@ -9,6 +9,41 @@
   const PINK = "#e20074";
   const NOMINATIM_URL = "https://nominatim.openstreetmap.org/search";
   const OSRM_QUERY = "overview=full&geometries=geojson&alternatives=false&steps=true";
+  const VALHALLA_URLS = [
+    "https://valhalla1.openstreetmap.de/route"
+  ];
+  const VALHALLA_COSTING = { driving: "auto", biking: "bicycle", foot: "pedestrian" };
+  const VALHALLA_MANEUVER = {
+    1: ["depart", ""],
+    2: ["depart", "right"],
+    3: ["depart", "left"],
+    4: ["arrive", ""],
+    5: ["arrive", "right"],
+    6: ["arrive", "left"],
+    7: ["new name", ""],
+    8: ["continue", ""],
+    9: ["turn", "slight right"],
+    10: ["turn", "right"],
+    11: ["turn", "sharp right"],
+    12: ["turn", "uturn"],
+    13: ["turn", "uturn"],
+    14: ["turn", "sharp left"],
+    15: ["turn", "left"],
+    16: ["turn", "slight left"],
+    17: ["on ramp", "straight"],
+    18: ["on ramp", "right"],
+    19: ["on ramp", "left"],
+    20: ["off ramp", "right"],
+    21: ["off ramp", "left"],
+    22: ["continue", "straight"],
+    23: ["fork", "right"],
+    24: ["fork", "left"],
+    25: ["merge", ""],
+    26: ["roundabout", ""],
+    27: ["exit roundabout", ""],
+    37: ["merge", "right"],
+    38: ["merge", "left"]
+  };
   const REROUTE_METERS = 45;
   const EMPTY_LINE = { type: "FeatureCollection", features: [] };
 
@@ -1530,23 +1565,178 @@
     return data;
   }
 
-  function osrmQuery() {
-    let q = OSRM_QUERY;
-    const ex = [];
-    if (state.avoidMotorway) ex.push("motorway");
-    if (state.avoidToll) ex.push("toll");
-    if (ex.length) q += "&exclude=" + ex.join(",");
-    return q;
+  function syncAvoidOptions() {
+    const motor = $("avoidMotorway");
+    const toll = $("avoidToll");
+    if (motor) state.avoidMotorway = !!motor.checked;
+    if (toll) state.avoidToll = !!toll.checked;
+  }
+
+  function wantsAvoidRouting(mode) {
+    return (mode || state.travelMode) === "driving" && (state.avoidMotorway || state.avoidToll);
+  }
+
+  function decodePolyline(str, precision) {
+    const factor = Math.pow(10, precision == null ? 6 : precision);
+    const coords = [];
+    let index = 0;
+    let lat = 0;
+    let lng = 0;
+    const text = String(str || "");
+    while (index < text.length) {
+      let result = 0;
+      let shift = 0;
+      let byte;
+      do {
+        byte = text.charCodeAt(index++) - 63;
+        result |= (byte & 0x1f) << shift;
+        shift += 5;
+      } while (byte >= 0x20);
+      lat += result & 1 ? ~(result >> 1) : result >> 1;
+      result = 0;
+      shift = 0;
+      do {
+        byte = text.charCodeAt(index++) - 63;
+        result |= (byte & 0x1f) << shift;
+        shift += 5;
+      } while (byte >= 0x20);
+      lng += result & 1 ? ~(result >> 1) : result >> 1;
+      coords.push([lng / factor, lat / factor]);
+    }
+    return coords;
+  }
+
+  function isMotorwayLabel(ref, name) {
+    const refs = String(ref || "")
+      .split(/[;,/]/)
+      .map((part) => part.trim().toUpperCase())
+      .filter(Boolean);
+    if (refs.some((part) => /^M\d{1,3}[A-Z]?$/.test(part))) return true;
+    const text = String(name || "");
+    return /aut[oó]p[aá]lya/i.test(text);
+  }
+
+  function routeUsesMotorway(route) {
+    if (!route) return false;
+    if (route.hasHighway === true) return true;
+    if (route.hasHighway === false) return false;
+    const legs = route.legs || [];
+    for (let i = 0; i < legs.length; i++) {
+      const steps = legs[i].steps || [];
+      for (let j = 0; j < steps.length; j++) {
+        if (isMotorwayLabel(steps[j].ref, steps[j].name)) return true;
+      }
+    }
+    return false;
+  }
+
+  function valhallaTripToOsrm(trip) {
+    const legs = trip.legs || [];
+    const osrmLegs = [];
+    const allCoords = [];
+    let duration = 0;
+    let distance = 0;
+    legs.forEach((leg) => {
+      const shapeCoords = decodePolyline(leg.shape, 6);
+      if (shapeCoords.length) {
+        const start = allCoords.length ? 1 : 0;
+        for (let i = start; i < shapeCoords.length; i++) allCoords.push(shapeCoords[i]);
+      }
+      const steps = (leg.maneuvers || []).map((man) => {
+        const pair = VALHALLA_MANEUVER[man.type] || ["continue", ""];
+        const begin = Math.max(0, Number(man.begin_shape_index || 0));
+        const loc = shapeCoords[Math.min(begin, Math.max(0, shapeCoords.length - 1))] || [0, 0];
+        const names = Array.isArray(man.street_names) ? man.street_names : [];
+        return {
+          distance: Number(man.length || 0) * 1000,
+          duration: Number(man.time || 0),
+          name: names[0] || "",
+          ref: names.slice(1).join(";") || "",
+          maneuver: {
+            type: pair[0],
+            modifier: pair[1],
+            location: loc,
+            exit: man.roundabout_exit_count
+          },
+          intersections: [{ location: loc }]
+        };
+      });
+      const summary = leg.summary || {};
+      osrmLegs.push({
+        steps,
+        distance: Number(summary.length || 0) * 1000,
+        duration: Number(summary.time || 0)
+      });
+      duration += Number(summary.time || 0);
+      distance += Number(summary.length || 0) * 1000;
+    });
+    const summary = trip.summary || {};
+    return {
+      duration: duration || Number(summary.time || 0),
+      distance: distance || Number(summary.length || 0) * 1000,
+      geometry: { type: "LineString", coordinates: allCoords },
+      legs: osrmLegs,
+      hasHighway: !!summary.has_highway,
+      hasToll: !!summary.has_toll
+    };
+  }
+
+  async function fetchValhallaRoute(from, to, mode) {
+    const costing = VALHALLA_COSTING[mode] || "auto";
+    const options = {};
+    if (state.avoidMotorway) options.use_highways = 0;
+    if (state.avoidToll) options.use_tolls = 0;
+    const body = {
+      locations: [
+        { lat: from.lat, lon: from.lng },
+        { lat: to.lat, lon: to.lng }
+      ],
+      costing,
+      costing_options: { [costing]: options },
+      units: "kilometers",
+      language: "hu",
+      directions_options: { units: "kilometers", language: "hu" }
+    };
+    let lastError = null;
+    for (const url of VALHALLA_URLS) {
+      const attempts = [
+        () =>
+          fetch(url, {
+            method: "POST",
+            headers: { "Content-Type": "application/json", Accept: "application/json" },
+            body: JSON.stringify(body)
+          }),
+        () => fetch(url + "?json=" + encodeURIComponent(JSON.stringify(body)), { headers: { Accept: "application/json" } })
+      ];
+      for (let a = 0; a < attempts.length; a++) {
+        try {
+          const res = await attempts[a]();
+          const data = await res.json().catch(() => ({}));
+          if (!res.ok || data.error || data.error_code) {
+            lastError = new Error(data.error || "Az elkerülő útvonaltervező nem elérhető.");
+            continue;
+          }
+          const trip = data.trip;
+          if (!trip || (trip.status !== 0 && trip.status !== undefined) || !(trip.legs || []).length) {
+            lastError = new Error(trip && trip.status_message ? trip.status_message : "Nincs elkerülő útvonal.");
+            continue;
+          }
+          return valhallaTripToOsrm(trip);
+        } catch (err) {
+          lastError = err;
+        }
+      }
+    }
+    throw lastError || new Error("Az elkerülő útvonalat nem sikerült kiszámolni.");
   }
 
   async function fetchOsrmRoute(from, to, mode) {
     const coord = from.lng + "," + from.lat + ";" + to.lng + "," + to.lat;
     const urls = OSRM_ENDPOINTS[mode] || OSRM_ENDPOINTS.driving;
-    const query = osrmQuery();
     let lastError = null;
     for (const base of urls) {
       try {
-        const res = await fetch(base + "/" + coord + "?" + query);
+        const res = await fetch(base + "/" + coord + "?" + OSRM_QUERY);
         if (!res.ok) {
           lastError = new Error("OSRM HTTP " + res.status);
           continue;
@@ -1564,11 +1754,40 @@
     throw lastError || new Error("Az útvonaltervező nem elérhető.");
   }
 
+  async function fetchRoute(from, to, mode) {
+    syncAvoidOptions();
+    if (wantsAvoidRouting(mode)) {
+      const route = await fetchValhallaRoute(from, to, mode);
+      if (state.avoidMotorway && routeUsesMotorway(route)) {
+        route.avoidIncomplete = true;
+      }
+      return route;
+    }
+    return fetchOsrmRoute(from, to, mode);
+  }
+
+  function avoidStatusMessage(route) {
+    if (route && route.avoidIncomplete) {
+      return "Útvonal kész, de autópálya nélkül nem lehetett teljesen megoldani.";
+    }
+    if (state.avoidMotorway && state.avoidToll) {
+      return "Útvonal kész, autópálya és fizetős utak nélkül. Nyomd meg: Indulhatunk.";
+    }
+    if (state.avoidMotorway) {
+      return "Útvonal kész, autópálya nélkül. Nyomd meg: Indulhatunk.";
+    }
+    if (state.avoidToll) {
+      return "Útvonal kész, fizetős utak nélkül. Nyomd meg: Indulhatunk.";
+    }
+    return "Útvonal kész. Nyomd meg: Indulhatunk.";
+  }
+
   async function planRoute() {
     if (!state.origin || !state.destination) return;
     try {
-      setStatus("Útvonal tervezése…");
-      const route = await fetchOsrmRoute(state.origin, state.destination, state.travelMode);
+      syncAvoidOptions();
+      setStatus(wantsAvoidRouting(state.travelMode) ? "Elkerülő útvonal tervezése…" : "Útvonal tervezése…");
+      const route = await fetchRoute(state.origin, state.destination, state.travelMode);
       state.route = route;
       state.routeCoords = route.geometry && route.geometry.coordinates ? route.geometry.coordinates : [];
       state.steps = [];
@@ -1599,7 +1818,7 @@
       setFollow(false);
       loadHazardsOntoMap();
       fetchOsmHazards();
-      setStatus("Útvonal kész. Nyomd meg: Indulhatunk.");
+      setStatus(avoidStatusMessage(route));
       drawJunction();
     } catch (err) {
       setStatus(err.message || "Az útvonaltervezés sikertelen.", true);
