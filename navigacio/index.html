@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="hu">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
+  <meta name="theme-color" content="#f4f6f8"/>
+  <meta name="mobile-web-app-capable" content="yes"/>
+  <meta name="apple-mobile-web-app-capable" content="yes"/>
+  <meta name="apple-mobile-web-app-status-bar-style" content="default"/>
+  <title>Navigáció</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+  <link rel="stylesheet" href="style.css"/>
+</head>
+<body>
+  <div class="app">
+    <aside class="sidebar" id="sidebar" aria-label="Navigációs panel">
+      <button type="button" class="sheet-handle" id="sheetHandle" aria-expanded="false" aria-controls="sidebar">
+        <span class="sheet-handle-bar" aria-hidden="true"></span>
+        <span class="visually-hidden">Panel kinyitása vagy becsukása</span>
+      </button>
+
+      <header class="sidebar-header">
+        <h1>Navigáció</h1>
+        <button type="button" class="icon-btn" id="themeToggle" aria-pressed="false" title="Sötét mód">
+          <span class="theme-icon theme-icon-moon" aria-hidden="true">☾</span>
+          <span class="theme-icon theme-icon-sun" aria-hidden="true">☀</span>
+          <span class="visually-hidden">Világos / sötét téma</span>
+        </button>
+      </header>
+
+      <form class="search-form" id="searchForm" autocomplete="off">
+        <label class="field-label" for="addressInput">Célállomás címe</label>
+        <div class="search-row">
+          <input
+            id="addressInput"
+            name="address"
+            type="search"
+            inputmode="search"
+            placeholder="pl. Budapest, Váci út 1."
+            enterkeyhint="search"
+          />
+          <button type="submit" class="btn-primary" id="searchBtn">Keresés</button>
+        </div>
+        <ul class="search-results" id="searchResults" hidden></ul>
+      </form>
+
+      <fieldset class="mode-fieldset">
+        <legend>Közlekedési mód</legend>
+        <div class="mode-switch" role="radiogroup" aria-label="Közlekedési mód">
+          <label class="mode-option">
+            <input type="radio" name="travelMode" value="driving" checked/>
+            <span>Autó</span>
+          </label>
+          <label class="mode-option">
+            <input type="radio" name="travelMode" value="biking"/>
+            <span>Kerékpár</span>
+          </label>
+          <label class="mode-option">
+            <input type="radio" name="travelMode" value="foot"/>
+            <span>Gyalogos</span>
+          </label>
+        </div>
+      </fieldset>
+
+      <section class="route-card" id="routeCard" hidden>
+        <p class="route-label">Útvonal</p>
+        <p class="route-destination" id="routeDestination">—</p>
+        <div class="route-metrics">
+          <div>
+            <span class="metric-value" id="routeDistance">—</span>
+            <span class="metric-label">távolság</span>
+          </div>
+          <div>
+            <span class="metric-value" id="routeDuration">—</span>
+            <span class="metric-label">időtartam</span>
+          </div>
+        </div>
+      </section>
+
+      <p class="status" id="statusText">GPS indítása…</p>
+    </aside>
+
+    <div id="map" role="application" aria-label="Térkép"></div>
+
+    <button type="button" class="fab fab-follow is-active" id="followBtn" aria-pressed="true" title="Kövesse a pozíciómat">
+      ⌖
+      <span class="visually-hidden">Pozíció követése</span>
+    </button>
+  </div>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+  <script src="app.js"></script>
+</body>
+</html>
