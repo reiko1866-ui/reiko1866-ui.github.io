@@ -61,7 +61,14 @@
     overlaysReady: false,
     streetPano: null,
     googleReady: false,
-    lastStreet: null
+    lastStreet: null,
+    ghostMarker: null,
+    arrived: false,
+    lastMovedAt: Date.now(),
+    lastIdleSpeak: 0,
+    lastFlavorAt: 0,
+    cinema: true,
+    mood: "day"
   };
 
   function setStatus(message, isError) {
@@ -321,20 +328,139 @@
     $("laneHint").textContent = hint || "";
   }
 
+  function pick(list) {
+    return list[Math.floor(Math.random() * list.length)];
+  }
+
+  function currentMood() {
+    const h = new Date().getHours();
+    if (h >= 5 && h < 8) return "dawn";
+    if (h >= 17 && h < 21) return "golden";
+    if (h >= 21 || h < 5) return "night";
+    return "day";
+  }
+
+  function moodMeta(mood) {
+    const map = {
+      dawn: {
+        label: "Hajnali köd",
+        sky: "#f4a261",
+        horizon: "#ffd6a5",
+        fog: "#fde2c8",
+        building: "#c9b8a8"
+      },
+      day: {
+        label: "Nappali menet",
+        sky: "#5ec8ff",
+        horizon: "#ffffff",
+        fog: "#dfe9f3",
+        building: "#d9dde3"
+      },
+      golden: {
+        label: "Aranyóra",
+        sky: "#ff7b54",
+        horizon: "#ffd93d",
+        fog: "#ffc38b",
+        building: "#e8c9a4"
+      },
+      night: {
+        label: "Éjszakai neon",
+        sky: "#070b16",
+        horizon: "#2a1650",
+        fog: "#12081f",
+        building: "#3a2a55"
+      }
+    };
+    return map[mood] || map.day;
+  }
+
+  function applyMood(force) {
+    const mood = currentMood();
+    if (!force && mood === state.mood) return;
+    state.mood = mood;
+    document.querySelector(".app").setAttribute("data-mood", mood);
+    const chip = $("moodChip");
+    if (chip) chip.textContent = moodMeta(mood).label;
+    if (state.overlaysReady) add3dWorld();
+  }
+
+  function shortPlace(label) {
+    const first = String(label || "").split(",")[0].trim();
+    return first || "ismeretlen végállomás";
+  }
+
+  function missionTitle(label) {
+    const place = shortPlace(label);
+    const mood = currentMood();
+    const titles = {
+      dawn: ["Hajnali küldetés: " + place, "Mielőtt a város felébred: " + place],
+      day: ["A nappali futam: " + place, "Küldetés: " + place],
+      golden: ["Aranyórai jelenet: " + place, "Naplemente, irány " + place],
+      night: ["Éjszakai neon: " + place, "Az éjjel hőse: " + place]
+    };
+    return pick(titles[mood] || titles.day);
+  }
+
+  function flavorLine() {
+    return pick([
+      "A kék vonal a forgatókönyv. Te vagy a főszereplő.",
+      "Ha eltévednénk, az is egy jelenet lenne. De nem fogunk.",
+      "A sávok nem díszlet. A zöld a te utad.",
+      "Negyedik dimenzió: tér, idő, és egy kicsi türelmetlenség.",
+      "A Street View a kulissza. A kanyar a poén.",
+      "Lassíts, ha kell. A film nem a sebességről szól.",
+      "Valahol előtted már megérkeztél. Csak utol kell érni.",
+      "Ez nem dugó. Ez feszültségkeltés."
+    ]);
+  }
+
+  function rotateFlavor(force) {
+    const el = $("flavorLine");
+    if (!el || !state.route) {
+      if (el) el.hidden = true;
+      return;
+    }
+    const now = Date.now();
+    if (!force && now - state.lastFlavorAt < 28000) return;
+    state.lastFlavorAt = now;
+    el.hidden = false;
+    el.textContent = flavorLine();
+  }
+
   function presenterLine(copy, until, laneHint) {
     const dist =
       until >= 1000
         ? Math.round(until / 100) / 10 + " kilométer"
         : Math.max(10, Math.round(until / 10) * 10) + " méter";
-    const street = copy.street ? ", " + copy.street : "";
+    const street = copy.street ? " — " + copy.street : "";
     if (/Megérkezt/i.test(copy.text)) {
-      return "Kedves utazó! Megérkeztünk. Gratulálok, ez egy szép menet volt.";
+      return pick([
+        "Kedves utazó! Megérkeztünk. Gratulálok, ez egy szép menet volt.",
+        "Vége a jelenetnek. Lehúzhatod a kulisszát, itt a cél.",
+        "Állj! Ez már nem az út. Ez a megérkezés."
+      ]);
     }
     if (/Indulás/i.test(copy.text)) {
-      return "Kedves utazó! Indulhatunk. Kövesse a kék vonalat, én majd szólok időben.";
+      return pick([
+        "Kedves utazó! Indulhatunk. Kövesd a kék vonalat, én majd szólok időben.",
+        "Csend a stúdióban. Motor, kamera, navigáció.",
+        "A nagy utazás most kezdődik. Én bemondom, te viszed."
+      ]);
     }
-    let line = "Figyelem! " + dist + " múlva jön a jelenet: " + copy.text.toLowerCase() + street + ".";
-    if (laneHint) line += " " + laneHint.replace("Válaszd", "Szépen válasszuk").replace("Tartsd", "Tartsuk");
+    const heads = [
+      "Figyelem!",
+      "Kedves utazó!",
+      "Most jön a lényeg.",
+      "Egy kis dráma az úton:"
+    ];
+    let line = pick(heads) + " " + dist + " múlva " + copy.text.toLowerCase() + street + ".";
+    if (laneHint) {
+      line += " " + pick([
+        laneHint.replace("Válaszd", "Szépen válasszuk").replace("Tartsd", "Tartsuk"),
+        "A zöld sáv a VIP-bejáró. Oda tartunk.",
+        "Sávasszisztens belép: " + laneHint.toLowerCase()
+      ]);
+    }
     return line;
   }
 
@@ -582,13 +708,15 @@
       if (state.viewMode === "2d") {
         if (typeof state.map.setSky === "function") state.map.setSky(undefined);
       } else if (typeof state.map.setSky === "function") {
+        const sky = moodMeta(state.mood);
+        const nightish = state.mood === "night" || state.theme === "dark";
         state.map.setSky({
-          "sky-color": state.theme === "dark" ? "#071018" : "#5ec8ff",
-          "sky-horizon-blend": 0.6,
-          "horizon-color": state.theme === "dark" ? "#1b2838" : "#ffffff",
-          "horizon-fog-blend": 0.7,
-          "fog-color": state.theme === "dark" ? "#0b1220" : "#dfe9f3",
-          "fog-ground-blend": 0.45
+          "sky-color": nightish && state.mood !== "golden" ? sky.sky : sky.sky,
+          "sky-horizon-blend": 0.62,
+          "horizon-color": sky.horizon,
+          "horizon-fog-blend": 0.72,
+          "fog-color": sky.fog,
+          "fog-ground-blend": 0.48
         });
       }
     } catch (_e) {}
@@ -605,7 +733,7 @@
             minzoom: 14,
             filter: ["!=", ["get", "hide_3d"], true],
             paint: {
-              "fill-extrusion-color": state.theme === "dark" ? "#3d4d63" : "#d9dde3",
+              "fill-extrusion-color": moodMeta(state.mood).building,
               "fill-extrusion-opacity": 0.82,
               "fill-extrusion-height": [
                 "interpolate",
@@ -642,7 +770,7 @@
         id: "route-rest-line",
         type: "line",
         source: "route-rest",
-        paint: { "line-color": "#1a73e8", "line-width": 7, "line-opacity": 1 }
+        paint: { "line-color": "#1a73e8", "line-width": 7, "line-opacity": 1, "line-blur": 0.2 }
       });
       state.map.addLayer({
         id: "route-done-line",
@@ -651,6 +779,17 @@
         paint: { "line-color": "#9aa0a6", "line-width": 6, "line-opacity": 0.85 }
       });
     }
+  }
+
+  function paintRouteMood() {
+    if (!state.map || !state.map.getLayer("route-rest-line")) return;
+    const frac = Math.max(0, Math.min(1, state.traveledMeters / (lineLength(state.routeCoords) || 1)));
+    const color =
+      state.mood === "night" ? (frac > 0.7 ? "#e879f9" : "#7c3aed") :
+      state.mood === "golden" ? (frac > 0.7 ? "#2a9d8f" : "#e76f51") :
+      state.mood === "dawn" ? "#e07a3d" :
+      frac > 0.75 ? "#05c46b" : "#1a73e8";
+    state.map.setPaintProperty("route-rest-line", "line-color", color);
   }
 
   function ensureOverlays() {
@@ -675,6 +814,7 @@
     const parts = splitRoute(state.routeCoords, state.traveledMeters);
     setGeoJson("route-done", parts.done);
     setGeoJson("route-rest", parts.rest);
+    paintRouteMood();
   }
 
   function cameraForMode(center, bearing) {
@@ -754,6 +894,114 @@
     return el;
   }
 
+  function updateGhost() {
+    if (!state.routeCoords.length || state.viewMode === "2d") {
+      if (state.ghostMarker) state.ghostMarker.getElement().style.display = "none";
+      return;
+    }
+    const ahead = alongLine(state.routeCoords, state.traveledMeters + Math.max(40, (state.speedMps || 8) * 12));
+    if (!ahead) return;
+    if (!state.ghostMarker) {
+      const el = document.createElement("div");
+      el.className = "ghost-puck";
+      el.title = "A 12 másodperccel későbbi te";
+      state.ghostMarker = new maplibregl.Marker({ element: el, anchor: "center" })
+        .setLngLat([ahead.lng, ahead.lat])
+        .addTo(state.map);
+    } else {
+      state.ghostMarker.getElement().style.display = "";
+      state.ghostMarker.setLngLat([ahead.lng, ahead.lat]);
+    }
+  }
+
+  function burstConfetti() {
+    const canvas = $("fxCanvas");
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    const rect = canvas.parentElement.getBoundingClientRect();
+    canvas.width = rect.width;
+    canvas.height = rect.height;
+    canvas.hidden = false;
+    const bits = Array.from({ length: 90 }, () => ({
+      x: Math.random() * canvas.width,
+      y: -20 - Math.random() * 80,
+      r: 3 + Math.random() * 4,
+      v: 2.2 + Math.random() * 4,
+      c: pick(["#05c46b", "#8ab4f8", "#f4a261", "#e879f9", "#fff"])
+    }));
+    let frames = 0;
+    function tick() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      bits.forEach((b) => {
+        b.y += b.v;
+        b.x += Math.sin(b.y / 18) * 1.4;
+        ctx.fillStyle = b.c;
+        ctx.fillRect(b.x, b.y, b.r, b.r * 1.6);
+      });
+      frames += 1;
+      if (frames < 90) requestAnimationFrame(tick);
+      else {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        canvas.hidden = true;
+      }
+    }
+    tick();
+  }
+
+  function showArrival() {
+    if (state.arrived) return;
+    state.arrived = true;
+    const overlay = $("arrivalOverlay");
+    overlay.hidden = false;
+    $("arrivalTitle").textContent = pick(["Megérkeztél", "Vége. Felirat.", "Cél. Poén."]);
+    $("arrivalSub").textContent = "Küldetés teljesítve: " + shortPlace(state.destinationLabel);
+    burstConfetti();
+    speak(pick([
+      "Kedves utazó! Megérkeztünk. Gratulálok, ez egy szép menet volt.",
+      "Vége a jelenetnek. Itt a cél, itt a taps.",
+      "Állj. Ez már nem az út. Ez a megérkezés."
+    ]));
+    if (state.origin && state.map) {
+      state.map.easeTo({
+        center: [state.origin.lng, state.origin.lat],
+        zoom: 17.2,
+        pitch: 72,
+        bearing: state.map.getBearing() + 40,
+        duration: 1800
+      });
+    }
+  }
+
+  function maybeArrival() {
+    if (!state.route || state.arrived) return;
+    const left = (lineLength(state.routeCoords) || 0) - state.traveledMeters;
+    if (left < 28) showArrival();
+  }
+
+  function maybeIdleQuip() {
+    if (!state.route || state.arrived || !state.voice) return;
+    const now = Date.now();
+    if (state.speedMps > 1.2) {
+      state.lastMovedAt = now;
+      return;
+    }
+    if (now - state.lastMovedAt > 90000 && now - state.lastIdleSpeak > 90000) {
+      state.lastIdleSpeak = now;
+      speak(pick([
+        "Állunk. Ez most szünet, vagy a főhős gondolkodik?",
+        "A jelenet itt elidőzik. Ha készen állsz, indulhatunk tovább.",
+        "Csend. Csak a motor és a térkép lélegzik."
+      ]));
+    }
+  }
+
+  function setCinema(on) {
+    state.cinema = !!on;
+    document.querySelector(".app").classList.toggle("is-cinema", state.cinema);
+    $("cinemaBtn").classList.toggle("is-on", state.cinema);
+    $("cinemaBtn").setAttribute("aria-pressed", state.cinema ? "true" : "false");
+  }
+
   function setOrigin(lngLat, heading, speed) {
     state.origin = lngLat;
     if (Number.isFinite(heading)) state.heading = heading;
@@ -770,6 +1018,8 @@
     const kmh = Math.round((state.speedMps || 0) * 3.6);
     $("speedBadge").hidden = false;
     $("speedValue").textContent = String(kmh);
+    const puckEl = state.puckMarker.getElement();
+    if (puckEl) puckEl.classList.toggle("is-fast", kmh >= 48);
     if (state.routeCoords.length) {
       const snap = nearestOnLine(state.routeCoords, lngLat);
       state.traveledMeters = snap.traveled;
@@ -777,7 +1027,11 @@
       drawRouteProgress();
       updateManeuverUi();
       updateEtaUi();
+      updateGhost();
+      maybeArrival();
+      rotateFlavor(false);
     }
+    maybeIdleQuip();
     updateStreetView(lngLat.lat, lngLat.lng, state.heading, false);
     updateCamera(false);
   }
@@ -885,6 +1139,12 @@
       state.traveledMeters = 0;
       state.lastSpokenStep = -1;
       state.lastSpokenLane = -1;
+      state.arrived = false;
+      $("arrivalOverlay").hidden = true;
+      const mission = $("missionTitle");
+      mission.hidden = false;
+      mission.textContent = missionTitle(state.destinationLabel);
+      rotateFlavor(true);
       if (state.overlaysReady) drawRouteProgress();
       updateManeuverUi();
       updateEtaUi();
@@ -1086,6 +1346,11 @@
     $("themeToggle").addEventListener("click", () => applyTheme(state.theme === "dark" ? "light" : "dark", true));
     $("followBtn").addEventListener("click", () => setFollow(!state.follow));
     $("previewBtn").addEventListener("click", playPreview);
+    $("cinemaBtn").addEventListener("click", () => setCinema(!state.cinema));
+    $("arrivalOk").addEventListener("click", () => {
+      $("arrivalOverlay").hidden = true;
+      state.arrived = false;
+    });
     $("voiceBtn").addEventListener("click", () => {
       state.voice = !state.voice;
       $("voiceBtn").classList.toggle("is-on", state.voice);
@@ -1118,10 +1383,13 @@
   state.viewMode = preferredView();
   applyTheme(state.theme, false);
   applyViewMode(state.viewMode);
+  applyMood(true);
+  setCinema(true);
   initMap();
   bindUi();
   setupSheet();
   startGpsTracking();
+  window.setInterval(() => applyMood(false), 60000);
   if (window.speechSynthesis) {
     window.speechSynthesis.addEventListener("voiceschanged", () => {});
   }

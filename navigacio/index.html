@@ -12,8 +12,16 @@
   <link rel="stylesheet" href="style.css"/>
 </head>
 <body>
-  <div class="app">
+  <div class="app is-cinema">
+    <div class="letterbox letterbox-top" aria-hidden="true"></div>
+    <div class="letterbox letterbox-bottom" aria-hidden="true"></div>
+    <div class="film-grain" aria-hidden="true"></div>
     <div id="map" role="application" aria-label="3D térkép"></div>
+    <canvas id="fxCanvas" class="fx-canvas" hidden></canvas>
+
+    <p class="mood-chip" id="moodChip">Nappali menet</p>
+    <p class="mission" id="missionTitle" hidden></p>
+    <p class="flavor" id="flavorLine" hidden></p>
 
     <section class="maneuver-banner" id="maneuverBanner" hidden>
       <div class="maneuver-icon" id="maneuverIcon" aria-hidden="true">↑</div>
@@ -41,6 +49,7 @@
         <label><input type="radio" name="viewMode" value="3d"/><span>3D</span></label>
         <label><input type="radio" name="viewMode" value="4d" checked/><span>4D</span></label>
       </div>
+      <button type="button" class="icon-btn is-on" id="cinemaBtn" aria-pressed="true" title="Mozi mód">🎬</button>
       <button type="button" class="icon-btn is-on" id="voiceBtn" aria-pressed="true" title="Bemondó hang">🔊</button>
       <button type="button" class="icon-btn" id="themeToggle" aria-pressed="false" title="Sötét mód">
         <span class="theme-icon theme-icon-moon" aria-hidden="true">☾</span>
@@ -127,6 +136,13 @@
       <input id="gmapsKey" type="password" autocomplete="off" placeholder="Ha van kulcsod, simább a 4D Street View"/>
       <p class="status" id="statusText">GPS indítása…</p>
     </aside>
+
+    <div id="arrivalOverlay" class="arrival-overlay" hidden>
+      <p class="arrival-kicker">Vége a jelenetnek</p>
+      <h2 id="arrivalTitle">Megérkeztél</h2>
+      <p id="arrivalSub"></p>
+      <button type="button" id="arrivalOk" class="btn-primary">Új küldetés</button>
+    </div>
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/maplibre-gl@5.5.0/dist/maplibre-gl.js"></script>
