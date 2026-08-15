@@ -720,7 +720,7 @@ html.dark .btn-primary {
 
 .mode-switch {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(2, 1fr);
   gap: 0.35rem;
   margin-top: 0.4rem;
 }
@@ -1170,6 +1170,54 @@ html.dark .drive-bar {
 .vignette-chip { top: calc(15.1rem + env(safe-area-inset-top)); left: 0.7rem; background: #f4a261; color: #0b1220; }
 .weather-chip { top: calc(16.9rem + env(safe-area-inset-top)); left: 0.7rem; }
 .section-chip { top: calc(18.7rem + env(safe-area-inset-top)); left: 0.7rem; background: #d93025; }
+.rest-chip {
+  position: absolute;
+  z-index: 20;
+  top: calc(20.5rem + env(safe-area-inset-top));
+  left: 0.7rem;
+  margin: 0;
+  padding: 0.22rem 0.5rem;
+  border-radius: 999px;
+  background: #f4a261;
+  color: #0b1220;
+  font-size: 0.68rem;
+  font-weight: 800;
+}
+.rest-chip[hidden] { display: none !important; }
+.weather-chip.is-ice { background: #7ec8ff; color: #0b1220; }
+
+.next-turns {
+  margin: 0;
+  padding: 0.35rem 0.55rem;
+  list-style: none;
+  border-radius: 12px;
+  background: var(--glass-2);
+  border: 1px solid var(--line);
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+.next-turns[hidden] { display: none !important; }
+.next-turns li { padding: 0.14rem 0; }
+
+.leave-at,
+.avoid-line {
+  margin: 0;
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--muted);
+}
+#arriveBy {
+  width: 100%;
+  height: 2.5rem;
+  padding: 0 0.7rem;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--glass-2);
+  color: var(--text);
+  font: inherit;
+}
+.via-list { display: flex; flex-wrap: wrap; gap: 0.3rem; }
+.via-list .chip-btn { padding-right: 0.35rem; }
 
 .hud-overlay {
   position: absolute;
@@ -1326,7 +1374,8 @@ html.dark .btn-install { background: var(--waze); color: #0b1220; }
   .gps-acc,
   .vignette-chip,
   .weather-chip,
-  .section-chip { left: 24.1rem; }
+  .section-chip,
+  .rest-chip { left: 24.1rem; }
   .install-banner { left: 24.1rem; }
 }
 

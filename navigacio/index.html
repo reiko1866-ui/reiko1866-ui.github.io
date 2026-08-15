@@ -62,6 +62,7 @@
     <div class="vignette-chip" id="vignetteChip" hidden>E-matrica kellhet</div>
     <div class="weather-chip" id="weatherChip" hidden></div>
     <div class="section-chip" id="sectionChip" hidden></div>
+    <div class="rest-chip" id="restChip" hidden>Pihenő kell</div>
 
     <div class="top-actions">
       <div class="view-switch" role="radiogroup" aria-label="Nézet">
@@ -114,6 +115,7 @@
       <div class="map-toast-row">
         <button type="button" id="toastDest">Cél</button>
         <button type="button" id="toastVia">Megálló</button>
+        <button type="button" id="toastAvoid">Kerüld</button>
         <button type="button" id="toastCancel">Mégse</button>
       </div>
     </div>
@@ -144,6 +146,7 @@
         <div class="progress-fill" id="progressFill"></div>
       </div>
       <p class="compare-line" id="compareLine" hidden></p>
+      <ol class="next-turns" id="nextTurns" hidden></ol>
       <div class="alt-row" id="altRow" hidden>
         <button type="button" class="alt-btn" id="altFast">Gyors</button>
         <button type="button" class="alt-btn" id="altAvoid">Autópálya nélkül</button>
@@ -189,17 +192,42 @@
             <input type="radio" name="travelMode" value="foot"/>
             <span>Gyalogos</span>
           </label>
+          <label class="mode-option">
+            <input type="radio" name="travelMode" value="motorcycle"/>
+            <span>Motor</span>
+          </label>
         </div>
       </fieldset>
 
       <div class="nav-options">
         <label class="check"><input type="checkbox" id="avoidMotorway"/> Autópálya elkerülése</label>
         <label class="check"><input type="checkbox" id="avoidToll"/> Fizetős utak elkerülése</label>
+        <label class="check"><input type="checkbox" id="avoidFerry"/> Komp elkerülése</label>
+        <label class="check"><input type="checkbox" id="avoidUnpaved"/> Földút elkerülése</label>
         <label class="check"><input type="checkbox" id="truckMode"/> Teherautó</label>
         <label class="check"><input type="checkbox" id="chattyVoice" checked/> Szájkós bemondó</label>
       </div>
       <label class="field-label truck-h" id="truckHeightWrap" hidden for="truckHeight">Magasság (m)</label>
       <input id="truckHeight" type="number" min="1" max="5" step="0.1" value="4" hidden/>
+
+      <label class="field-label" for="arriveBy">Érkezz ekkorára</label>
+      <input id="arriveBy" type="time"/>
+      <p class="leave-at" id="leaveAt" hidden></p>
+
+      <form class="search-form" id="viaForm" autocomplete="off">
+        <label class="field-label" for="viaInput">Megálló az úton</label>
+        <div class="search-row">
+          <input id="viaInput" type="search" placeholder="Bolt, patika, cím…"/>
+          <button type="submit" class="btn-primary" id="viaBtn">Hozzáad</button>
+        </div>
+      </form>
+      <div class="quick-places">
+        <button type="button" class="chip-btn" data-viaq="patika">Patika</button>
+        <button type="button" class="chip-btn" data-viaq="bolt">Bolt</button>
+        <button type="button" class="chip-btn" id="viaHome">Haza megálló</button>
+      </div>
+      <div class="via-list" id="viaList"></div>
+      <p class="avoid-line" id="avoidLine" hidden></p>
 
       <p class="route-destination" id="routeDestination" hidden></p>
       <p class="via-line" id="viaLine" hidden></p>
@@ -212,6 +240,7 @@
       <button type="button" class="btn-start" id="startBtn" hidden>Indulhatunk</button>
       <button type="button" class="btn-stop" id="stopBtn" hidden>Navigáció leállítása</button>
       <button type="button" class="btn-preview" id="previewBtn" hidden>4D útvonal-előnézet</button>
+      <button type="button" class="btn-preview" id="simBtn" hidden>Szimuláció GPS nélkül</button>
       <div class="action-row">
         <button type="button" class="chip-btn" id="reverseBtn" hidden>↩ Visszaút</button>
         <button type="button" class="chip-btn" id="shareBtn" hidden>🔗 Megosztás</button>

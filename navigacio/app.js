@@ -8,6 +8,8 @@
   const HAZARD_KEY = "nav_hazards_v1";
   const PLACE_KEY = "nav_places_v1";
   const CHATTY_KEY = "nav_chatty";
+  const TRIP_KEY = "nav_last_trip_v1";
+  const AVOID_STREET_KEY = "nav_avoid_streets_v1";
   const OVERPASS_URL = "https://overpass-api.de/api/interpreter";
   const PINK = "#e20074";
   const NOMINATIM_URL = "https://nominatim.openstreetmap.org/search";
@@ -15,7 +17,7 @@
   const VALHALLA_URLS = [
     "https://valhalla1.openstreetmap.de/route"
   ];
-  const VALHALLA_COSTING = { driving: "auto", biking: "bicycle", foot: "pedestrian" };
+  const VALHALLA_COSTING = { driving: "auto", biking: "bicycle", foot: "pedestrian", motorcycle: "motorcycle" };
   const VALHALLA_MANEUVER = {
     1: ["depart", ""],
     2: ["depart", "right"],
@@ -182,7 +184,17 @@
     chosenAlt: "",
     osmExtras: [],
     sectionWarn: "",
-    weatherText: ""
+    weatherText: "",
+    lastGpsAt: Date.now(),
+    lastOffRouteAt: 0,
+    driveStartedAt: 0,
+    lastRestSpeak: 0,
+    lastLimitSpoken: 0,
+    simulating: false,
+    avoidFerry: false,
+    avoidUnpaved: false,
+    avoidPlaces: [],
+    iceWarned: false
   };
 
   function setStatus(message, isError) {
@@ -826,6 +838,28 @@
     }
     drawJunction();
     warnNearbyHazards();
+    renderNextTurns();
+  }
+
+  function renderNextTurns() {
+    const box = $("nextTurns");
+    if (!box) return;
+    if (!state.steps.length) {
+      box.hidden = true;
+      return;
+    }
+    const cur = currentStep();
+    const start = cur ? cur.index : 0;
+    box.innerHTML = "";
+    let n = 0;
+    for (let i = start; i < state.steps.length && n < 3; i++) {
+      const copy = maneuverCopy(state.steps[i]);
+      const li = document.createElement("li");
+      li.textContent = copy.icon + " " + copy.text + (copy.street ? " · " + copy.street : "");
+      box.appendChild(li);
+      n += 1;
+    }
+    box.hidden = n < 2;
   }
 
   function updateHud(copy, until) {
@@ -850,6 +884,7 @@
       $("etaBar").hidden = true;
       $("progressTrack").hidden = true;
       $("previewBtn").hidden = true;
+      if ($("simBtn")) $("simBtn").hidden = true;
       $("routeDestination").hidden = true;
       return;
     }
@@ -865,6 +900,8 @@
     $("routeDestination").textContent = state.destinationLabel;
     const frac = Math.max(0, Math.min(1, state.traveledMeters / (lineLength(state.routeCoords) || 1)));
     $("progressFill").style.width = frac * 100 + "%";
+    updateLeaveAt();
+    if ($("simBtn")) $("simBtn").hidden = !state.route || state.navigating;
     $("startBtn").hidden = !state.route || state.navigating;
     $("stopBtn").hidden = !state.navigating;
     $("driveEta").textContent = formatClock(sec);
@@ -1125,6 +1162,10 @@
       drawJunction();
     }, 280);
     state.tripStart = state.origin ? { lat: state.origin.lat, lng: state.origin.lng, label: "Indulás" } : null;
+    state.driveStartedAt = Date.now();
+    state.lastRestSpeak = 0;
+    if ($("restChip")) $("restChip").hidden = true;
+    if ($("simBtn")) $("simBtn").hidden = true;
     speakNav(pick([
       "Kedves utazó! Indulhatunk. Kövesd a rózsaszín vonalat.",
       "Csend a stúdióban. Motor, kamera, navigáció.",
@@ -1144,6 +1185,9 @@
     $("stopBtn").hidden = true;
     setFollow(false);
     releaseWakeLock();
+    stopSimulation(true);
+    if ($("restChip")) $("restChip").hidden = true;
+    if ($("simBtn")) $("simBtn").hidden = !state.route;
     if (state.map) window.setTimeout(() => state.map.resize(), 280);
     setStatus("Navigáció leállítva");
   }
@@ -1646,8 +1690,12 @@
   function syncAvoidOptions() {
     const motor = $("avoidMotorway");
     const toll = $("avoidToll");
+    const ferry = $("avoidFerry");
+    const dirt = $("avoidUnpaved");
     if (motor) state.avoidMotorway = !!motor.checked;
     if (toll) state.avoidToll = !!toll.checked;
+    if (ferry) state.avoidFerry = !!ferry.checked;
+    if (dirt) state.avoidUnpaved = !!dirt.checked;
   }
 
   function wantsAvoidRouting(mode) {
@@ -1777,6 +1825,8 @@
     const options = Object.assign({}, extraOpts || {});
     if (state.avoidMotorway || (extraOpts && extraOpts.use_highways === 0)) options.use_highways = 0;
     if (state.avoidToll) options.use_tolls = 0;
+    if (state.avoidFerry) options.use_ferry = 0;
+    if (state.avoidUnpaved) options.use_tracks = 0;
     if (costing === "truck") {
       const h = Number($("truckHeight") && $("truckHeight").value);
       if (h > 0) options.height = h;
@@ -1790,6 +1840,8 @@
       language: "hu",
       directions_options: { units: "kilometers", language: "hu" }
     };
+    const polys = avoidPolygons();
+    if (polys.length) body.exclude_polygons = polys;
     let lastError = null;
     for (const url of VALHALLA_URLS) {
       const attempts = [
@@ -1851,7 +1903,7 @@
 
   async function fetchRoute(from, to, mode) {
     syncAvoidOptions();
-    if (wantsAvoidRouting(mode) || state.truckMode) {
+    if (wantsAvoidRouting(mode) || state.truckMode || mode === "motorcycle" || state.avoidFerry || state.avoidUnpaved || state.avoidPlaces.length) {
       const route = await fetchValhallaRoute(from, to, mode);
       if (state.avoidMotorway && routeUsesMotorway(route)) {
         route.avoidIncomplete = true;
@@ -1915,6 +1967,7 @@
       fetchOsmHazards();
       setStatus(avoidStatusMessage(route));
       drawJunction();
+      saveLastTrip();
       afterRouteReady();
     } catch (err) {
       setStatus(err.message || "Az útvonaltervezés sikertelen.", true);
@@ -1965,23 +2018,32 @@
   }
 
   function maybeReroute() {
-    if (!state.origin || !state.destination || state.previewing || !state.navigating) return;
-    if (!state.lastRouteOrigin) {
+    if (!state.origin || !state.destination || state.previewing || !state.navigating || state.simulating) return;
+    if (!state.routeCoords.length) {
       planRoute();
       return;
     }
-    if (haversineMeters(state.lastRouteOrigin, state.origin) >= REROUTE_METERS) {
-      planRoute();
-    }
+    if ((state.gpsAccuracy || 0) > 45) return;
+    const snap = nearestOnLine(state.routeCoords, state.origin);
+    if (snap.dist < REROUTE_METERS) return;
+    const now = Date.now();
+    if (now - state.lastOffRouteAt < 14000) return;
+    state.lastOffRouteAt = now;
+    speakNav("Letértél. Újratervezek.");
+    setStatus("Letérés — új útvonal…");
+    planRoute();
   }
 
   function onPosition(pos) {
+    if (state.simulating) return;
     const lngLat = { lat: pos.coords.latitude, lng: pos.coords.longitude };
     const heading = Number.isFinite(pos.coords.heading) ? pos.coords.heading : state.heading;
     state.gpsAccuracy = Number(pos.coords.accuracy) || 0;
+    state.lastGpsAt = Date.now();
     setOrigin(lngLat, heading, pos.coords.speed);
     maybeReroute();
     maybeFetchSpeedLimit();
+    maybeRestReminder();
     if (!$("statusText").classList.contains("is-error")) {
       setStatus(state.viewMode.toUpperCase() + " navigáció · élő GPS");
     }
@@ -2352,14 +2414,20 @@
 
   function weatherLabel(code, temp) {
     let sky = "felhős";
+    let ice = false;
     if (code === 0) sky = "derült";
     else if (code <= 3) sky = "fátyolfelhős";
     else if (code <= 48) sky = "köd";
-    else if (code <= 67) sky = "eső";
-    else if (code <= 77) sky = "hó";
-    else if (code <= 82) sky = "zápor";
+    else if (code === 56 || code === 57 || code === 66 || code === 67) {
+      sky = "ónos eső";
+      ice = true;
+    } else if (code <= 67) sky = "eső";
+    else if (code <= 77) {
+      sky = "hó";
+      ice = true;
+    } else if (code <= 82) sky = "zápor";
     else sky = "zivatar";
-    return Math.round(temp) + "° · " + sky;
+    return { text: Math.round(temp) + "° · " + sky, ice: ice };
   }
 
   async function loadWeather() {
@@ -2374,10 +2442,16 @@
       const res = await fetch(url);
       const data = await res.json();
       const cur = data.current || {};
-      state.weatherText = weatherLabel(Number(cur.weather_code || 0), Number(cur.temperature_2m || 0));
+      const info = weatherLabel(Number(cur.weather_code || 0), Number(cur.temperature_2m || 0));
+      state.weatherText = info.text;
       const chip = $("weatherChip");
       chip.hidden = false;
       chip.textContent = "Cél: " + state.weatherText;
+      chip.classList.toggle("is-ice", info.ice);
+      if (info.ice && !state.iceWarned) {
+        state.iceWarned = true;
+        speakNav("A célnál " + (info.text.indexOf("hó") >= 0 ? "hó" : "ónos eső") + ". Óvatosan.");
+      }
     } catch (_e) {}
   }
 
@@ -2493,13 +2567,28 @@
 
   function renderViaLine() {
     const el = $("viaLine");
-    if (!el) return;
-    if (!state.vias.length) {
-      el.hidden = true;
-      return;
+    if (el) {
+      if (!state.vias.length) el.hidden = true;
+      else {
+        el.hidden = false;
+        el.textContent = "Megállók: " + state.vias.map((v, i) => v.label || i + 1 + ".").join(" · ");
+      }
     }
-    el.hidden = false;
-    el.textContent = "Megállók: " + state.vias.map((v, i) => v.label || i + 1 + ".").join(" · ");
+    const list = $("viaList");
+    if (!list) return;
+    list.innerHTML = "";
+    state.vias.forEach((v, i) => {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "chip-btn";
+      btn.textContent = (v.label || "Megálló") + " ×";
+      btn.addEventListener("click", () => {
+        state.vias.splice(i, 1);
+        renderViaLine();
+        if (state.origin && state.destination) planRoute();
+      });
+      list.appendChild(btn);
+    });
   }
 
   function clearPoiMarkers() {
@@ -2663,6 +2752,10 @@
       if (!way) return;
       const n = parseInt(String(way.tags.maxspeed).replace(/[^\d]/g, ""), 10);
       if (n > 0 && n < 200) {
+        if (state.speedLimit && state.speedLimit !== n && n !== state.lastLimitSpoken) {
+          state.lastLimitSpoken = n;
+          speakNav("Mostantól " + n + ".");
+        }
         state.speedLimit = n;
         refreshSpeedLimitUi();
       }
@@ -2829,6 +2922,247 @@
     navigator.serviceWorker.register("./sw.js").catch(() => {});
   }
 
+  function avoidPolygons() {
+    return (state.avoidPlaces || []).map((p) => {
+      const d = 0.00085;
+      return [
+        [p.lng - d, p.lat - d],
+        [p.lng + d, p.lat - d],
+        [p.lng + d, p.lat + d],
+        [p.lng - d, p.lat + d],
+        [p.lng - d, p.lat - d]
+      ];
+    });
+  }
+
+  function loadAvoidPlaces() {
+    try {
+      state.avoidPlaces = JSON.parse(localStorage.getItem(AVOID_STREET_KEY) || "[]");
+    } catch (_e) {
+      state.avoidPlaces = [];
+    }
+    if (!Array.isArray(state.avoidPlaces)) state.avoidPlaces = [];
+    renderAvoidLine();
+  }
+
+  function saveAvoidPlaces() {
+    localStorage.setItem(AVOID_STREET_KEY, JSON.stringify(state.avoidPlaces.slice(-20)));
+    renderAvoidLine();
+  }
+
+  function renderAvoidLine() {
+    const el = $("avoidLine");
+    if (!el) return;
+    if (!state.avoidPlaces.length) {
+      el.hidden = true;
+      return;
+    }
+    el.hidden = false;
+    el.textContent = "Került utcák: " + state.avoidPlaces.map((p) => p.label || "pont").join(", ");
+  }
+
+  function toastAvoidStreet() {
+    if (!state.tapLngLat) return;
+    hideMapToast();
+    state.avoidPlaces.push({
+      lat: state.tapLngLat.lat,
+      lng: state.tapLngLat.lng,
+      label: state.tapLngLat.label || "Került pont",
+      at: Date.now()
+    });
+    saveAvoidPlaces();
+    setStatus("Ezt a szakaszt legközelebb kikerülöm.");
+    if (state.origin && state.destination) planRoute();
+  }
+
+  function updateLeaveAt() {
+    const el = $("leaveAt");
+    const inp = $("arriveBy");
+    if (!el || !inp || !state.route) {
+      if (el) el.hidden = true;
+      return;
+    }
+    const raw = inp.value;
+    if (!raw) {
+      el.hidden = true;
+      return;
+    }
+    const parts = raw.split(":");
+    const target = new Date();
+    target.setHours(Number(parts[0]) || 0, Number(parts[1]) || 0, 0, 0);
+    if (target.getTime() < Date.now() - 60000) target.setDate(target.getDate() + 1);
+    const leave = new Date(target.getTime() - remainingSeconds() * 1000);
+    const hh = String(leave.getHours()).padStart(2, "0");
+    const mm = String(leave.getMinutes()).padStart(2, "0");
+    el.hidden = false;
+    el.textContent = "Indulj " + hh + ":" + mm + "-kor, hogy " + raw + "-ra odaérj.";
+  }
+
+  function maybeRestReminder() {
+    if (!state.navigating || !state.driveStartedAt) return;
+    const mins = (Date.now() - state.driveStartedAt) / 60000;
+    if (mins < 120) return;
+    if (Date.now() - state.lastRestSpeak < 50 * 60 * 1000) return;
+    state.lastRestSpeak = Date.now();
+    if ($("restChip")) $("restChip").hidden = false;
+    speakNav("Két óra vezetés. Állj meg, tankolj, pihenj.");
+  }
+
+  function tickTunnel() {
+    if (!state.navigating || state.simulating || !state.routeCoords.length) return;
+    const stale = Date.now() - state.lastGpsAt > 2800;
+    const bad = (state.gpsAccuracy || 0) > 50;
+    if (!stale && !bad) return;
+    const v = Math.max(state.speedMps || 11, 7);
+    state.traveledMeters = Math.min(lineLength(state.routeCoords) || 0, state.traveledMeters + v * 0.85);
+    const here = alongLine(state.routeCoords, state.traveledMeters);
+    if (!here) return;
+    if (state.puckMarker) {
+      state.puckMarker.setLngLat([here.lng, here.lat]);
+      state.heading = here.bearing;
+    }
+    drawRouteProgress();
+    updateManeuverUi();
+    updateEtaUi();
+    updateCamera(false);
+    if (stale) setStatus("Alagút / gyenge GPS — a vonalon megyünk tovább.");
+  }
+
+  function stopSimulation(fromStop) {
+    if (!state.simulating && fromStop) return;
+    state.simulating = false;
+    state.previewing = false;
+    if (state.previewRaf) cancelAnimationFrame(state.previewRaf);
+    state.previewRaf = 0;
+    if ($("simBtn")) $("simBtn").textContent = "Szimuláció GPS nélkül";
+    if (!fromStop && state.navigating) {
+      state.navigating = false;
+      document.querySelector(".app").classList.remove("is-nav");
+      $("driveBar").hidden = true;
+      $("startBtn").hidden = !state.route;
+      $("stopBtn").hidden = true;
+    }
+  }
+
+  function startSimulation() {
+    if (!state.routeCoords.length) return;
+    if (state.simulating) {
+      stopSimulation(false);
+      setStatus("Szimuláció leállítva.");
+      return;
+    }
+    const first = state.routeCoords[0];
+    if (!state.origin) {
+      setOrigin({ lat: first[1], lng: first[0] }, 0, 14);
+    }
+    state.simulating = true;
+    state.previewing = true;
+    state.navigating = true;
+    state.arrived = false;
+    state.lastSpokenStep = -1;
+    state.lastVibrateStep = -1;
+    document.querySelector(".app").classList.add("is-nav");
+    $("driveBar").hidden = false;
+    $("startBtn").hidden = true;
+    $("stopBtn").hidden = false;
+    $("simBtn").textContent = "Szimuláció leállítása";
+    $("sidebar").classList.remove("is-expanded");
+    setFollow(true);
+    speakNav("Szimuláció. GPS nélkül megyünk végig az úton.");
+    const total = lineLength(state.routeCoords) || 1;
+    const durationMs = Math.max(22000, Math.min(90000, total / 1.6));
+    const start = performance.now();
+    function tick(now) {
+      if (!state.simulating) return;
+      const t = Math.min(1, (now - start) / durationMs);
+      const here = alongLine(state.routeCoords, t * total);
+      if (here) {
+        state.speedMps = 14;
+        state.lastGpsAt = Date.now();
+        setOrigin({ lat: here.lat, lng: here.lng }, here.bearing, 14);
+        if (state.map) {
+          state.map.jumpTo({
+            center: [here.lng, here.lat],
+            zoom: 17.4,
+            pitch: 62,
+            bearing: here.bearing
+          });
+        }
+      }
+      if (t < 1) state.previewRaf = requestAnimationFrame(tick);
+      else {
+        stopSimulation(false);
+        setStatus("Szimuláció kész. Így megy majd a kocsiban.");
+      }
+    }
+    state.previewRaf = requestAnimationFrame(tick);
+  }
+
+  function saveLastTrip() {
+    if (!state.destination) return;
+    try {
+      localStorage.setItem(
+        TRIP_KEY,
+        JSON.stringify({
+          dest: { lat: state.destination.lat, lng: state.destination.lng, label: state.destinationLabel },
+          vias: state.vias,
+          mode: state.travelMode,
+          avoidMotorway: state.avoidMotorway,
+          avoidToll: state.avoidToll,
+          avoidFerry: state.avoidFerry,
+          avoidUnpaved: state.avoidUnpaved
+        })
+      );
+    } catch (_e) {}
+  }
+
+  function restoreLastTrip() {
+    if (location.hash && location.hash.length > 3) return;
+    let raw;
+    try {
+      raw = JSON.parse(localStorage.getItem(TRIP_KEY) || "null");
+    } catch (_e) {
+      return;
+    }
+    if (!raw || !raw.dest) return;
+    state.vias = Array.isArray(raw.vias) ? raw.vias : [];
+    if (raw.mode) {
+      const radio = document.querySelector('input[name="travelMode"][value="' + raw.mode + '"]');
+      if (radio) radio.checked = true;
+      state.travelMode = raw.mode;
+    }
+    if ($("avoidMotorway") && raw.avoidMotorway) $("avoidMotorway").checked = true;
+    if ($("avoidToll") && raw.avoidToll) $("avoidToll").checked = true;
+    if ($("avoidFerry") && raw.avoidFerry) $("avoidFerry").checked = true;
+    if ($("avoidUnpaved") && raw.avoidUnpaved) $("avoidUnpaved").checked = true;
+    syncAvoidOptions();
+    setDestination({ lat: raw.dest.lat, lng: raw.dest.lng }, raw.dest.label || "Utolsó cél");
+    renderViaLine();
+    setStatus("Utolsó út betöltve: " + shortPlace(raw.dest.label) + ". Várom a GPS-t, vagy tervezz.");
+    if (state.origin) planRoute();
+  }
+
+  async function addViaFromQuery(query) {
+    const q = String(query || "").trim();
+    if (!q) return;
+    const coord = parseCoordQuery(q);
+    let place;
+    if (coord) place = { lat: coord.lat, lon: coord.lng, display_name: q };
+    else {
+      const found = await geocodeAddress(q);
+      place = found[0];
+    }
+    if (!place) throw new Error("Nincs megálló.");
+    if (!state.destination) {
+      await choosePlace(place);
+      return;
+    }
+    state.vias.push({ lat: Number(place.lat), lng: Number(place.lon), label: shortPlace(place.display_name) });
+    renderViaLine();
+    if (state.origin) await planRoute();
+    else setStatus("Megálló felvéve. Várom a GPS-t.");
+  }
+
   function bindUi() {
     $("searchForm").addEventListener("submit", searchAddress);
     $("themeToggle").addEventListener("click", () => applyTheme(state.theme === "dark" ? "light" : "dark", true));
@@ -2848,18 +3182,38 @@
         const av = JSON.parse(savedAvoid);
         $("avoidMotorway").checked = !!av.motor;
         $("avoidToll").checked = !!av.toll;
+        if ($("avoidFerry")) $("avoidFerry").checked = !!av.ferry;
+        if ($("avoidUnpaved")) $("avoidUnpaved").checked = !!av.dirt;
         syncAvoidOptions();
       } catch (_e) {}
     }
+    function persistAvoid() {
+      localStorage.setItem(
+        "nav_avoid",
+        JSON.stringify({
+          motor: $("avoidMotorway").checked,
+          toll: $("avoidToll").checked,
+          ferry: $("avoidFerry") && $("avoidFerry").checked,
+          dirt: $("avoidUnpaved") && $("avoidUnpaved").checked
+        })
+      );
+    }
     $("avoidMotorway").addEventListener("change", () => {
       state.avoidMotorway = $("avoidMotorway").checked;
-      localStorage.setItem("nav_avoid", JSON.stringify({ motor: state.avoidMotorway, toll: $("avoidToll").checked }));
+      persistAvoid();
       if (state.origin && state.destination) planRoute();
     });
     $("avoidToll").addEventListener("change", () => {
       state.avoidToll = $("avoidToll").checked;
-      localStorage.setItem("nav_avoid", JSON.stringify({ motor: $("avoidMotorway").checked, toll: state.avoidToll }));
+      persistAvoid();
       if (state.origin && state.destination) planRoute();
+    });
+    ["avoidFerry", "avoidUnpaved"].forEach((id) => {
+      $(id).addEventListener("change", () => {
+        persistAvoid();
+        syncAvoidOptions();
+        if (state.origin && state.destination) planRoute();
+      });
     });
     document.querySelectorAll("[data-hazard]").forEach((btn) => {
       btn.addEventListener("click", () => reportHazard(btn.getAttribute("data-hazard")));
@@ -2912,7 +3266,34 @@
     $("altAvoid").addEventListener("click", () => applyChosenRoute(state.altAvoid, "avoid"));
     $("toastDest").addEventListener("click", toastAsDest);
     $("toastVia").addEventListener("click", toastAsVia);
+    $("toastAvoid").addEventListener("click", toastAvoidStreet);
     $("toastCancel").addEventListener("click", hideMapToast);
+    $("simBtn").addEventListener("click", startSimulation);
+    $("arriveBy").addEventListener("change", updateLeaveAt);
+    $("viaForm").addEventListener("submit", (e) => {
+      e.preventDefault();
+      addViaFromQuery($("viaInput").value).then(() => {
+        $("viaInput").value = "";
+      }).catch((err) => setStatus(err.message || "A megálló nem sikerült.", true));
+    });
+    document.querySelectorAll("[data-viaq]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        addViaFromQuery(btn.getAttribute("data-viaq")).catch((err) => setStatus(err.message || "A megálló nem sikerült.", true));
+      });
+    });
+    $("viaHome").addEventListener("click", () => {
+      if (!state.places.home) {
+        setStatus("Előbb állítsd be az otthont.", true);
+        return;
+      }
+      if (!state.destination) {
+        goToSaved(state.places.home);
+        return;
+      }
+      state.vias.push({ lat: state.places.home.lat, lng: state.places.home.lng, label: "Otthon" });
+      renderViaLine();
+      if (state.origin) planRoute();
+    });
     $("chattyVoice").checked = state.chatty;
     $("chattyVoice").addEventListener("change", () => {
       state.chatty = $("chattyVoice").checked;
@@ -2938,6 +3319,7 @@
   setCinema(false);
   loadStoredHazards();
   loadPlaces();
+  loadAvoidPlaces();
   initMap();
   bindUi();
   setupSheet();
@@ -2946,7 +3328,10 @@
   registerSw();
   startGpsTracking();
   parseLaunchHash();
+  window.setTimeout(restoreLastTrip, 700);
   window.setInterval(() => applyMood(false), 60000);
+  window.setInterval(tickTunnel, 850);
+  window.setInterval(maybeRestReminder, 30000);
   if (window.speechSynthesis) {
     window.speechSynthesis.addEventListener("voiceschanged", () => {});
   }
