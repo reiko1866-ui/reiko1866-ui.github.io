@@ -63,6 +63,7 @@
     <div class="weather-chip" id="weatherChip" hidden></div>
     <div class="section-chip" id="sectionChip" hidden></div>
     <div class="rest-chip" id="restChip" hidden>Pihenő kell</div>
+    <div class="school-chip" id="schoolChip" hidden>Iskolazóna</div>
 
     <div class="top-actions">
       <div class="view-switch" role="radiogroup" aria-label="Nézet">
@@ -74,6 +75,8 @@
       <button type="button" class="icon-btn" id="streetBtn" aria-pressed="false" title="Street View">🛣️</button>
       <button type="button" class="icon-btn is-on" id="satBtn" aria-pressed="true" title="Műhold">🛰️</button>
       <button type="button" class="icon-btn" id="cinemaBtn" aria-pressed="false" title="Mozi mód">🎬</button>
+      <button type="button" class="icon-btn" id="listenBtn" aria-pressed="false" title="Hangparancs">🎙️</button>
+      <button type="button" class="icon-btn" id="quietBtn" aria-pressed="false" title="Csend 5 perc">🤫</button>
       <button type="button" class="icon-btn is-on" id="voiceBtn" aria-pressed="true" title="Bemondó hang">🔊</button>
       <button type="button" class="icon-btn" id="themeToggle" aria-pressed="false" title="Sötét mód">
         <span class="theme-icon theme-icon-moon" aria-hidden="true">☾</span>
@@ -146,9 +149,11 @@
         <div class="progress-fill" id="progressFill"></div>
       </div>
       <p class="compare-line" id="compareLine" hidden></p>
+      <p class="remain-line" id="remainLine" hidden></p>
       <ol class="next-turns" id="nextTurns" hidden></ol>
       <div class="alt-row" id="altRow" hidden>
         <button type="button" class="alt-btn" id="altFast">Gyors</button>
+        <button type="button" class="alt-btn" id="altShort">Rövid</button>
         <button type="button" class="alt-btn" id="altAvoid">Autópálya nélkül</button>
       </div>
 
@@ -174,6 +179,7 @@
         <button type="button" class="chip-btn" id="workGo">💼 Munka</button>
         <button type="button" class="chip-btn" id="homeSet">Otthon = cél</button>
         <button type="button" class="chip-btn" id="workSet">Munka = cél</button>
+        <button type="button" class="chip-btn" id="commuteBtn">Otthon → Munka</button>
       </div>
       <div class="recent-row" id="recentPlaces"></div>
 
@@ -207,6 +213,11 @@
         <label class="check"><input type="checkbox" id="truckMode"/> Teherautó</label>
         <label class="check"><input type="checkbox" id="chattyVoice" checked/> Szájkós bemondó</label>
         <label class="check"><input type="checkbox" id="hudToggle"/> HUD (szélvédőre)</label>
+        <label class="check"><input type="checkbox" id="avoidCity"/> Város / lakóutca elkerülése</label>
+        <label class="check"><input type="checkbox" id="shortestMode"/> Legrövidebb út</label>
+        <label class="check"><input type="checkbox" id="batterySaver"/> Akkukímélő</label>
+        <label class="check"><input type="checkbox" id="autoDark" checked/> Sötét naplemente után</label>
+        <label class="check"><input type="checkbox" id="dockMode"/> Tartó / fekvő nézet</label>
       </div>
       <label class="field-label truck-h" id="truckHeightWrap" hidden for="truckHeight">Magasság (m)</label>
       <input id="truckHeight" type="number" min="1" max="5" step="0.1" value="4" hidden/>
@@ -245,7 +256,9 @@
       <div class="action-row">
         <button type="button" class="chip-btn" id="reverseBtn" hidden>↩ Visszaút</button>
         <button type="button" class="chip-btn" id="shareBtn" hidden>🔗 Megosztás</button>
-        <button type="button" class="chip-btn" id="gpxBtn" hidden>GPX</button>
+        <button type="button" class="chip-btn" id="gpxBtn" hidden>GPX mentés</button>
+        <label class="chip-btn gpx-in" id="gpxInLabel">GPX betöltés<input id="gpxInput" type="file" accept=".gpx,application/gpx+xml,text/xml" hidden/></label>
+        <button type="button" class="chip-btn" id="sosBtn">112</button>
       </div>
       <div class="action-row" id="extMaps" hidden>
         <a class="chip-btn" id="gmapsLink" target="_blank" rel="noopener">Google Maps</a>
@@ -299,6 +312,7 @@
       <p class="arrival-kicker">Vége a jelenetnek</p>
       <h2 id="arrivalTitle">Megérkeztél</h2>
       <p id="arrivalSub"></p>
+      <p id="arrivalStats"></p>
       <button type="button" id="arrivalOk" class="btn-primary">Új küldetés</button>
     </div>
 

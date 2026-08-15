@@ -195,7 +195,19 @@
     avoidFerry: false,
     avoidUnpaved: false,
     avoidPlaces: [],
-    iceWarned: false
+    iceWarned: false,
+    quietUntil: 0,
+    batterySaver: false,
+    shortestMode: false,
+    avoidCity: false,
+    autoDark: true,
+    dockMode: false,
+    listenOn: false,
+    recognition: null,
+    motionMag: 0,
+    lastMotionAt: 0,
+    lastSchoolAt: 0,
+    tripStats: { start: 0, maxKmh: 0, sumKmh: 0, samples: 0, dist: 0 }
   };
 
   function setStatus(message, isError) {
@@ -611,11 +623,12 @@
     return { step: last, index: state.steps.length - 1, until: 0 };
   }
 
-  function speak(text, force) {
+  function speak(text, force, kind) {
     if (!text) return;
     state.lastSpokenText = text;
     if (!state.voice || !window.speechSynthesis) return;
     if (!force && !state.chatty && !state.navigating) return;
+    if (state.quietUntil && Date.now() < state.quietUntil && kind !== "turn") return;
     window.speechSynthesis.cancel();
     const u = new SpeechSynthesisUtterance(text);
     u.lang = "hu-HU";
@@ -626,8 +639,8 @@
     window.speechSynthesis.speak(u);
   }
 
-  function speakNav(text) {
-    speak(text, true);
+  function speakNav(text, kind) {
+    speak(text, true, kind);
   }
 
   function repeatInstruction() {
@@ -832,7 +845,7 @@
     }
     if (cur.index !== state.lastSpokenStep && cur.until < 220 && state.navigating) {
       state.lastSpokenStep = cur.index;
-      speakNav(presenterLine(copy, cur.until, state.chatty ? hint : ""));
+      speakNav(presenterLine(copy, cur.until, state.chatty ? hint : ""), "turn");
     } else if (lanes.length && cur.index !== state.lastSpokenLane && cur.until < 90 && state.navigating) {
       state.lastSpokenLane = cur.index;
       if (hint) speak("Sávasszisztens. " + hint.replace("Válaszd", "Szépen válasszuk").replace("Tartsd", "Tartsuk"));
@@ -902,6 +915,7 @@
     const frac = Math.max(0, Math.min(1, state.traveledMeters / (lineLength(state.routeCoords) || 1)));
     $("progressFill").style.width = frac * 100 + "%";
     updateLeaveAt();
+    updateRemainLine();
     if ($("simBtn")) $("simBtn").hidden = !state.route || state.navigating;
     $("startBtn").hidden = !state.route || state.navigating;
     $("stopBtn").hidden = !state.navigating;
@@ -927,7 +941,7 @@
           maxzoom: 15
         });
       }
-      if (state.viewMode === "2d") {
+      if (state.viewMode === "2d" || state.batterySaver) {
         state.map.setTerrain(null);
       } else {
         state.map.setTerrain({ source: "terrain-dem", exaggeration: state.viewMode === "4d" ? 1.45 : 1.15 });
@@ -982,7 +996,7 @@
       }
     }
     if (state.map.getLayer("3d-buildings")) {
-      const show = !state.satellite && state.viewMode !== "2d";
+      const show = !state.satellite && state.viewMode !== "2d" && !state.batterySaver;
       state.map.setLayoutProperty("3d-buildings", "visibility", show ? "visible" : "none");
     }
   }
@@ -1008,6 +1022,19 @@
         type: "line",
         source: "route-done",
         paint: { "line-color": "#9aa0a6", "line-width": 6, "line-opacity": 0.85 }
+      });
+    }
+    if (!state.map.getSource("route-speed")) {
+      state.map.addSource("route-speed", { type: "geojson", data: { type: "FeatureCollection", features: [] } });
+      state.map.addLayer({
+        id: "route-speed-line",
+        type: "line",
+        source: "route-speed",
+        paint: {
+          "line-color": ["get", "color"],
+          "line-width": 8,
+          "line-opacity": 0.95
+        }
       });
     }
   }
@@ -1043,6 +1070,30 @@
     setGeoJson("route-done", parts.done);
     setGeoJson("route-rest", parts.rest);
     paintRouteMood();
+    drawSpeedLine();
+  }
+
+  function colorForKmh(kmh) {
+    if (kmh <= 35) return "#d93025";
+    if (kmh <= 55) return "#f4a261";
+    if (kmh <= 75) return "#f3bf35";
+    return "#05c46b";
+  }
+
+  function drawSpeedLine() {
+    if (!state.map || !state.map.getSource("route-speed")) return;
+    const features = [];
+    (state.steps || []).forEach((step) => {
+      const coords = step.geometry && step.geometry.coordinates;
+      if (!coords || coords.length < 2) return;
+      const kmh = step.duration > 1 ? (step.distance / step.duration) * 3.6 : state.speedLimit || 50;
+      features.push({
+        type: "Feature",
+        properties: { color: colorForKmh(kmh) },
+        geometry: { type: "LineString", coordinates: coords }
+      });
+    });
+    state.map.getSource("route-speed").setData({ type: "FeatureCollection", features: features });
   }
 
   function resizeJunction() {
@@ -1165,6 +1216,7 @@
     state.tripStart = state.origin ? { lat: state.origin.lat, lng: state.origin.lng, label: "Indulás" } : null;
     state.driveStartedAt = Date.now();
     state.lastRestSpeak = 0;
+    state.tripStats = { start: Date.now(), maxKmh: 0, sumKmh: 0, samples: 0, dist: 0 };
     if ($("restChip")) $("restChip").hidden = true;
     if ($("simBtn")) $("simBtn").hidden = true;
     speakNav(pick([
@@ -1174,6 +1226,7 @@
     ]));
     setStatus("Navigáció elindult");
     requestWakeLock();
+    setupMotion(true);
     updateCamera(true);
   }
 
@@ -1534,6 +1587,14 @@
     overlay.hidden = false;
     $("arrivalTitle").textContent = pick(["Megérkeztél", "Vége. Felirat.", "Cél. Poén."]);
     $("arrivalSub").textContent = "Küldetés teljesítve: " + shortPlace(state.destinationLabel);
+    const st = state.tripStats || {};
+    const mins = st.start ? Math.max(1, Math.round((Date.now() - st.start) / 60000)) : 0;
+    const avg = st.samples ? Math.round(st.sumKmh / st.samples) : 0;
+    const dist = formatDistance(st.dist || Math.max(0, state.traveledMeters));
+    if ($("arrivalStats")) {
+      $("arrivalStats").textContent =
+        dist + " · " + mins + " perc · átlag " + avg + " km/h · max " + Math.round(st.maxKmh || 0) + " km/h";
+    }
     burstConfetti();
     speak(pick([
       "Kedves utazó! Megérkeztünk. Gratulálok, ez egy szép menet volt.",
@@ -1596,6 +1657,12 @@
     const puckRot = state.viewMode === "2d" || !state.follow ? state.heading : 0;
     state.puckMarker.setRotation(puckRot);
     const kmh = Math.round((state.speedMps || 0) * 3.6);
+    if (state.navigating && !state.simulating) {
+      state.tripStats.maxKmh = Math.max(state.tripStats.maxKmh || 0, kmh);
+      state.tripStats.sumKmh = (state.tripStats.sumKmh || 0) + kmh;
+      state.tripStats.samples = (state.tripStats.samples || 0) + 1;
+      state.tripStats.dist = state.traveledMeters || state.tripStats.dist || 0;
+    }
     $("speedBadge").hidden = false;
     $("speedValue").textContent = String(kmh);
     if ($("driveSpeed")) $("driveSpeed").textContent = String(kmh);
@@ -1697,6 +1764,8 @@
     if (toll) state.avoidToll = !!toll.checked;
     if (ferry) state.avoidFerry = !!ferry.checked;
     if (dirt) state.avoidUnpaved = !!dirt.checked;
+    if ($("avoidCity")) state.avoidCity = !!$("avoidCity").checked;
+    if ($("shortestMode")) state.shortestMode = !!$("shortestMode").checked;
   }
 
   function wantsAvoidRouting(mode) {
@@ -1772,6 +1841,7 @@
       const steps = (leg.maneuvers || []).map((man) => {
         const pair = VALHALLA_MANEUVER[man.type] || ["continue", ""];
         const begin = Math.max(0, Number(man.begin_shape_index || 0));
+        const end = Math.max(begin + 1, Number(man.end_shape_index || begin + 1));
         const loc = shapeCoords[Math.min(begin, Math.max(0, shapeCoords.length - 1))] || [0, 0];
         const names = Array.isArray(man.street_names) ? man.street_names : [];
         return {
@@ -1779,6 +1849,7 @@
           duration: Number(man.time || 0),
           name: names[0] || "",
           ref: names.slice(1).join(";") || "",
+          geometry: { type: "LineString", coordinates: shapeCoords.slice(begin, Math.min(shapeCoords.length, end + 1)) },
           maneuver: {
             type: pair[0],
             modifier: pair[1],
@@ -1828,6 +1899,8 @@
     if (state.avoidToll) options.use_tolls = 0;
     if (state.avoidFerry) options.use_ferry = 0;
     if (state.avoidUnpaved) options.use_tracks = 0;
+    if (state.avoidCity) options.use_living_streets = 0;
+    if (state.shortestMode) options.shortest = true;
     if (costing === "truck") {
       const h = Number($("truckHeight") && $("truckHeight").value);
       if (h > 0) options.height = h;
@@ -1904,7 +1977,16 @@
 
   async function fetchRoute(from, to, mode) {
     syncAvoidOptions();
-    if (wantsAvoidRouting(mode) || state.truckMode || mode === "motorcycle" || state.avoidFerry || state.avoidUnpaved || state.avoidPlaces.length) {
+    if (
+      wantsAvoidRouting(mode) ||
+      state.truckMode ||
+      mode === "motorcycle" ||
+      state.avoidFerry ||
+      state.avoidUnpaved ||
+      state.avoidCity ||
+      state.shortestMode ||
+      state.avoidPlaces.length
+    ) {
       const route = await fetchValhallaRoute(from, to, mode);
       if (state.avoidMotorway && routeUsesMotorway(route)) {
         route.avoidIncomplete = true;
@@ -1995,7 +2077,7 @@
       setStatus("Írj be egy címet a kereséshez.", true);
       return;
     }
-    const coord = parseCoordQuery(query);
+    const coord = parseCoordQuery(query) || parseMapsOrGeo(query);
     if (coord) {
       await choosePlace({ lat: coord.lat, lon: coord.lng, display_name: coord.lat.toFixed(5) + ", " + coord.lng.toFixed(5) });
       return;
@@ -2440,7 +2522,7 @@
         state.destination.lat +
         "&longitude=" +
         state.destination.lng +
-        "&current=temperature_2m,weather_code";
+        "&current=temperature_2m,weather_code,wind_speed_10m";
       const res = await fetch(url);
       const data = await res.json();
       const cur = data.current || {};
@@ -2448,6 +2530,10 @@
       state.weatherText = info.text;
       const chip = $("weatherChip");
       chip.hidden = false;
+      const wind = Number(cur.wind_speed_10m);
+      if (state.travelMode === "biking" && Number.isFinite(wind)) {
+        state.weatherText += " · szél " + Math.round(wind) + " km/h";
+      }
       chip.textContent = "Cél: " + state.weatherText;
       chip.classList.toggle("is-ice", info.ice);
       if (info.ice && !state.iceWarned) {
@@ -3019,6 +3105,7 @@
     const stale = Date.now() - state.lastGpsAt > 2800;
     const bad = (state.gpsAccuracy || 0) > 50;
     if (!stale && !bad) return;
+    if (state.lastMotionAt && Date.now() - state.lastMotionAt < 2000 && state.motionMag < 0.55) return;
     const v = Math.max(state.speedMps || 11, 7);
     state.traveledMeters = Math.min(lineLength(state.routeCoords) || 0, state.traveledMeters + v * 0.85);
     const here = alongLine(state.routeCoords, state.traveledMeters);
@@ -3169,6 +3256,317 @@
     else setStatus("Megálló felvéve. Várom a GPS-t.");
   }
 
+  function remainSummary() {
+    const left = Math.max(0, (lineLength(state.routeCoords) || 0) - state.traveledMeters);
+    const cur = currentStep();
+    let turns = 0;
+    const start = cur ? cur.index : 0;
+    for (let i = start; i < state.steps.length; i++) {
+      const t = state.steps[i].maneuver && state.steps[i].maneuver.type;
+      if (t && t !== "new name" && t !== "continue" && t !== "depart") turns += 1;
+    }
+    return "Még " + turns + " kanyar, " + formatDistance(left) + ".";
+  }
+
+  function updateRemainLine() {
+    const el = $("remainLine");
+    if (!el) return;
+    if (!state.route) {
+      el.hidden = true;
+      return;
+    }
+    el.hidden = false;
+    el.textContent = remainSummary();
+  }
+
+  function startQuiet() {
+    state.quietUntil = Date.now() + 5 * 60 * 1000;
+    if ($("quietBtn")) {
+      $("quietBtn").classList.add("is-on");
+      $("quietBtn").setAttribute("aria-pressed", "true");
+    }
+    speakNav("Csend öt perc. Csak a kanyarnál szólok.", "turn");
+    window.setTimeout(() => {
+      if (Date.now() >= state.quietUntil - 200) {
+        state.quietUntil = 0;
+        if ($("quietBtn")) {
+          $("quietBtn").classList.remove("is-on");
+          $("quietBtn").setAttribute("aria-pressed", "false");
+        }
+      }
+    }, 5 * 60 * 1000 + 400);
+  }
+
+  function handleVoiceCommand(raw) {
+    const t = String(raw || "")
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "");
+    if (/kut|tankol|benzin/.test(t)) {
+      searchPoi("fuel");
+      speakNav("Kutat keresek az úton.", "turn");
+      return true;
+    }
+    if (/hatra|mennyi|tavol/.test(t)) {
+      speakNav(remainSummary(), "turn");
+      return true;
+    }
+    if (/kovetkez|ismet|mondd/.test(t)) {
+      repeatInstruction();
+      return true;
+    }
+    if (/allj|stop|leall/.test(t)) {
+      stopNavigation();
+      speakNav("Megálltunk.", "turn");
+      return true;
+    }
+    if (/csend/.test(t)) {
+      startQuiet();
+      return true;
+    }
+    if (/\bwc\b|mosdo/.test(t)) {
+      searchPoi("toilets");
+      return true;
+    }
+    if (/kave/.test(t)) {
+      searchPoi("cafe");
+      return true;
+    }
+    if (/parkol/.test(t)) {
+      searchPoi("parking");
+      return true;
+    }
+    if (/hud/.test(t)) {
+      setHud(!state.hud);
+      return true;
+    }
+    return false;
+  }
+
+  function startDriveListen() {
+    const Rec = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!Rec) {
+      setStatus("Nincs beszédfelismerés ebben a böngészőben.", true);
+      return;
+    }
+    if (state.listenOn && state.recognition) {
+      state.listenOn = false;
+      try {
+        state.recognition.stop();
+      } catch (_e) {}
+      $("listenBtn").classList.remove("is-on");
+      return;
+    }
+    const rec = new Rec();
+    rec.lang = "hu-HU";
+    rec.interimResults = false;
+    rec.continuous = false;
+    state.recognition = rec;
+    state.listenOn = true;
+    $("listenBtn").classList.add("is-on");
+    rec.onresult = (e) => {
+      const text = e.results[0] && e.results[0][0] && e.results[0][0].transcript;
+      if (!text) return;
+      if (!handleVoiceCommand(text)) {
+        $("addressInput").value = text;
+        searchAddress();
+      }
+    };
+    rec.onerror = () => {
+      state.listenOn = false;
+      $("listenBtn").classList.remove("is-on");
+    };
+    rec.onend = () => {
+      if (state.listenOn && state.navigating) {
+        try {
+          rec.start();
+        } catch (_e) {
+          state.listenOn = false;
+          $("listenBtn").classList.remove("is-on");
+        }
+      } else {
+        $("listenBtn").classList.remove("is-on");
+        state.listenOn = false;
+      }
+    };
+    try {
+      rec.start();
+      setStatus("Hallgatlak. Mondd: kút, hátra, következő, állj, csend.");
+    } catch (_e) {
+      setStatus("A mikrofon nem indult.", true);
+    }
+  }
+
+  function parseMapsOrGeo(query) {
+    const text = String(query || "").trim();
+    const geo = text.match(/^geo:(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)/i);
+    if (geo) return { lat: Number(geo[1]), lng: Number(geo[2]) };
+    const q = text.match(/[?&](?:q|query|daddr|destination)=(-?\d+(?:\.\d+)?)[, +](-?\d+(?:\.\d+)?)/i);
+    if (q) return { lat: Number(q[1]), lng: Number(q[2]) };
+    const at = text.match(/@(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)/);
+    if (at) return { lat: Number(at[1]), lng: Number(at[2]) };
+    const dir = text.match(/\/dir\/[^/]*\/(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)/);
+    if (dir) return { lat: Number(dir[1]), lng: Number(dir[2]) };
+    const bang = text.match(/!3d(-?\d+(?:\.\d+)?)!4d(-?\d+(?:\.\d+)?)/);
+    if (bang) return { lat: Number(bang[1]), lng: Number(bang[2]) };
+    return null;
+  }
+
+  function importGpxFile(file) {
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const xml = new DOMParser().parseFromString(String(reader.result || ""), "text/xml");
+        const nodes = xml.querySelectorAll("wpt, rtept, trkpt");
+        if (!nodes.length) throw new Error("Üres GPX.");
+        const pts = [];
+        nodes.forEach((n) => {
+          const lat = Number(n.getAttribute("lat"));
+          const lon = Number(n.getAttribute("lon"));
+          if (Number.isFinite(lat) && Number.isFinite(lon)) pts.push({ lat: lat, lng: lon });
+        });
+        if (!pts.length) throw new Error("Nincs pont a GPX-ben.");
+        const dest = pts[pts.length - 1];
+        if (pts.length > 2) {
+          state.vias = pts.slice(0, -1).filter((_, i) => i % Math.ceil(pts.length / 4) === 0).slice(0, 3);
+        }
+        choosePlace({ lat: dest.lat, lon: dest.lng, display_name: file.name || "GPX cél" });
+      } catch (err) {
+        setStatus(err.message || "A GPX nem olvasható.", true);
+      }
+    };
+    reader.readAsText(file);
+  }
+
+  function emergencyShare() {
+    const o = state.origin;
+    const text = o
+      ? "Segítség kell. Helyzet: " +
+        o.lat.toFixed(5) +
+        ", " +
+        o.lng.toFixed(5) +
+        " https://maps.google.com/?q=" +
+        o.lat +
+        "," +
+        o.lng
+      : "Segítség kell.";
+    if (!window.confirm("Hívod a 112-t, és megosztod a helyzeted?")) return;
+    if (navigator.share) navigator.share({ text: text }).catch(() => {});
+    else if (navigator.clipboard) navigator.clipboard.writeText(text).catch(() => {});
+    window.location.href = "tel:112";
+  }
+
+  async function startCommute() {
+    if (!state.places.home || !state.places.work) {
+      setStatus("Állítsd be az Otthont és a Munkát.", true);
+      return;
+    }
+    state.vias = [];
+    if (!state.origin) setOrigin({ lat: state.places.home.lat, lng: state.places.home.lng }, 0, 0);
+    await choosePlace({
+      lat: state.places.work.lat,
+      lon: state.places.work.lng,
+      display_name: state.places.work.label || "Munka"
+    });
+  }
+
+  function setBatterySaver(on) {
+    state.batterySaver = !!on;
+    if ($("batterySaver")) $("batterySaver").checked = state.batterySaver;
+    if (state.batterySaver) applyViewMode("2d");
+    if (state.overlaysReady) add3dWorld();
+    setStatus(state.batterySaver ? "Akkukímélő: 2D, nincs 3D épület." : "Akkukímélő ki.");
+  }
+
+  function setDockMode(on) {
+    state.dockMode = !!on;
+    document.querySelector(".app").classList.toggle("is-dock", state.dockMode);
+    if (state.dockMode && screen.orientation && screen.orientation.lock) {
+      screen.orientation.lock("landscape").catch(() => {});
+    }
+    if (state.map) window.setTimeout(() => state.map.resize(), 200);
+  }
+
+  function maybeAutoDark() {
+    if (!$("autoDark") || !$("autoDark").checked) return;
+    const now = new Date();
+    const h = now.getHours() + now.getMinutes() / 60;
+    const dark = h >= sunsetHour(now.getMonth()) || h < 6.5;
+    if (dark && state.theme !== "dark") applyTheme("dark", true);
+    if (!dark && state.theme === "dark") applyTheme("light", true);
+  }
+
+  function setupMotion(ask) {
+    const go = () => {
+      if (state.motionBound) return;
+      state.motionBound = true;
+      window.addEventListener("devicemotion", (e) => {
+        const a = e.acceleration;
+        if (!a || a.x == null) return;
+        state.motionMag = Math.sqrt((a.x || 0) * (a.x || 0) + (a.y || 0) * (a.y || 0) + (a.z || 0) * (a.z || 0));
+        state.lastMotionAt = Date.now();
+      });
+    };
+    if (ask && typeof DeviceMotionEvent !== "undefined" && typeof DeviceMotionEvent.requestPermission === "function") {
+      DeviceMotionEvent.requestPermission().then((s) => {
+        if (s === "granted") go();
+      }).catch(() => {});
+    } else if (!(typeof DeviceMotionEvent !== "undefined" && typeof DeviceMotionEvent.requestPermission === "function")) {
+      go();
+    }
+  }
+
+  async function maybeSchoolZone() {
+    if (!state.origin || !state.navigating) return;
+    if (Date.now() - state.lastSchoolAt < 40000) return;
+    state.lastSchoolAt = Date.now();
+    const d = new Date();
+    const day = d.getDay();
+    const hm = d.getHours() + d.getMinutes() / 60;
+    const hours = day >= 1 && day <= 5 && ((hm >= 7 && hm <= 8.6) || (hm >= 11.5 && hm <= 16.6));
+    const chip = $("schoolChip");
+    if (!hours) {
+      if (chip) chip.hidden = true;
+      return;
+    }
+    try {
+      const q =
+        "[out:json][timeout:8];(node[\"amenity\"=\"school\"](around:140," +
+        state.origin.lat +
+        "," +
+        state.origin.lng +
+        ");way[\"hazard\"=\"school_zone\"](around:140," +
+        state.origin.lat +
+        "," +
+        state.origin.lng +
+        "););out center 4;";
+      const res = await fetch(OVERPASS_URL, { method: "POST", body: "data=" + encodeURIComponent(q) });
+      const data = await res.json();
+      const hit = (data.elements || []).length > 0;
+      if (chip) chip.hidden = !hit;
+      if (hit && state.lastSchoolSpeak !== "on") {
+        state.lastSchoolSpeak = "on";
+        speakNav("Iskolazóna. Lassíts.", "turn");
+      }
+      if (!hit) state.lastSchoolSpeak = "";
+    } catch (_e) {}
+  }
+
+  async function fetchShortestAlt() {
+    if (!state.origin || !state.destination) return;
+    const saved = state.shortestMode;
+    state.shortestMode = true;
+    try {
+      const route = await fetchValhallaRoute(state.origin, state.destination, state.travelMode);
+      applyChosenRoute(route, "short");
+    } catch (err) {
+      setStatus(err.message || "A rövid út nem jött össze.", true);
+    }
+    state.shortestMode = saved;
+    if ($("shortestMode")) $("shortestMode").checked = saved;
+  }
+
   function bindUi() {
     $("searchForm").addEventListener("submit", searchAddress);
     $("themeToggle").addEventListener("click", () => applyTheme(state.theme === "dark" ? "light" : "dark", true));
@@ -3190,6 +3588,8 @@
         $("avoidToll").checked = !!av.toll;
         if ($("avoidFerry")) $("avoidFerry").checked = !!av.ferry;
         if ($("avoidUnpaved")) $("avoidUnpaved").checked = !!av.dirt;
+        if ($("avoidCity")) $("avoidCity").checked = !!av.city;
+        if ($("shortestMode")) $("shortestMode").checked = !!av.short;
         syncAvoidOptions();
       } catch (_e) {}
     }
@@ -3200,7 +3600,9 @@
           motor: $("avoidMotorway").checked,
           toll: $("avoidToll").checked,
           ferry: $("avoidFerry") && $("avoidFerry").checked,
-          dirt: $("avoidUnpaved") && $("avoidUnpaved").checked
+          dirt: $("avoidUnpaved") && $("avoidUnpaved").checked,
+          city: $("avoidCity") && $("avoidCity").checked,
+          short: $("shortestMode") && $("shortestMode").checked
         })
       );
     }
@@ -3214,7 +3616,7 @@
       persistAvoid();
       if (state.origin && state.destination) planRoute();
     });
-    ["avoidFerry", "avoidUnpaved"].forEach((id) => {
+    ["avoidFerry", "avoidUnpaved", "avoidCity", "shortestMode"].forEach((id) => {
       $(id).addEventListener("change", () => {
         persistAvoid();
         syncAvoidOptions();
@@ -3273,6 +3675,7 @@
     $("reverseBtn").addEventListener("click", reverseRoute);
     $("altFast").addEventListener("click", () => applyChosenRoute(state.altFast, "fast"));
     $("altAvoid").addEventListener("click", () => applyChosenRoute(state.altAvoid, "avoid"));
+    if ($("altShort")) $("altShort").addEventListener("click", fetchShortestAlt);
     $("toastDest").addEventListener("click", toastAsDest);
     $("toastVia").addEventListener("click", toastAsVia);
     $("toastAvoid").addEventListener("click", toastAvoidStreet);
@@ -3289,6 +3692,26 @@
       btn.addEventListener("click", () => {
         addViaFromQuery(btn.getAttribute("data-viaq")).catch((err) => setStatus(err.message || "A megálló nem sikerült.", true));
       });
+    });
+    $("listenBtn").addEventListener("click", startDriveListen);
+    $("quietBtn").addEventListener("click", () => {
+      if (state.quietUntil && Date.now() < state.quietUntil) {
+        state.quietUntil = 0;
+        $("quietBtn").classList.remove("is-on");
+        setStatus("Csend ki.");
+      } else startQuiet();
+    });
+    $("sosBtn").addEventListener("click", emergencyShare);
+    $("commuteBtn").addEventListener("click", startCommute);
+    $("batterySaver").addEventListener("change", () => setBatterySaver($("batterySaver").checked));
+    $("autoDark").addEventListener("change", () => {
+      state.autoDark = $("autoDark").checked;
+      maybeAutoDark();
+    });
+    $("dockMode").addEventListener("change", () => setDockMode($("dockMode").checked));
+    $("gpxInput").addEventListener("change", (e) => {
+      const f = e.target.files && e.target.files[0];
+      if (f) importGpxFile(f);
     });
     $("viaHome").addEventListener("click", () => {
       if (!state.places.home) {
@@ -3339,9 +3762,15 @@
   startGpsTracking();
   parseLaunchHash();
   window.setTimeout(restoreLastTrip, 700);
-  window.setInterval(() => applyMood(false), 60000);
+  window.setInterval(() => {
+    applyMood(false);
+    maybeAutoDark();
+  }, 60000);
   window.setInterval(tickTunnel, 850);
   window.setInterval(maybeRestReminder, 30000);
+  window.setInterval(maybeSchoolZone, 20000);
+  maybeAutoDark();
+  setupMotion(false);
   if (window.speechSynthesis) {
     window.speechSynthesis.addEventListener("voiceschanged", () => {});
   }
