@@ -1100,7 +1100,8 @@ html.dark .drive-bar {
 .bg-warn[hidden],
 .map-toast[hidden],
 .help-overlay[hidden] { display: none !important; }
-.hud-overlay { display: none; }
+.hud-overlay[hidden],
+.app:not(.is-hud) .hud-overlay { display: none !important; }
 .install-banner p {
   flex: 1;
   margin: 0;
@@ -1223,7 +1224,6 @@ html.dark .drive-bar {
   position: absolute;
   inset: 8% 8% 28%;
   z-index: 27;
-  display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
@@ -1365,10 +1365,15 @@ html.dark .btn-install { background: var(--waze); color: #0b1220; }
 .app.is-hud .maneuver-banner,
 .app.is-hud .lane-assist,
 .app.is-hud .sidebar,
-.app.is-hud .top-actions,
 .app.is-hud .flavor,
 .app.is-hud .mission { opacity: 0.12; }
-.app.is-hud .hud-overlay { display: flex; }
+.app.is-hud .hud-overlay { display: flex !important; }
+.app.is-hud .top-actions { z-index: 40; }
+.app.is-hud #hudBtn {
+  background: var(--waze);
+  color: #0b1220;
+  box-shadow: 0 0 0 3px #fff, var(--shadow);
+}
 
 @media (min-width: 841px) {
   .gps-acc,

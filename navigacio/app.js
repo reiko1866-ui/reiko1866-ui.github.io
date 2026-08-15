@@ -8,6 +8,7 @@
   const HAZARD_KEY = "nav_hazards_v1";
   const PLACE_KEY = "nav_places_v1";
   const CHATTY_KEY = "nav_chatty";
+  const HUD_KEY = "nav_hud";
   const TRIP_KEY = "nav_last_trip_v1";
   const AVOID_STREET_KEY = "nav_avoid_streets_v1";
   const OVERPASS_URL = "https://overpass-api.de/api/interpreter";
@@ -2853,8 +2854,12 @@
     $("hudBtn").classList.toggle("is-on", state.hud);
     $("hudBtn").setAttribute("aria-pressed", state.hud ? "true" : "false");
     $("hudOverlay").hidden = !state.hud;
+    const box = $("hudToggle");
+    if (box) box.checked = state.hud;
+    localStorage.setItem(HUD_KEY, state.hud ? "1" : "0");
     const cur = currentStep();
-    if (cur) updateHud(maneuverCopy(cur.step), cur.until);
+    if (state.hud && cur) updateHud(maneuverCopy(cur.step), cur.until);
+    setStatus(state.hud ? "HUD be. A 🪞 gombbal ki is kapcsolhatod." : "HUD ki.");
   }
 
   function startVoiceSearch() {
@@ -3254,6 +3259,9 @@
       input.addEventListener("change", () => applyViewMode(selectedViewMode()));
     });
     $("hudBtn").addEventListener("click", () => setHud(!state.hud));
+    if ($("hudToggle")) {
+      $("hudToggle").addEventListener("change", () => setHud($("hudToggle").checked));
+    }
     $("repeatBtn").addEventListener("click", repeatInstruction);
     $("micBtn").addEventListener("click", startVoiceSearch);
     $("homeGo").addEventListener("click", () => goToSaved(state.places.home));
@@ -3323,6 +3331,7 @@
   loadAvoidPlaces();
   initMap();
   bindUi();
+  if (localStorage.getItem(HUD_KEY) === "1") setHud(true);
   setupSheet();
   setupWakeAndBg();
   setupInstall();
