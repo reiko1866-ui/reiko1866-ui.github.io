@@ -936,12 +936,21 @@ html.dark .btn-preview {
 
 .btn-start,
 .btn-stop {
+  width: 100%;
+  margin: 0.35rem 0 0;
   height: 3rem;
   border: 0;
   border-radius: 14px;
   font: inherit;
   font-weight: 800;
   cursor: pointer;
+}
+
+.more-details summary {
+  cursor: pointer;
+  font-weight: 800;
+  color: var(--text);
+  padding: 0.35rem 0;
 }
 
 .btn-start {
@@ -997,15 +1006,15 @@ html.dark .btn-preview {
   display: block;
 }
 
-.app.is-nav .junction-view {
+.app.is-nav.is-junction .junction-view {
   display: block;
 }
 
-.app.is-nav #map {
+.app.is-nav.is-junction #map {
   bottom: calc(34% + var(--sheet-peek) + env(safe-area-inset-bottom));
 }
 
-.app.is-nav .junction-view {
+.app.is-nav.is-junction .junction-view {
   left: 0;
   right: 0;
   height: 34%;
@@ -1013,9 +1022,20 @@ html.dark .btn-preview {
 }
 
 .app.is-nav.is-streetview .street-view {
+  bottom: calc(var(--sheet-peek) + 4.2rem + env(safe-area-inset-bottom));
+}
+.app.is-nav.is-junction.is-streetview .street-view {
   bottom: calc(34% + var(--sheet-peek) + 0.6rem + env(safe-area-inset-bottom));
 }
 
+.mood-chip,
+.mission,
+.flavor {
+  display: none;
+}
+.app.is-cinema.is-4d .mood-chip,
+.app.is-cinema.is-4d .mission,
+.app.is-cinema.is-4d .flavor { display: block; }
 .app.is-nav .mood-chip,
 .app.is-nav .mission,
 .app.is-nav .flavor,
@@ -1025,7 +1045,28 @@ html.dark .btn-preview {
 }
 
 .app.is-nav .sidebar {
-  --sheet-peek: 7.2rem;
+  --sheet-peek: 9.2rem;
+}
+
+.app.is-nav .sidebar:not(.is-expanded) .search-form,
+.app.is-nav .sidebar:not(.is-expanded) .quick-places,
+.app.is-nav .sidebar:not(.is-expanded) .recent-row,
+.app.is-nav .sidebar:not(.is-expanded) .mode-fieldset,
+.app.is-nav .sidebar:not(.is-expanded) .nav-options,
+.app.is-nav .sidebar:not(.is-expanded) .more-details,
+.app.is-nav .sidebar:not(.is-expanded) .elev-box,
+.app.is-nav .sidebar:not(.is-expanded) .via-line,
+.app.is-nav .sidebar:not(.is-expanded) .lastmile,
+.app.is-nav .sidebar:not(.is-expanded) .route-destination {
+  display: none;
+}
+
+.extra-toggles .icon-btn {
+  height: 2.2rem;
+  padding: 0 0.7rem;
+  width: auto;
+  font-size: 0.78rem;
+  font-weight: 700;
 }
 
 .drive-bar {
@@ -1424,12 +1465,12 @@ html.dark .btn-install { background: var(--waze); color: #0b1220; }
 }
 
 @media (min-width: 841px) {
-  .app.is-nav #map {
+  .app.is-nav.is-junction #map {
     right: 42%;
     bottom: 3.4rem;
   }
 
-  .app.is-nav .junction-view {
+  .app.is-nav.is-junction .junction-view {
     left: auto;
     right: 0;
     top: 0;

@@ -50,7 +50,7 @@
     37: ["merge", "right"],
     38: ["merge", "left"]
   };
-  const REROUTE_METERS = 45;
+  const REROUTE_METERS = 70;
   const EMPTY_LINE = { type: "FeatureCollection", features: [] };
 
   function satelliteStyle() {
@@ -196,6 +196,10 @@
     avoidUnpaved: false,
     avoidPlaces: [],
     iceWarned: false,
+    planning: false,
+    wantStart: false,
+    offRouteHits: 0,
+    statusHoldUntil: 0,
     quietUntil: 0,
     batterySaver: false,
     shortestMode: false,
@@ -210,11 +214,14 @@
     tripStats: { start: 0, maxKmh: 0, sumKmh: 0, samples: 0, dist: 0 }
   };
 
-  function setStatus(message, isError) {
+  function setStatus(message, isError, holdMs) {
     const el = $("statusText");
     if (!el) return;
+    if (!isError && state.statusHoldUntil && Date.now() < state.statusHoldUntil) return;
     el.textContent = message || "";
     el.classList.toggle("is-error", !!isError);
+    if (holdMs) state.statusHoldUntil = Date.now() + holdMs;
+    else if (isError) state.statusHoldUntil = Date.now() + 4000;
   }
 
   function preferredTheme() {
@@ -1113,8 +1120,12 @@
     const pane = $("junctionPane");
     const canvas = $("junctionCanvas");
     if (!pane || !canvas) return;
-    pane.hidden = !state.navigating;
-    if (!state.navigating) return;
+    const cur = currentStep();
+    const lanes = cur ? lanesFromStep(cur.step) : [];
+    const show = state.navigating && !state.simulating && lanes.length >= 2 && cur && cur.until < 140;
+    pane.hidden = !show;
+    document.querySelector(".app").classList.toggle("is-junction", show);
+    if (!show) return;
     resizeJunction();
     const ctx = canvas.getContext("2d");
     const w = canvas.width;
@@ -1138,8 +1149,6 @@
     ctx.strokeStyle = "#2e3236";
     ctx.lineWidth = 8;
     ctx.stroke();
-    const cur = currentStep();
-    const lanes = cur ? lanesFromStep(cur.step) : [];
     const n = Math.max(lanes.length, 3);
     const copy = cur ? maneuverCopy(cur.step) : { icon: "↑", text: "Haladj tovább", street: "" };
     for (let i = 1; i < n; i++) {
@@ -1219,12 +1228,15 @@
     state.tripStats = { start: Date.now(), maxKmh: 0, sumKmh: 0, samples: 0, dist: 0 };
     if ($("restChip")) $("restChip").hidden = true;
     if ($("simBtn")) $("simBtn").hidden = true;
-    speakNav(pick([
-      "Kedves utazó! Indulhatunk. Kövesd a rózsaszín vonalat.",
-      "Csend a stúdióban. Motor, kamera, navigáció.",
-      "A nagy utazás most kezdődik. Én bemondom, te viszed."
-    ]));
-    setStatus("Navigáció elindult");
+    const cur = currentStep();
+    if (cur) {
+      const copy = maneuverCopy(cur.step);
+      speakNav(presenterLine(copy, cur.until, ""), "turn");
+      state.lastSpokenStep = cur.index;
+    } else {
+      speakNav("Indulás.", "turn");
+    }
+    setStatus("Navigáció");
     requestWakeLock();
     setupMotion(true);
     updateCamera(true);
@@ -1585,8 +1597,8 @@
     state.arrived = true;
     const overlay = $("arrivalOverlay");
     overlay.hidden = false;
-    $("arrivalTitle").textContent = pick(["Megérkeztél", "Vége. Felirat.", "Cél. Poén."]);
-    $("arrivalSub").textContent = "Küldetés teljesítve: " + shortPlace(state.destinationLabel);
+    $("arrivalTitle").textContent = "Megérkeztél";
+    $("arrivalSub").textContent = shortPlace(state.destinationLabel);
     const st = state.tripStats || {};
     const mins = st.start ? Math.max(1, Math.round((Date.now() - st.start) / 60000)) : 0;
     const avg = st.samples ? Math.round(st.sumKmh / st.samples) : 0;
@@ -1596,11 +1608,7 @@
         dist + " · " + mins + " perc · átlag " + avg + " km/h · max " + Math.round(st.maxKmh || 0) + " km/h";
     }
     burstConfetti();
-    speak(pick([
-      "Kedves utazó! Megérkeztünk. Gratulálok, ez egy szép menet volt.",
-      "Vége a jelenetnek. Itt a cél, itt a taps.",
-      "Állj. Ez már nem az út. Ez a megérkezés."
-    ]));
+    speak("Megérkeztél. " + shortPlace(state.destinationLabel));
     if (state.origin && state.map) {
       state.map.easeTo({
         center: [state.origin.lng, state.origin.lat],
@@ -2001,22 +2009,25 @@
       return "Útvonal kész, de autópálya nélkül nem lehetett teljesen megoldani.";
     }
     if (state.avoidMotorway && state.avoidToll) {
-      return "Útvonal kész, autópálya és fizetős utak nélkül. Nyomd meg: Indulhatunk.";
+      return "Útvonal kész, autópálya és fizetős utak nélkül.";
     }
     if (state.avoidMotorway) {
-      return "Útvonal kész, autópálya nélkül. Nyomd meg: Indulhatunk.";
+      return "Útvonal kész, autópálya nélkül.";
     }
     if (state.avoidToll) {
-      return "Útvonal kész, fizetős utak nélkül. Nyomd meg: Indulhatunk.";
+      return "Útvonal kész, fizetős utak nélkül.";
     }
-    return "Útvonal kész. Nyomd meg: Indulhatunk.";
+    return "Útvonal kész.";
   }
 
-  async function planRoute() {
-    if (!state.origin || !state.destination) return;
+  async function planRoute(opts) {
+    if (!state.origin || !state.destination || state.planning) return;
+    const autoStart = state.wantStart || !!(opts && opts.start === true);
+    const reroute = !!(opts && opts.reroute) || state.navigating;
+    state.planning = true;
     try {
       syncAvoidOptions();
-      setStatus(wantsAvoidRouting(state.travelMode) ? "Elkerülő útvonal tervezése…" : "Útvonal tervezése…");
+      setStatus(reroute ? "Újratervezés…" : "Útvonal tervezése…", false, 8000);
       const route = await fetchRoute(state.origin, state.destination, state.travelMode);
       state.route = route;
       state.routeCoords = route.geometry && route.geometry.coordinates ? route.geometry.coordinates : [];
@@ -2025,35 +2036,56 @@
         (leg.steps || []).forEach((step) => state.steps.push(step));
       });
       state.lastRouteOrigin = { lat: state.origin.lat, lng: state.origin.lng };
-      state.traveledMeters = 0;
+      state.offRouteHits = 0;
+      if (reroute && state.routeCoords.length) {
+        const snap = nearestOnLine(state.routeCoords, state.origin);
+        state.traveledMeters = snap.traveled || 0;
+      } else {
+        state.traveledMeters = 0;
+      }
       state.lastSpokenStep = -1;
       state.lastSpokenLane = -1;
+      state.lastVibrateStep = -1;
       state.arrived = false;
       $("arrivalOverlay").hidden = true;
-      const mission = $("missionTitle");
-      mission.hidden = false;
-      mission.textContent = missionTitle(state.destinationLabel);
-      rotateFlavor(true);
       if (state.overlaysReady) drawRouteProgress();
       updateManeuverUi();
       updateEtaUi();
-      $("startBtn").hidden = false;
-      $("stopBtn").hidden = true;
-      $("previewBtn").hidden = false;
-      if (state.routeCoords.length && state.map) {
-        const b = new maplibregl.LngLatBounds(state.routeCoords[0], state.routeCoords[0]);
-        state.routeCoords.forEach((c) => b.extend(c));
-        state.map.fitBounds(b, { padding: 70, maxZoom: 15, duration: 900, pitch: state.satellite ? 45 : 0 });
+      if (reroute) {
+        setFollow(true);
+        updateCamera(true);
+        setStatus("Új útvonal. Folytasd.", false, 4000);
+        speakNav("Új útvonal.", "turn");
+      } else {
+        const mission = $("missionTitle");
+        if (mission) mission.hidden = true;
+        $("previewBtn").hidden = false;
+        loadHazardsOntoMap();
+        fetchOsmHazards();
+        afterRouteReady();
+        if (autoStart) {
+          startNavigation();
+          setStatus("Navigáció", false, 2500);
+        } else {
+          $("startBtn").hidden = false;
+          $("stopBtn").hidden = true;
+          if (state.routeCoords.length && state.map) {
+            const b = new maplibregl.LngLatBounds(state.routeCoords[0], state.routeCoords[0]);
+            state.routeCoords.forEach((c) => b.extend(c));
+            state.map.fitBounds(b, { padding: 70, maxZoom: 15, duration: 900, pitch: state.satellite ? 45 : 0 });
+            setFollow(false);
+          }
+          $("sidebar").classList.add("is-expanded");
+          setStatus("Útvonal kész. Indulás.", false, 5000);
+        }
       }
-      setFollow(false);
-      loadHazardsOntoMap();
-      fetchOsmHazards();
-      setStatus(avoidStatusMessage(route));
       drawJunction();
       saveLastTrip();
-      afterRouteReady();
+      state.wantStart = false;
     } catch (err) {
       setStatus(err.message || "Az útvonaltervezés sikertelen.", true);
+    } finally {
+      state.planning = false;
     }
   }
 
@@ -2061,9 +2093,10 @@
     const lngLat = { lat: Number(place.lat), lng: Number(place.lon) };
     setDestination(lngLat, place.display_name);
     rememberRecent(lngLat, place.display_name);
+    state.wantStart = true;
     $("sidebar").classList.remove("is-expanded");
     if (!state.origin) {
-      setStatus("Várom a GPS-pozíciót az útvonalhoz…");
+      setStatus("Várom a GPS-pozíciót, aztán indulok…", false, 8000);
       state.map.easeTo({ center: [lngLat.lng, lngLat.lat], zoom: 16, pitch: 55, duration: 800 });
       return;
     }
@@ -2101,20 +2134,27 @@
   }
 
   function maybeReroute() {
-    if (!state.origin || !state.destination || state.previewing || !state.navigating || state.simulating) return;
+    if (!state.origin || !state.destination || state.previewing || !state.navigating || state.simulating || state.planning) return;
     if (!state.routeCoords.length) {
-      planRoute();
+      planRoute({ reroute: true });
       return;
     }
-    if ((state.gpsAccuracy || 0) > 45) return;
+    if ((state.gpsAccuracy || 0) > 85) return;
     const snap = nearestOnLine(state.routeCoords, state.origin);
-    if (snap.dist < REROUTE_METERS) return;
+    if (snap.dist < REROUTE_METERS) {
+      state.offRouteHits = 0;
+      return;
+    }
+    state.offRouteHits = (state.offRouteHits || 0) + 1;
+    const needHits = snap.dist > 120 ? 1 : 2;
+    if (state.offRouteHits < needHits) return;
     const now = Date.now();
-    if (now - state.lastOffRouteAt < 14000) return;
+    if (now - state.lastOffRouteAt < 5000) return;
     state.lastOffRouteAt = now;
-    speakNav("Letértél. Újratervezek.");
-    setStatus("Letérés — új útvonal…");
-    planRoute();
+    state.offRouteHits = 0;
+    speakNav("Letértél. Újratervezek.", "turn");
+    setStatus("Letérés — újratervezés…", false, 8000);
+    planRoute({ reroute: true });
   }
 
   function onPosition(pos) {
@@ -2124,12 +2164,15 @@
     state.gpsAccuracy = Number(pos.coords.accuracy) || 0;
     state.lastGpsAt = Date.now();
     setOrigin(lngLat, heading, pos.coords.speed);
-    if (state.destination && !state.route && !state.previewing && !state.navigating) planRoute();
+    if (state.destination && !state.route && !state.previewing && !state.navigating && !state.planning) planRoute();
+    if (state.route && state.destination && !state.navigating && !state.planning && !state.previewing && (state.speedMps || 0) >= 3) {
+      startNavigation();
+    }
     maybeReroute();
     maybeFetchSpeedLimit();
     maybeRestReminder();
-    if (!$("statusText").classList.contains("is-error")) {
-      setStatus(state.viewMode.toUpperCase() + " navigáció · élő GPS");
+    if (!$("statusText").classList.contains("is-error") && !(state.statusHoldUntil && Date.now() < state.statusHoldUntil)) {
+      setStatus(state.navigating ? "Navigáció" : "GPS kész");
     }
   }
 
@@ -3231,8 +3274,9 @@
     syncAvoidOptions();
     setDestination({ lat: raw.dest.lat, lng: raw.dest.lng }, raw.dest.label || "Utolsó cél");
     renderViaLine();
-    setStatus("Utolsó út betöltve: " + shortPlace(raw.dest.label) + ". Várom a GPS-t, vagy tervezz.");
-    if (state.origin) planRoute();
+    state.wantStart = false;
+    setStatus("Utolsó út: " + shortPlace(raw.dest.label) + ". Keresés vagy Indulás.", false, 5000);
+    if (state.origin) planRoute({ start: false });
   }
 
   async function addViaFromQuery(query) {
