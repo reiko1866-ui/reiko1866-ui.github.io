@@ -1081,6 +1081,255 @@ html.dark .drive-bar {
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
 }
 
+.install-banner {
+  position: absolute;
+  top: calc(0.55rem + env(safe-area-inset-top));
+  left: 0.7rem;
+  right: 5.6rem;
+  z-index: 26;
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.45rem 0.55rem;
+  border-radius: 14px;
+  background: #0b1220;
+  color: #fff;
+  box-shadow: var(--shadow);
+}
+.install-banner[hidden],
+.bg-warn[hidden],
+.map-toast[hidden],
+.help-overlay[hidden] { display: none !important; }
+.hud-overlay { display: none; }
+.install-banner p {
+  flex: 1;
+  margin: 0;
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+.install-banner .btn-primary { height: 2.2rem; padding: 0 0.7rem; font-size: 0.78rem; }
+.install-banner .icon-btn { width: 2.1rem; height: 2.1rem; font-size: 1rem; }
+
+.bg-warn {
+  position: absolute;
+  top: calc(4.4rem + env(safe-area-inset-top));
+  left: 0.7rem;
+  right: 0.7rem;
+  z-index: 28;
+  padding: 0.55rem 0.7rem;
+  border-radius: 12px;
+  background: #d93025;
+  color: #fff;
+  font-weight: 800;
+  text-align: center;
+}
+
+.repeat-btn {
+  margin-left: auto;
+  width: 2.6rem;
+  height: 2.6rem;
+  border: 0;
+  border-radius: 12px;
+  background: rgba(255,255,255,0.18);
+  color: inherit;
+  font-size: 1.1rem;
+  cursor: pointer;
+}
+
+.speed-limit {
+  position: absolute;
+  right: -0.55rem;
+  top: -0.35rem;
+  min-width: 1.55rem;
+  padding: 0.08rem 0.28rem;
+  border-radius: 6px;
+  background: #fff;
+  color: #d93025;
+  border: 2px solid #d93025;
+  font-size: 0.68rem;
+  font-weight: 800;
+}
+.speed-badge { position: absolute; }
+.speed-badge.is-over { border-color: #d93025; }
+
+.gps-acc,
+.vignette-chip,
+.weather-chip,
+.section-chip {
+  position: absolute;
+  z-index: 20;
+  margin: 0;
+  padding: 0.22rem 0.5rem;
+  border-radius: 999px;
+  background: rgba(11, 18, 32, 0.78);
+  color: #fff;
+  font-size: 0.68rem;
+  font-weight: 800;
+}
+.gps-acc { top: calc(13.3rem + env(safe-area-inset-top)); left: 0.7rem; }
+.vignette-chip { top: calc(15.1rem + env(safe-area-inset-top)); left: 0.7rem; background: #f4a261; color: #0b1220; }
+.weather-chip { top: calc(16.9rem + env(safe-area-inset-top)); left: 0.7rem; }
+.section-chip { top: calc(18.7rem + env(safe-area-inset-top)); left: 0.7rem; background: #d93025; }
+
+.hud-overlay {
+  position: absolute;
+  inset: 8% 8% 28%;
+  z-index: 27;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  transform: scaleY(-1);
+  pointer-events: none;
+  text-shadow: 0 0 18px #000;
+}
+.hud-dist { margin: 0; font-size: 3.2rem; font-weight: 900; color: #05c46b; }
+.hud-icon { margin: 0; font-size: 5rem; color: #fff; }
+.hud-text { margin: 0; font-size: 1.6rem; font-weight: 800; color: #fff; text-align: center; }
+
+.map-toast {
+  position: absolute;
+  left: 50%;
+  bottom: calc(var(--sheet-peek) + 5.2rem + env(safe-area-inset-bottom));
+  transform: translateX(-50%);
+  z-index: 25;
+  width: min(22rem, 92vw);
+  padding: 0.7rem;
+  border-radius: 16px;
+  background: var(--glass);
+  box-shadow: var(--shadow);
+}
+.map-toast p { margin: 0 0 0.45rem; font-weight: 800; }
+.map-toast-row { display: flex; gap: 0.35rem; }
+.map-toast-row button {
+  flex: 1;
+  height: 2.4rem;
+  border: 0;
+  border-radius: 10px;
+  font: inherit;
+  font-weight: 800;
+  cursor: pointer;
+  background: var(--nav);
+  color: #fff;
+}
+#toastCancel { background: #3c4043; }
+
+.btn-install {
+  height: 2.7rem;
+  border: 0;
+  border-radius: 12px;
+  background: #0b1220;
+  color: #fff;
+  font: inherit;
+  font-weight: 800;
+  cursor: pointer;
+}
+html.dark .btn-install { background: var(--waze); color: #0b1220; }
+
+.btn-mic {
+  width: 2.8rem;
+  height: 2.8rem;
+  border: 0;
+  border-radius: 50%;
+  background: var(--glass-2);
+  border: 1px solid var(--line);
+  font-size: 1.1rem;
+  cursor: pointer;
+}
+.btn-mic.is-on { background: var(--waze); }
+
+.quick-places,
+.recent-row,
+.action-row,
+.alt-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+.chip-btn,
+.alt-btn {
+  height: 2.15rem;
+  padding: 0 0.65rem;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--glass-2);
+  color: var(--text);
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 700;
+  cursor: pointer;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+}
+.alt-btn.is-on,
+.chip-btn.is-on {
+  border-color: var(--nav);
+  background: color-mix(in srgb, var(--nav) 18%, transparent);
+}
+.compare-line,
+.via-line,
+.lastmile,
+.elev-meta {
+  margin: 0;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--muted);
+}
+.elev-box canvas { width: 100%; height: 56px; }
+#truckHeight {
+  width: 100%;
+  height: 2.4rem;
+  padding: 0 0.7rem;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--glass-2);
+  color: var(--text);
+  font: inherit;
+}
+.poi-row { grid-template-columns: 1fr 1fr 1fr; }
+
+.help-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(5, 7, 12, 0.72);
+  padding: 1rem;
+}
+.help-card {
+  max-width: 26rem;
+  padding: 1.1rem;
+  border-radius: 18px;
+  background: var(--glass-2);
+  color: var(--text);
+  box-shadow: var(--shadow);
+}
+.help-card h2 { margin: 0 0 0.6rem; }
+.help-card p { margin: 0 0 0.7rem; line-height: 1.45; font-size: 0.92rem; }
+
+.app.is-driver .maneuver-distance { font-size: 1.7rem; }
+.app.is-driver .btn-start,
+.app.is-driver .hazard-btn,
+.app.is-driver .chip-btn { min-height: 2.8rem; font-size: 0.95rem; }
+.app.is-hud .maneuver-banner,
+.app.is-hud .lane-assist,
+.app.is-hud .sidebar,
+.app.is-hud .top-actions,
+.app.is-hud .flavor,
+.app.is-hud .mission { opacity: 0.12; }
+.app.is-hud .hud-overlay { display: flex; }
+
+@media (min-width: 841px) {
+  .gps-acc,
+  .vignette-chip,
+  .weather-chip,
+  .section-chip { left: 24.1rem; }
+  .install-banner { left: 24.1rem; }
+}
+
 @media (min-width: 841px) {
   .app.is-nav #map {
     right: 42%;
