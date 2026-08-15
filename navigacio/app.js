@@ -2041,6 +2041,7 @@
     state.gpsAccuracy = Number(pos.coords.accuracy) || 0;
     state.lastGpsAt = Date.now();
     setOrigin(lngLat, heading, pos.coords.speed);
+    if (state.destination && !state.route && !state.previewing && !state.navigating) planRoute();
     maybeReroute();
     maybeFetchSpeedLimit();
     maybeRestReminder();
