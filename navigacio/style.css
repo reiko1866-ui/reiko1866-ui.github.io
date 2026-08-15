@@ -1388,6 +1388,13 @@ html.dark .btn-install { background: var(--waze); color: #0b1220; }
 }
 .help-card h2 { margin: 0 0 0.6rem; }
 .help-card p { margin: 0 0 0.7rem; line-height: 1.45; font-size: 0.92rem; }
+.help-steps {
+  margin: 0 0 0.8rem;
+  padding-left: 1.2rem;
+  font-size: 0.9rem;
+  line-height: 1.45;
+}
+.help-steps li { margin: 0 0 0.45rem; }
 
 .app.is-driver .maneuver-distance { font-size: 1.7rem; }
 .app.is-driver .btn-start,
