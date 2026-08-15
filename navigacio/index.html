@@ -8,7 +8,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes"/>
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
   <meta name="apple-mobile-web-app-title" content="Navigáció"/>
-  <title>Navigáció 4D</title>
+  <title>Navigáció</title>
   <link rel="manifest" href="./manifest.webmanifest"/>
   <link rel="icon" href="./icons/icon-192.png" type="image/png"/>
   <link rel="apple-touch-icon" href="./icons/apple-touch-icon.png"/>
@@ -20,15 +20,40 @@
     <div class="letterbox letterbox-top" aria-hidden="true"></div>
     <div class="letterbox letterbox-bottom" aria-hidden="true"></div>
     <div class="film-grain" aria-hidden="true"></div>
-    <div id="map" role="application" aria-label="3D térkép"></div>
+    <div id="map" role="application" aria-label="Térkép"></div>
     <canvas id="fxCanvas" class="fx-canvas" hidden></canvas>
 
-    <p class="mood-chip" id="moodChip">Nappali menet</p>
+    <p class="mood-chip" id="moodChip" hidden>Nappali menet</p>
     <p class="mission" id="missionTitle" hidden></p>
     <p class="flavor" id="flavorLine" hidden></p>
 
+    <div class="search-dock" id="searchDock">
+      <form class="search-form" id="searchForm" autocomplete="off">
+        <button type="button" class="icon-btn menu-btn" id="menuBtn" title="Beállítások">☰</button>
+        <label class="visually-hidden" for="addressInput">Hova?</label>
+        <input
+          id="addressInput"
+          name="address"
+          type="search"
+          inputmode="search"
+          placeholder="Hova mész?"
+          enterkeyhint="search"
+        />
+        <button type="button" class="btn-mic" id="micBtn" title="Beszéd">🎤</button>
+        <button type="submit" class="btn-go" id="searchBtn">Menj</button>
+      </form>
+      <ul class="search-results" id="searchResults" hidden></ul>
+      <div class="quick-places">
+        <button type="button" class="chip-btn" id="homeGo">Otthon</button>
+        <button type="button" class="chip-btn" id="workGo">Munka</button>
+        <button type="button" class="chip-btn" id="commuteBtn">Munkába</button>
+      </div>
+      <div class="recent-row" id="recentPlaces"></div>
+      <p class="status" id="statusText">GPS indítása…</p>
+    </div>
+
     <div class="install-banner" id="installBanner" hidden>
-      <p>Telepítsd az autóra — úgy nyílik, mint egy app.</p>
+      <p>Telepítsd — úgy nyílik, mint egy app.</p>
       <button type="button" class="btn-primary" id="installBtn">Telepítés</button>
       <button type="button" class="icon-btn" id="installHelpBtn" title="Hogyan">?</button>
       <button type="button" class="icon-btn" id="installDismiss" title="Bezár">×</button>
@@ -47,7 +72,7 @@
     </section>
 
     <section class="lane-assist" id="laneAssist" hidden>
-      <p class="lane-label">Sávasszisztens</p>
+      <p class="lane-label">Sáv</p>
       <div class="lane-row" id="laneRow"></div>
       <p class="lane-hint" id="laneHint"></p>
     </section>
@@ -59,22 +84,17 @@
     </div>
     <p class="gps-acc" id="gpsAcc" hidden>± — m</p>
 
-    <div class="vignette-chip" id="vignetteChip" hidden>E-matrica kellhet</div>
-    <div class="weather-chip" id="weatherChip" hidden></div>
-    <div class="section-chip" id="sectionChip" hidden></div>
-    <div class="rest-chip" id="restChip" hidden>Pihenő kell</div>
-    <div class="school-chip" id="schoolChip" hidden>Iskolazóna</div>
+    <div class="alert-stack">
+      <div class="vignette-chip" id="vignetteChip" hidden>E-matrica</div>
+      <div class="weather-chip" id="weatherChip" hidden></div>
+      <div class="section-chip" id="sectionChip" hidden></div>
+      <div class="rest-chip" id="restChip" hidden>Pihenő</div>
+      <div class="school-chip" id="schoolChip" hidden>Iskola</div>
+    </div>
 
     <div class="top-actions">
-      <div class="view-switch" role="radiogroup" aria-label="Nézet">
-        <label><input type="radio" name="viewMode" value="2d"/><span>2D</span></label>
-        <label><input type="radio" name="viewMode" value="3d"/><span>3D</span></label>
-        <label><input type="radio" name="viewMode" value="4d" checked/><span>4D</span></label>
-      </div>
-      <button type="button" class="icon-btn is-on" id="satBtn" aria-pressed="true" title="Műhold">🛰️</button>
-      <button type="button" class="icon-btn" id="listenBtn" aria-pressed="false" title="Hangparancs">🎙️</button>
-      <button type="button" class="icon-btn" id="quietBtn" aria-pressed="false" title="Csend 5 perc">🤫</button>
-      <button type="button" class="icon-btn is-on" id="voiceBtn" aria-pressed="true" title="Bemondó hang">🔊</button>
+      <button type="button" class="icon-btn" id="satBtn" aria-pressed="false" title="Műhold">🛰️</button>
+      <button type="button" class="icon-btn is-on" id="voiceBtn" aria-pressed="true" title="Hang">🔊</button>
       <button type="button" class="icon-btn" id="themeToggle" aria-pressed="false" title="Sötét mód">
         <span class="theme-icon theme-icon-moon" aria-hidden="true">☾</span>
         <span class="theme-icon theme-icon-sun" aria-hidden="true">☀</span>
@@ -83,7 +103,7 @@
     </div>
 
     <div class="junction-view" id="junctionPane" hidden>
-      <canvas id="junctionCanvas" aria-label="3D sávnézet"></canvas>
+      <canvas id="junctionCanvas" aria-label="Sávnézet"></canvas>
     </div>
 
     <div class="hud-overlay" id="hudOverlay" hidden>
@@ -94,7 +114,7 @@
 
     <div class="street-view" id="streetViewPane" hidden>
       <div class="street-view-bar">
-        <span>Street View — követi az utcát</span>
+        <span>Street View</span>
         <button type="button" id="streetRefresh" class="street-refresh">Frissítés</button>
         <a id="streetViewOpen" href="https://www.google.com/maps" target="_blank" rel="noopener">Megnyitás</a>
       </div>
@@ -120,7 +140,7 @@
       </div>
     </div>
 
-    <aside class="sidebar" id="sidebar" aria-label="Navigációs panel">
+    <aside class="sidebar" id="sidebar" aria-label="Beállítások">
       <button type="button" class="sheet-handle" id="sheetHandle" aria-expanded="false" aria-controls="sidebar">
         <span class="sheet-handle-bar" aria-hidden="true"></span>
         <span class="visually-hidden">Panel kinyitása vagy becsukása</span>
@@ -144,35 +164,11 @@
         <div class="progress-fill" id="progressFill"></div>
       </div>
       <p class="remain-line" id="remainLine" hidden></p>
+      <p class="route-destination" id="routeDestination" hidden></p>
       <button type="button" class="btn-start" id="startBtn" hidden>Indulás</button>
-      <button type="button" class="btn-stop" id="stopBtn" hidden>Leállítás</button>
-
-      <form class="search-form" id="searchForm" autocomplete="off">
-        <label class="field-label" for="addressInput">Hova?</label>
-        <div class="search-row">
-          <input
-            id="addressInput"
-            name="address"
-            type="search"
-            inputmode="search"
-            placeholder="Cím, hely vagy 47.49, 19.04"
-            enterkeyhint="search"
-          />
-          <button type="button" class="btn-mic" id="micBtn" title="Beszéd">🎤</button>
-          <button type="submit" class="btn-primary" id="searchBtn">Menj</button>
-        </div>
-        <ul class="search-results" id="searchResults" hidden></ul>
-      </form>
-
-      <div class="quick-places">
-        <button type="button" class="chip-btn" id="homeGo">🏠 Otthon</button>
-        <button type="button" class="chip-btn" id="workGo">💼 Munka</button>
-        <button type="button" class="chip-btn" id="commuteBtn">Otthon → Munka</button>
-      </div>
-      <div class="recent-row" id="recentPlaces"></div>
 
       <fieldset class="mode-fieldset">
-        <legend>Közlekedési mód</legend>
+        <legend>Mód</legend>
         <div class="mode-switch" role="radiogroup" aria-label="Közlekedési mód">
           <label class="mode-option">
             <input type="radio" name="travelMode" value="driving" checked/>
@@ -180,11 +176,11 @@
           </label>
           <label class="mode-option">
             <input type="radio" name="travelMode" value="biking"/>
-            <span>Kerékpár</span>
+            <span>Bringá</span>
           </label>
           <label class="mode-option">
             <input type="radio" name="travelMode" value="foot"/>
-            <span>Gyalogos</span>
+            <span>Gyalog</span>
           </label>
           <label class="mode-option">
             <input type="radio" name="travelMode" value="motorcycle"/>
@@ -193,12 +189,17 @@
         </div>
       </fieldset>
 
+      <div class="view-switch" role="radiogroup" aria-label="Nézet">
+        <label><input type="radio" name="viewMode" value="2d"/><span>2D</span></label>
+        <label><input type="radio" name="viewMode" value="3d" checked/><span>3D</span></label>
+        <label><input type="radio" name="viewMode" value="4d"/><span>Közeli</span></label>
+      </div>
+
       <div class="nav-options">
         <label class="check"><input type="checkbox" id="avoidMotorway"/> Autópálya elkerülése</label>
         <label class="check"><input type="checkbox" id="avoidToll"/> Fizetős utak elkerülése</label>
       </div>
 
-      <p class="route-destination" id="routeDestination" hidden></p>
       <p class="via-line" id="viaLine" hidden></p>
       <p class="lastmile" id="lastMile" hidden></p>
       <div class="elev-box" id="elevBox" hidden>
@@ -206,9 +207,10 @@
         <canvas id="elevCanvas" width="320" height="56"></canvas>
         <p class="elev-meta" id="elevMeta"></p>
       </div>
+
       <details class="more-details" id="moreNav">
         <summary>Továbbiak</summary>
-        <button type="button" class="btn-install" id="installBtn2">📲 Telepítés az autóra</button>
+        <button type="button" class="btn-install" id="installBtn2">Telepítés az autóra</button>
         <p class="compare-line" id="compareLine" hidden></p>
         <ol class="next-turns" id="nextTurns" hidden></ol>
         <div class="alt-row" id="altRow" hidden>
@@ -222,16 +224,18 @@
         </div>
         <div class="quick-places extra-toggles">
           <button type="button" class="icon-btn" id="hudBtn" aria-pressed="false" title="HUD mód">🪞 HUD</button>
-          <button type="button" class="icon-btn" id="streetBtn" aria-pressed="false" title="Street View">🛣️ Street View</button>
-          <button type="button" class="icon-btn" id="cinemaBtn" aria-pressed="false" title="Mozi mód">🎬 Mozi</button>
+          <button type="button" class="icon-btn" id="streetBtn" aria-pressed="false" title="Street View">Street View</button>
+          <button type="button" class="icon-btn" id="cinemaBtn" aria-pressed="false" title="Mozi mód">Mozi</button>
+          <button type="button" class="icon-btn" id="listenBtn" aria-pressed="false" title="Hangparancs">🎙️</button>
+          <button type="button" class="icon-btn" id="quietBtn" aria-pressed="false" title="Csend 5 perc">🤫</button>
         </div>
         <div class="nav-options">
           <label class="check"><input type="checkbox" id="avoidFerry"/> Komp elkerülése</label>
           <label class="check"><input type="checkbox" id="avoidUnpaved"/> Földút elkerülése</label>
           <label class="check"><input type="checkbox" id="truckMode"/> Teherautó</label>
-          <label class="check"><input type="checkbox" id="chattyVoice" checked/> Szájkós bemondó</label>
-          <label class="check"><input type="checkbox" id="hudToggle"/> HUD (szélvédőre)</label>
-          <label class="check"><input type="checkbox" id="avoidCity"/> Város / lakóutca elkerülése</label>
+          <label class="check"><input type="checkbox" id="chattyVoice"/> Részletes bemondó</label>
+          <label class="check"><input type="checkbox" id="hudToggle"/> HUD</label>
+          <label class="check"><input type="checkbox" id="avoidCity"/> Város elkerülése</label>
           <label class="check"><input type="checkbox" id="shortestMode"/> Legrövidebb út</label>
           <label class="check"><input type="checkbox" id="batterySaver"/> Akkukímélő</label>
           <label class="check"><input type="checkbox" id="autoDark" checked/> Sötét naplemente után</label>
@@ -242,7 +246,7 @@
         <label class="field-label" for="arriveBy">Érkezz ekkorára</label>
         <input id="arriveBy" type="time"/>
         <p class="leave-at" id="leaveAt" hidden></p>
-        <form class="search-form" id="viaForm" autocomplete="off">
+        <form class="via-form" id="viaForm" autocomplete="off">
           <label class="field-label" for="viaInput">Megálló</label>
           <div class="search-row">
             <input id="viaInput" type="search" placeholder="Bolt, patika, cím…"/>
@@ -260,7 +264,7 @@
         <button type="button" class="btn-preview" id="simBtn" hidden>Szimuláció</button>
         <div class="action-row">
           <button type="button" class="chip-btn" id="reverseBtn" hidden>↩ Visszaút</button>
-          <button type="button" class="chip-btn" id="shareBtn" hidden>🔗 Megosztás</button>
+          <button type="button" class="chip-btn" id="shareBtn" hidden>Megosztás</button>
           <button type="button" class="chip-btn" id="gpxBtn" hidden>GPX mentés</button>
           <label class="chip-btn gpx-in" id="gpxInLabel">GPX betöltés<input id="gpxInput" type="file" accept=".gpx,application/gpx+xml,text/xml" hidden/></label>
           <button type="button" class="chip-btn" id="sosBtn">112</button>
@@ -282,18 +286,17 @@
         <div class="hazard-box">
           <p class="field-label">Jelzés</p>
           <div class="hazard-row">
-            <button type="button" class="hazard-btn" data-hazard="baleset">💥 Baleset</button>
-            <button type="button" class="hazard-btn" data-hazard="katyu">🕳️ Kátyú</button>
-            <button type="button" class="hazard-btn" data-hazard="dugo">🚗 Dugó</button>
-            <button type="button" class="hazard-btn" data-hazard="veszely">⚠️ Veszély</button>
-            <button type="button" class="hazard-btn" data-hazard="rendor">🚓 Rendőr</button>
-            <button type="button" class="hazard-btn" data-hazard="traffipax">📷 Traffipax</button>
+            <button type="button" class="hazard-btn" data-hazard="baleset">Baleset</button>
+            <button type="button" class="hazard-btn" data-hazard="katyu">Kátyú</button>
+            <button type="button" class="hazard-btn" data-hazard="dugo">Dugó</button>
+            <button type="button" class="hazard-btn" data-hazard="veszely">Veszély</button>
+            <button type="button" class="hazard-btn" data-hazard="rendor">Rendőr</button>
+            <button type="button" class="hazard-btn" data-hazard="traffipax">Traffipax</button>
           </div>
         </div>
         <label class="field-label" for="gmapsKey">Street View kulcs</label>
         <input id="gmapsKey" type="password" autocomplete="off" placeholder="Opcionális"/>
       </details>
-      <p class="status" id="statusText">GPS indítása…</p>
     </aside>
 
     <footer class="drive-bar" id="driveBar" hidden>
@@ -301,11 +304,11 @@
         <span id="driveSpeed">0</span>
         <small>km/h</small>
       </div>
-      <p class="drive-road" id="driveRoad">—</p>
-      <div class="drive-eta">
-        <span id="driveEta">—</span>
-        <small>érkezés</small>
+      <div class="drive-mid" id="driveMid">
+        <p class="drive-eta-line"><span id="driveEta">—</span> · <span id="driveDur">—</span> · <span id="driveDist">—</span></p>
+        <p class="drive-road" id="driveRoad">—</p>
       </div>
+      <button type="button" class="btn-stop" id="stopBtn" hidden>Állj</button>
     </footer>
 
     <div id="arrivalOverlay" class="arrival-overlay" hidden>
@@ -321,15 +324,13 @@
         <h2>Telepítés az autóra</h2>
         <p>Ez a telefonodra kerül, mint app. A kocsi gyári kijelzőjére (Android Auto / CarPlay) nem települ.</p>
         <ol class="help-steps">
-          <li>Nyisd meg <strong>Chrome-ban a telefonodon</strong> ezt az oldalt (ne a kocsi böngészőjében).</li>
+          <li>Nyisd meg <strong>Chrome-ban a telefonodon</strong> ezt az oldalt.</li>
           <li>Chrome menü (⋮) → <em>Alkalmazás telepítése</em> vagy <em>Hozzáadás a kezdőképernyőhöz</em>.</li>
-          <li>Megjelenik a <strong>Navigáció</strong> ikon. Abból nyisd, ne a Chrome-ból.</li>
-          <li>Engedélyezd a <strong>helyhozzáférést</strong> (Használat közben).</li>
-          <li>Tedd a telefont a tartóba. Kapcsold be a panelen: <em>Tartó / fekvő nézet</em>.</li>
-          <li>Írd be a címet, nyomd meg: <strong>Menj</strong>. Az útvonal után a navigáció magától indul.</li>
+          <li>A <strong>Navigáció</strong> ikonból nyisd, ne a böngészőből.</li>
+          <li>Engedélyezd a <strong>helyhozzáférést</strong>.</li>
+          <li>Írd be a címet, nyomd meg: <strong>Menj</strong>.</li>
         </ol>
         <p><strong>iPhone:</strong> Safari → Megosztás → Hozzáadás a Főképernyőhöz.</p>
-        <p>Tartsd előtérben. Ha háttérbe rakod, a GPS leáll, és a app szól.</p>
         <button type="button" class="btn-primary" id="helpClose">Értem</button>
       </div>
     </div>

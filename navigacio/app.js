@@ -12,7 +12,7 @@
   const TRIP_KEY = "nav_last_trip_v1";
   const AVOID_STREET_KEY = "nav_avoid_streets_v1";
   const OVERPASS_URL = "https://overpass-api.de/api/interpreter";
-  const PINK = "#e20074";
+  const ROUTE_BLUE = "#1a73e8";
   const NOMINATIM_URL = "https://nominatim.openstreetmap.org/search";
   const OSRM_QUERY = "overview=full&geometries=geojson&alternatives=false&steps=true";
   const VALHALLA_URLS = [
@@ -126,7 +126,7 @@
     destination: null,
     destinationLabel: "",
     travelMode: "driving",
-    viewMode: "4d",
+    viewMode: "3d",
     follow: true,
     theme: "light",
     watchId: null,
@@ -153,9 +153,9 @@
     lastMovedAt: Date.now(),
     lastIdleSpeak: 0,
     lastFlavorAt: 0,
-    cinema: true,
+    cinema: false,
     mood: "day",
-    satellite: true,
+    satellite: false,
     streetViewOn: false,
     navigating: false,
     avoidMotorway: false,
@@ -232,8 +232,9 @@
 
   function preferredView() {
     const saved = localStorage.getItem(VIEW_KEY);
-    if (saved === "2d" || saved === "3d" || saved === "4d") return saved;
-    return "4d";
+    if (saved === "4d") return "3d";
+    if (saved === "2d" || saved === "3d") return saved;
+    return "3d";
   }
 
   function toRad(d) {
@@ -839,12 +840,15 @@
     const copy = maneuverCopy(cur.step);
     const lanes = lanesFromStep(cur.step);
     const hint = laneHintText(lanes);
-    banner.hidden = false;
+    banner.hidden = !state.navigating;
     $("maneuverIcon").textContent = copy.icon;
     $("maneuverDistance").textContent = formatDistance(cur.until);
     $("maneuverInstruction").textContent = copy.text;
     $("maneuverStreet").textContent = copy.street;
-    renderLanes(state.gpsAccuracy > 28 ? [] : lanes, state.gpsAccuracy > 28 ? "A GPS pontatlan a sávhoz." : hint);
+    renderLanes(
+      !state.navigating || state.gpsAccuracy > 28 ? [] : lanes,
+      state.gpsAccuracy > 28 ? "A GPS pontatlan a sávhoz." : hint
+    );
     updateHud(copy, cur.until);
     if (state.navigating && cur.until < 320 && cur.index !== state.lastVibrateStep) {
       state.lastVibrateStep = cur.index;
@@ -927,6 +931,8 @@
     $("startBtn").hidden = !state.route || state.navigating;
     $("stopBtn").hidden = !state.navigating;
     $("driveEta").textContent = formatClock(sec);
+    if ($("driveDur")) $("driveDur").textContent = formatDuration(sec);
+    if ($("driveDist")) $("driveDist").textContent = formatDistance(leftMeters);
     const cur = currentStep();
     $("driveRoad").textContent = (cur && cur.step && cur.step.name) || shortPlace(state.destinationLabel);
   }
@@ -1022,7 +1028,7 @@
         id: "route-rest-line",
         type: "line",
         source: "route-rest",
-        paint: { "line-color": PINK, "line-width": 8, "line-opacity": 1, "line-blur": 0.15 }
+        paint: { "line-color": ROUTE_BLUE, "line-width": 10, "line-opacity": 1 }
       });
       state.map.addLayer({
         id: "route-done-line",
@@ -1048,9 +1054,7 @@
 
   function paintRouteMood() {
     if (!state.map || !state.map.getLayer("route-rest-line")) return;
-    const frac = Math.max(0, Math.min(1, state.traveledMeters / (lineLength(state.routeCoords) || 1)));
-    const color = frac > 0.8 ? "#05c46b" : PINK;
-    state.map.setPaintProperty("route-rest-line", "line-color", color);
+    state.map.setPaintProperty("route-rest-line", "line-color", ROUTE_BLUE);
   }
 
   function ensureOverlays() {
@@ -1180,7 +1184,7 @@
       ctx.fillStyle = "rgba(226,0,116,0.38)";
       ctx.fill();
     });
-    ctx.fillStyle = PINK;
+    ctx.fillStyle = ROUTE_BLUE;
     ctx.beginPath();
     const mid = valid.length ? (valid[0] + valid[valid.length - 1] + 1) / 2 / n : 0.5;
     const ax = w * (0.36 + mid * 0.28);
@@ -1239,6 +1243,7 @@
     setStatus("Navigáció");
     requestWakeLock();
     setupMotion(true);
+    updateManeuverUi();
     updateCamera(true);
   }
 
@@ -1462,33 +1467,35 @@
   function cameraForMode(center, bearing) {
     const mode = state.viewMode;
     const kmh = (state.speedMps || 0) * 3.6;
-    const zOff = kmh < 20 ? 0.35 : kmh < 50 ? 0 : kmh < 90 ? -0.85 : -1.55;
+    const zOff = kmh < 20 ? 0.2 : kmh < 50 ? 0 : kmh < 90 ? -0.65 : -1.2;
+    const top = state.navigating ? 96 : 108;
+    const bottom = state.navigating ? 108 : 36;
     if (mode === "2d") {
-      return { center, zoom: 16.2 + zOff, pitch: 0, bearing: 0, padding: { top: 80, bottom: 180, left: 0, right: 0 } };
+      return { center, zoom: 16.1 + zOff, pitch: 0, bearing: 0, padding: { top, bottom, left: 0, right: 0 } };
     }
     if (mode === "3d") {
       return {
         center,
-        zoom: 17.4 + zOff,
-        pitch: 58,
+        zoom: 17 + zOff,
+        pitch: 54,
         bearing: state.follow ? bearing : state.map.getBearing(),
-        padding: { top: 40, bottom: 220, left: 0, right: 0 }
+        padding: { top, bottom, left: 0, right: 0 }
       };
     }
-    const look = alongLine(state.routeCoords.length ? state.routeCoords : [[center[0], center[1]]], state.traveledMeters + 55);
+    const look = alongLine(state.routeCoords.length ? state.routeCoords : [[center[0], center[1]]], state.traveledMeters + 48);
     return {
       center: look ? [look.lng, look.lat] : center,
-      zoom: 18.05 + zOff,
-      pitch: 68,
+      zoom: 17.6 + zOff,
+      pitch: 62,
       bearing: state.follow ? (look ? look.bearing : bearing) : state.map.getBearing(),
-      padding: { top: 20, bottom: 260, left: 0, right: 0 }
+      padding: { top, bottom, left: 0, right: 0 }
     };
   }
 
   function updateCamera(force) {
-    if (!state.map || !state.origin || !state.follow || state.previewing || !state.navigating) return;
+    if (!state.map || !state.origin || !state.follow || state.previewing) return;
     const now = performance.now();
-    if (!force && now - state.lastCameraAt < 900) return;
+    if (!force && now - state.lastCameraAt < (state.navigating ? 900 : 1400)) return;
     state.lastCameraAt = now;
     const cam = cameraForMode([state.origin.lng, state.origin.lat], state.heading);
     state.map.easeTo({
@@ -1497,7 +1504,7 @@
       pitch: cam.pitch,
       bearing: cam.bearing,
       padding: cam.padding,
-      duration: force ? 700 : 420,
+      duration: force ? 700 : 480,
       essential: true
     });
   }
@@ -2206,7 +2213,7 @@
     state.previewing = false;
     if (state.previewRaf) cancelAnimationFrame(state.previewRaf);
     state.previewRaf = 0;
-    $("previewBtn").textContent = "4D útvonal-előnézet";
+    $("previewBtn").textContent = "Útvonal-előnézet";
   }
 
   function playPreview() {
@@ -2253,46 +2260,45 @@
   function setupSheet() {
     const sidebar = $("sidebar");
     const handle = $("sheetHandle");
-    handle.addEventListener("click", () => {
-      const open = !sidebar.classList.contains("is-expanded");
+    function toggleSheet(force) {
+      const open = force == null ? !sidebar.classList.contains("is-expanded") : !!force;
       sidebar.classList.toggle("is-expanded", open);
       handle.setAttribute("aria-expanded", open ? "true" : "false");
-    });
+    }
+    handle.addEventListener("click", () => toggleSheet());
+    if ($("menuBtn")) $("menuBtn").addEventListener("click", () => toggleSheet());
+    if ($("driveMid")) {
+      $("driveMid").addEventListener("click", () => {
+        if (state.navigating) toggleSheet();
+      });
+    }
     let startY = 0;
     handle.addEventListener("touchstart", (e) => {
       startY = e.touches[0].clientY;
     }, { passive: true });
     handle.addEventListener("touchend", (e) => {
       const dy = e.changedTouches[0].clientY - startY;
-      if (dy < -24) {
-        sidebar.classList.add("is-expanded");
-        handle.setAttribute("aria-expanded", "true");
-      } else if (dy > 24) {
-        sidebar.classList.remove("is-expanded");
-        handle.setAttribute("aria-expanded", "false");
-      }
+      if (dy < -24) toggleSheet(true);
+      else if (dy > 24) toggleSheet(false);
     });
   }
 
   function initMap() {
+    const theme = preferredTheme();
     state.map = new maplibregl.Map({
       container: "map",
-      style: satelliteStyle(),
+      style: STYLES[theme] || STYLES.light,
       center: DEFAULT_CENTER,
-      zoom: 13.4,
-      pitch: 62,
-      bearing: -18,
+      zoom: 13.8,
+      pitch: 48,
+      bearing: 0,
       maxPitch: 80,
       attributionControl: true
     });
-    state.map.addControl(new maplibregl.NavigationControl({ visualizePitch: true }), "bottom-right");
     state.map.on("load", ensureOverlays);
     state.map.on("style.load", ensureOverlays);
     state.map.on("dragstart", () => {
       if (!state.previewing) setFollow(false);
-    });
-    state.map.on("pitchstart", () => {
-      if (!state.previewing && state.follow === false) return;
     });
     state.map.on("load", setupMapPress);
   }
@@ -3788,7 +3794,7 @@
 
   state.theme = preferredTheme();
   state.viewMode = preferredView();
-  state.chatty = localStorage.getItem(CHATTY_KEY) !== "0";
+  state.chatty = localStorage.getItem(CHATTY_KEY) === "1";
   applyTheme(state.theme, false);
   applyViewMode(state.viewMode);
   applyMood(true);
