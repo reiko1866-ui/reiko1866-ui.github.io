@@ -1,15 +1,15 @@
 {
   "counts": {
-    "left": 98,
-    "right": 117,
-    "other": 139,
+    "left": 97,
+    "right": 116,
+    "other": 136,
     "straight": 29,
     "uturn": 12,
     "recompute": 16,
     "roundabout": 25,
     "motorway": 27,
     "gps": 12,
-    "arrive": 3,
+    "arrive": 8,
     "speed": 1
   },
   "files": {
@@ -100,7 +100,6 @@
       "and_then_exit_left_458.ogg",
       "and_then_exit_left_464.ogg",
       "and_then_exit_left_49.ogg",
-      "and_then_exit_left_496.ogg",
       "and_then_exit_left_499.ogg",
       "and_then_exit_left_54.ogg",
       "and_then_exit_left_55.ogg",
@@ -216,7 +215,6 @@
       "and_then_exit_left_466.ogg",
       "and_then_exit_left_470.ogg",
       "and_then_exit_left_473.ogg",
-      "and_then_exit_left_485.ogg",
       "and_then_exit_left_487.ogg",
       "and_then_exit_left_497.ogg",
       "and_then_exit_left_56.ogg",
@@ -259,7 +257,6 @@
       "and_then_exit_left_194.ogg",
       "and_then_exit_left_208.ogg",
       "and_then_exit_left_21.ogg",
-      "and_then_exit_left_213.ogg",
       "and_then_exit_left_217.ogg",
       "and_then_exit_left_218.ogg",
       "and_then_exit_left_228.ogg",
@@ -325,7 +322,6 @@
       "and_then_exit_left_417.ogg",
       "and_then_exit_left_418.ogg",
       "and_then_exit_left_421.ogg",
-      "and_then_exit_left_424.ogg",
       "and_then_exit_left_428.ogg",
       "and_then_exit_left_429.ogg",
       "and_then_exit_left_43.ogg",
@@ -347,7 +343,6 @@
       "and_then_exit_left_472.ogg",
       "and_then_exit_left_479.ogg",
       "and_then_exit_left_481.ogg",
-      "and_then_exit_left_482.ogg",
       "and_then_exit_left_483.ogg",
       "and_then_exit_left_486.ogg",
       "and_then_exit_left_488.ogg",
@@ -509,7 +504,12 @@
     "arrive": [
       "and_then_exit_left_139.ogg",
       "and_then_exit_left_193.ogg",
-      "and_then_exit_left_427.ogg"
+      "and_then_exit_left_213.ogg",
+      "and_then_exit_left_424.ogg",
+      "and_then_exit_left_427.ogg",
+      "and_then_exit_left_482.ogg",
+      "and_then_exit_left_485.ogg",
+      "and_then_exit_left_496.ogg"
     ],
     "speed": [
       "and_then_exit_left_469.ogg"
