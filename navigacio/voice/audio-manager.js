@@ -1,6 +1,7 @@
 /**
- * Hangnavigáció — HTMLAudio, azonnali play() a kattintás gesztusában.
- * iPhone: MP3 (Safari nem játssza az .ogg-ot). Android: .ogg a CDN-ről.
+ * Hangnavigáció — 698 feltöltött minta (bal/jobb kijárat változatok).
+ * Android: .ogg CDN. iPhone: ugyanazok MP3-ként a voice/clips mappában.
+ * Minden gombnyomásra véletlen változat, nem mindig a _100.
  */
 (function (global) {
   "use strict";
@@ -10,7 +11,6 @@
   const ENC = encodeURIComponent(BRANCH);
   const OGG_CDN = "https://cdn.jsdelivr.net/gh/" + REPO + "@" + ENC + "/hungary_jf/";
   const APP_CDN = "https://cdn.jsdelivr.net/gh/" + REPO + "@" + ENC + "/navigacio/";
-  const PROBE = "and_then_exit_left_100.ogg";
   const LEFT_STEM = "and_then_exit_left";
   const RIGHT_STEM = "and_then_exit_right";
   const BASE_KEY = "nav2_voice_base";
@@ -19,12 +19,12 @@
     start: { side: "left", tts: "Hang kész." },
     finish: { tts: "Megérkeztél." },
     recomputing: { tts: "Újratervezés." },
-    "left-100": { side: "left", ogg: LEFT_STEM + "_100.ogg", tts: "100 méter, fordulj balra." },
-    "right-500": { side: "right", ogg: RIGHT_STEM + "_100.ogg", tts: "500 méter, fordulj jobbra." },
-    "right-100": { side: "right", ogg: RIGHT_STEM + "_100.ogg", tts: "100 méter, fordulj jobbra." },
-    "left-500": { side: "left", ogg: LEFT_STEM + "_100.ogg", tts: "500 méter, fordulj balra." },
-    "exit-left-100": { side: "left", ogg: LEFT_STEM + "_100.ogg", tts: "100 méter, hajts le balra." },
-    "exit-right-100": { side: "right", ogg: RIGHT_STEM + "_100.ogg", tts: "100 méter, hajts le jobbra." },
+    "left-100": { side: "left", tts: "100 méter, fordulj balra." },
+    "right-500": { side: "right", tts: "500 méter, fordulj jobbra." },
+    "right-100": { side: "right", tts: "100 méter, fordulj jobbra." },
+    "left-500": { side: "left", tts: "500 méter, fordulj balra." },
+    "exit-left-100": { side: "left", tts: "100 méter, hajts le balra." },
+    "exit-right-100": { side: "right", tts: "100 méter, hajts le jobbra." },
     straight: { tts: "Haladj tovább." },
     uTurn: { side: "left", tts: "Fordulj vissza." }
   };
@@ -81,6 +81,7 @@
       this.base = OGG_CDN;
       this.started = false;
       this.inventory = new Set();
+      this.lastName = "";
       this.player = document.getElementById("navVoiceEl") || new Audio();
       this.player.setAttribute("playsinline", "true");
       this.player.preload = "auto";
@@ -112,24 +113,43 @@
       this.log("Útvonal: " + this.base);
     }
 
-    mp3Urls(side) {
-      const name = side === "right" ? "right.mp3" : "left.mp3";
-      return unique([APP_CDN + "voice/clips/" + name, rel("./voice/clips/" + name)]);
+    filesForStem(stem) {
+      const prefix = stem + "_";
+      const out = [];
+      this.inventory.forEach((name) => {
+        if (name.indexOf(prefix) === 0) out.push(name);
+      });
+      return out;
     }
 
-    oggUrls(file) {
-      const name = /\.ogg$/i.test(file) ? file : file + ".ogg";
-      return unique([this.base + name, OGG_CDN + name]);
+    pickName(side) {
+      const stem = side === "right" ? RIGHT_STEM : LEFT_STEM;
+      const matches = this.filesForStem(stem);
+      if (!matches.length) return stem + "_100.ogg";
+      if (matches.length === 1) return matches[0];
+      let name = matches[Math.floor(Math.random() * matches.length)];
+      if (name === this.lastName) name = matches[Math.floor(Math.random() * matches.length)];
+      this.lastName = name;
+      return name;
     }
 
-    hrefsFor(phrase) {
-      if (phrase.ogg && this.ogg) return this.oggUrls(phrase.ogg);
-      if (phrase.side) return this.mp3Urls(phrase.side);
-      return [];
+    hrefsFor(side) {
+      const oggName = this.pickName(side);
+      const mp3Name = oggName.replace(/\.ogg$/i, ".mp3");
+      if (this.ogg) {
+        return unique([this.base + oggName, OGG_CDN + oggName]);
+      }
+      const fallback = side === "right" ? "right.mp3" : "left.mp3";
+      return unique([
+        rel("./voice/clips/" + mp3Name),
+        APP_CDN + "voice/clips/" + mp3Name,
+        rel("./voice/clips/" + fallback),
+        APP_CDN + "voice/clips/" + fallback
+      ]);
     }
 
     /**
-     * Azonnali lejátszás — nincs await a play() előtt (kattintás gesztusa).
+     * Azonnali lejátszás — nincs await a play() előtt.
      * @param {string[]} hrefs
      * @param {string} [tts]
      */
@@ -144,7 +164,7 @@
         this.player.pause();
         this.player.src = href;
         const p = this.player.play();
-        this.log("Lejátszás: " + href.split("/").pop());
+        this.log("Lejátszás: " + decodeURIComponent(href.split("/").pop() || href));
         if (p && p.catch) {
           p.catch(() => {
             if (urls[1]) {
@@ -163,7 +183,7 @@
 
     start() {
       this.started = true;
-      this.playNow(this.ogg ? this.oggUrls(PROBE) : this.mp3Urls("left"), PHRASES.start.tts);
+      this.playNow(this.hrefsFor("left"), PHRASES.start.tts);
       this.findSounds();
       return true;
     }
@@ -174,12 +194,11 @@
         this.log("Nincs ilyen utasítás: " + key, true);
         return;
       }
-      const hrefs = this.hrefsFor(phrase);
-      if (!hrefs.length) {
+      if (!phrase.side) {
         this.fallback(phrase.tts || "");
         return;
       }
-      this.playNow(hrefs, phrase.tts);
+      this.playNow(this.hrefsFor(phrase.side), phrase.tts);
     }
 
     announceTurn(copy, until) {
@@ -196,8 +215,7 @@
         this.fallback(distText);
         return;
       }
-      const phrase = { side: side, ogg: (side === "right" ? RIGHT_STEM : LEFT_STEM) + "_100.ogg", tts: distText };
-      this.playNow(this.hrefsFor(phrase), distText);
+      this.playNow(this.hrefsFor(side), distText);
     }
 
     stop() {
@@ -221,20 +239,26 @@
           if (!res.ok) continue;
           const data = await res.json();
           const list = Array.isArray(data) ? data : [];
-          const names = list.filter((n) => /\.ogg$/i.test(String(n)));
+          const names = list
+            .map((n) => String(n || "").replace(/^.*\//, ""))
+            .filter((n) => /\.ogg$/i.test(n));
           if (!names.length) continue;
           this.inventory = new Set(names);
+          const left = this.filesForStem(LEFT_STEM).length;
+          const right = this.filesForStem(RIGHT_STEM).length;
           this.log(
             "Megvan " +
               names.length +
-              " hang. Lejátszás: " +
-              (this.ogg ? "Ogg/CDN" : "MP3 (iPhone/Safari)") +
-              ". A tesztgomb azonnal szóljon."
+              " hang (balra " +
+              left +
+              ", jobbra " +
+              right +
+              "). Minden gomb más változatot sorsol."
           );
           return names;
         } catch (_e) {}
       }
-      this.log("A lista nem töltődött, a tesztgombok akkor is a CDN/MP3 fájlt játsszák.");
+      this.log("A lista lassan jön, a gombok addig a _100 mintát játsszák.");
       return [];
     }
   }
