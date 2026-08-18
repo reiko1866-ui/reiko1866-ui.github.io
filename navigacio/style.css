@@ -554,6 +554,30 @@ button {
   font-size: 0.85rem;
 }
 
+#voiceTest {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  padding-top: 0.35rem;
+  border-top: 1px solid var(--line);
+}
+
+#voiceTest .row button {
+  font-size: 0.85rem;
+}
+
+#voiceLog {
+  margin: 0;
+  min-height: 2.4em;
+  color: var(--muted);
+  font-size: 0.78rem;
+  line-height: 1.35;
+}
+
+#voiceLog.is-err {
+  color: #ff8a80;
+}
+
 .peek {
   position: absolute;
   left: 50%;

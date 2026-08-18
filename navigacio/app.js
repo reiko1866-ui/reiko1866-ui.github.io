@@ -232,8 +232,19 @@
     return last ? { step: last, index: state.steps.length - 1, until: 0 } : null;
   }
 
+  function navVoice() {
+    return window.NavVoice && window.NavVoice.instance;
+  }
+
   function speak(text) {
-    if (!state.voice || !text || !window.speechSynthesis) return;
+    if (!state.voice || !text) return;
+    const nv = navVoice();
+    if (nv && nv.hasPack()) {
+      if (/Megérkezt/i.test(text)) return nv.playPhrase("finish");
+      if (/Új útvonal|Újratervez|Letért/i.test(text)) return nv.playPhrase("recomputing");
+      if (/Hang be/i.test(text)) return nv.playPhrase("start");
+    }
+    if (!window.speechSynthesis) return;
     window.speechSynthesis.cancel();
     const u = new SpeechSynthesisUtterance(text);
     u.lang = "hu-HU";
@@ -245,6 +256,12 @@
   }
 
   function sayTurn(copy, until) {
+    if (!state.voice) return;
+    const nv = navVoice();
+    if (nv && nv.hasPack()) {
+      nv.announceTurn(copy, until);
+      return;
+    }
     if (/Megérkezt/i.test(copy.text)) return speak("Megérkeztél.");
     const dist = until >= 1000 ? Math.round(until / 100) / 10 + " kilométer" : Math.max(20, Math.round(until / 10) * 10) + " méter";
     const street = copy.street ? ", " + copy.street : "";
@@ -602,6 +619,8 @@
     $("trip").hidden = true;
     $("banner").hidden = true;
     if (window.speechSynthesis) window.speechSynthesis.cancel();
+    const nv = navVoice();
+    if (nv) nv.stop();
     setStatus("Megállítva");
     spyNav();
     if (state.map) state.map.resize();
@@ -796,7 +815,20 @@
     $("searchBtn").addEventListener("click", toggleSearch);
     $("voiceCheck").addEventListener("change", () => {
       state.voice = $("voiceCheck").checked;
-      if (state.voice) speak("Hang be.");
+      if (!state.voice) {
+        const nv = navVoice();
+        if (nv) nv.stop();
+        return;
+      }
+      speak("Hang be.");
+    });
+    document.querySelectorAll("[data-voice]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const nv = navVoice();
+        const key = btn.getAttribute("data-voice");
+        if (nv) nv.playPhrase(key);
+        else setStatus("A hangmodul nem töltődött be.", true);
+      });
     });
     const hamburgerBtn = $("hamburgerBtn");
     const closeBtn = $("closeBtn");
@@ -828,6 +860,16 @@
   loadPlaces();
   initMap();
   bind();
+  if (window.NavVoice) {
+    window.NavVoice.init({
+      onLog(line, isError) {
+        const el = $("voiceLog");
+        if (!el) return;
+        el.textContent = line;
+        el.classList.toggle("is-err", !!isError);
+      }
+    }).catch((err) => console.warn("[NavVoice] init", err));
+  }
   if (!navigator.geolocation) setStatus("Nincs GPS ebben a böngészőben.", true);
   else {
     const opts = { enableHighAccuracy: true, maximumAge: 1000, timeout: 12000 };

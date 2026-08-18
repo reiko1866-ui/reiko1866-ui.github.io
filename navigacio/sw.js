@@ -1,9 +1,10 @@
-const CACHE = "nav-v7";
+const CACHE = "nav-v8";
 const CORE = [
   "./",
   "./index.html",
   "./app.js",
   "./style.css",
+  "./voice/audio-manager.js",
   "./manifest.webmanifest",
   "./icons/icon-192.png",
   "./icons/icon-512.png",

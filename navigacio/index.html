@@ -121,11 +121,24 @@
       <label class="check"><input type="checkbox" id="avoidToll"> Fizetős utak elkerülése</label>
       <label class="check"><input type="checkbox" id="voiceCheck" checked> Hang</label>
       <label class="check"><input type="checkbox" id="dark"> Sötét térkép</label>
+      <div id="voiceTest">
+        <p class="hint">Hangteszt (hungary_jf .ogg)</p>
+        <div class="row">
+          <button type="button" data-voice="left-100">Balra 100m</button>
+          <button type="button" data-voice="right-500">Jobbra 500m</button>
+        </div>
+        <div class="row">
+          <button type="button" data-voice="recomputing">Újratervezés</button>
+          <button type="button" data-voice="finish">Megérkeztél</button>
+        </div>
+        <p id="voiceLog">Első koppintás feloldja a hangot.</p>
+      </div>
     </aside>
   </div>
 
   <noscript>A navigációhoz JavaScript kell.</noscript>
   <script src="https://cdn.jsdelivr.net/npm/maplibre-gl@5.5.0/dist/maplibre-gl.js"></script>
+  <script src="./voice/audio-manager.js"></script>
   <script src="./app.js"></script>
 </body>
 </html>
