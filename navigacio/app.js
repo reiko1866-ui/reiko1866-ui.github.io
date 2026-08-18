@@ -470,6 +470,7 @@
     $("trip").hidden = false;
     $("banner").hidden = false;
     $("panel").hidden = true;
+    $("menu").setAttribute("aria-expanded", "false");
     state.follow = true;
     $("follow").classList.add("is-on");
     $("follow").setAttribute("aria-pressed", "true");
