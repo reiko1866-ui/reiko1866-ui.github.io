@@ -761,10 +761,14 @@
   }
 
   function initMap() {
+    if (typeof maplibregl === "undefined") {
+      setStatus("A térképkönyvtár nem töltődött be. Frissítsd az oldalt.", true);
+      return;
+    }
     const dark = localStorage.getItem(THEME_KEY) !== "light";
     document.documentElement.classList.toggle("dark", dark);
-    $("dark").checked = dark;
-    $("voiceCheck").checked = state.voice;
+    if ($("dark")) $("dark").checked = dark;
+    if ($("voiceCheck")) $("voiceCheck").checked = state.voice;
     state.map = new maplibregl.Map({
       container: "map",
       style: dark ? STYLES.dark : STYLES.light,
@@ -871,7 +875,13 @@
     drawerOverlay.addEventListener("click", closeDrawer);
 
     allNavLinks.forEach((link) => {
-      link.addEventListener("click", () => closeDrawer());
+      link.addEventListener("click", (ev) => {
+        ev.preventDefault();
+        const id = String(link.getAttribute("href") || "").replace(/^#/, "");
+        closeDrawer();
+        const section = $(id);
+        if (section) section.scrollIntoView();
+      });
     });
 
     window.addEventListener("scroll", spyNav, { passive: true });
@@ -889,8 +899,16 @@
   }
 
   loadPlaces();
-  initMap();
-  bind();
+  try {
+    initMap();
+  } catch (err) {
+    setStatus("Térkép hiba: " + (err && err.message ? err.message : err), true);
+  }
+  try {
+    bind();
+  } catch (err) {
+    console.error("[nav] bind", err);
+  }
   if (window.NavVoice) {
     window.NavVoice.init({
       onLog(line, isError) {
@@ -922,5 +940,7 @@
     navigator.geolocation.watchPosition(onPos, () => {}, opts);
   }
   if (window.speechSynthesis) window.speechSynthesis.getVoices();
-  if ("serviceWorker" in navigator) navigator.serviceWorker.register("./sw.js").catch(() => {});
+  if ("serviceWorker" in navigator && location.hostname === "reiko1866-ui.github.io") {
+    navigator.serviceWorker.register("./sw.js").catch(() => {});
+  }
 })();

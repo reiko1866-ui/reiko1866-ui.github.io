@@ -2,6 +2,15 @@
 <html lang="hu">
 <head>
   <meta charset="utf-8">
+  <script>
+  (function () {
+    var host = location.hostname;
+    if (host === "reiko1866-ui.github.io" || host === "localhost" || host === "127.0.0.1") return;
+    var b = document.createElement("base");
+    b.href = "https://cdn.jsdelivr.net/gh/reiko1866-ui/reiko1866-ui.github.io@cursor%2Fterkep-navigacio-925b/navigacio/";
+    document.head.appendChild(b);
+  })();
+  </script>
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#3B82F6">
   <meta name="color-scheme" content="light dark">
@@ -12,12 +21,20 @@
   <meta name="apple-mobile-web-app-title" content="Navigáció">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <title>Navigáció</title>
+  <style>
+    html, body { margin: 0; background: #0F172A; color: #E2E8F0; font-family: system-ui, sans-serif; }
+    #kezdolap { position: relative; height: 100dvh; min-height: 100vh; overflow: hidden; background: #0F172A; }
+    #map { position: absolute; inset: 0; }
+    #infoCard { position: absolute; top: 16px; left: 16px; z-index: 20; max-width: 22rem; padding: 10px 14px; border-radius: 16px; background: rgba(15, 23, 42, 0.72); color: #E2E8F0; }
+    #fabBar { position: fixed; right: 16px; bottom: 24px; z-index: 22; display: flex; flex-direction: column; gap: 6px; }
+    .fab { width: 44px; height: 44px; border: 0; border-radius: 50%; background: #3B82F6; color: #fff; font-size: 1.1rem; }
+    #status.is-err { color: #ff8a80; }
+  </style>
   <link rel="manifest" href="./manifest.webmanifest">
   <link rel="icon" href="./icons/icon-192.png" type="image/png">
   <link rel="apple-touch-icon" href="./icons/apple-touch-icon.png">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/maplibre-gl@5.5.0/dist/maplibre-gl.css">
-  <link rel="stylesheet" href="./style.css">
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/reiko1866-ui/reiko1866-ui.github.io@cursor%2Fterkep-navigacio-925b/navigacio/style.css">
+  <link rel="stylesheet" href="./style.css?v=16">
 </head>
 <body>
   <div id="app">
@@ -146,25 +163,7 @@
   <noscript>A navigációhoz JavaScript kell.</noscript>
   <audio id="navVoiceEl" playsinline preload="auto"></audio>
   <script src="https://cdn.jsdelivr.net/npm/maplibre-gl@5.5.0/dist/maplibre-gl.js"></script>
-  <script>
-  (function () {
-    var CDN = "https://cdn.jsdelivr.net/gh/reiko1866-ui/reiko1866-ui.github.io@cursor%2Fterkep-navigacio-925b/navigacio/";
-    function add(src) {
-      return new Promise(function (resolve, reject) {
-        var s = document.createElement("script");
-        s.src = src;
-        s.onload = resolve;
-        s.onerror = reject;
-        document.body.appendChild(s);
-      });
-    }
-    function chain(local, name) {
-      return add(local).catch(function () { return add(CDN + name); });
-    }
-    chain("./voice/audio-manager.js", "voice/audio-manager.js")
-      .then(function () { return chain("./app.js", "app.js"); })
-      .catch(function (err) { console.error("[nav] script", err); });
-  })();
-  </script>
+  <script src="./voice/audio-manager.js"></script>
+  <script src="./app.js"></script>
 </body>
 </html>
