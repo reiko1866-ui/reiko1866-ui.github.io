@@ -211,6 +211,9 @@
     motionMag: 0,
     lastMotionAt: 0,
     lastSchoolAt: 0,
+    lastPrepStep: -1,
+    onMotorway: false,
+    limitOsmAt: 0,
     tripStats: { start: 0, maxKmh: 0, sumKmh: 0, samples: 0, dist: 0 }
   };
 
@@ -574,39 +577,24 @@
     el.textContent = flavorLine();
   }
 
-  function presenterLine(copy, until, laneHint) {
-    const dist =
-      until >= 1000
-        ? Math.round(until / 100) / 10 + " kilométer"
-        : Math.max(10, Math.round(until / 10) * 10) + " méter";
-    const street = copy.street ? " — " + copy.street : "";
-    if (/Megérkezt/i.test(copy.text)) {
-      return pick([
-        "Kedves utazó! Megérkeztünk. Gratulálok, ez egy szép menet volt.",
-        "Vége a jelenetnek. Lehúzhatod a kulisszát, itt a cél.",
-        "Állj! Ez már nem az út. Ez a megérkezés."
-      ]);
+  function distPhrase(until) {
+    if (until >= 1000) return Math.round(until / 100) / 10 + " kilométer";
+    return Math.max(20, Math.round(until / 10) * 10) + " méter";
+  }
+
+  function presenterLine(copy, until, laneHint, phase) {
+    const street = copy.street ? ", " + copy.street : "";
+    if (/Megérkezt/i.test(copy.text)) return "Megérkeztél.";
+    if (/Indulás/i.test(copy.text) && until > 80) {
+      return copy.street ? "Irány " + copy.street + "." : "Indulás.";
     }
-    if (/Indulás/i.test(copy.text)) {
-      return pick([
-        "Kedves utazó! Indulhatunk. Kövesd a kék vonalat, én majd szólok időben.",
-        "Csend a stúdióban. Motor, kamera, navigáció.",
-        "A nagy utazás most kezdődik. Én bemondom, te viszed."
-      ]);
-    }
-    const heads = [
-      "Figyelem!",
-      "Kedves utazó!",
-      "Most jön a lényeg.",
-      "Egy kis dráma az úton:"
-    ];
-    let line = pick(heads) + " " + dist + " múlva " + copy.text.toLowerCase() + street + ".";
-    if (laneHint) {
-      line += " " + pick([
-        laneHint.replace("Válaszd", "Szépen válasszuk").replace("Tartsd", "Tartsuk"),
-        "A zöld sáv a VIP-bejáró. Oda tartunk.",
-        "Sávasszisztens belép: " + laneHint.toLowerCase()
-      ]);
+    const action = String(copy.text || "haladj tovább").toLowerCase();
+    if (phase === "prep") return "Hamarosan " + action + street + ".";
+    let line = distPhrase(until) + ", " + action + street + ".";
+    if (laneHint && until < 140) {
+      if (/jobb/i.test(laneHint)) line += " Jobb sáv.";
+      else if (/bal/i.test(laneHint)) line += " Bal sáv.";
+      else if (/közép/i.test(laneHint)) line += " Középső sáv.";
     }
     return line;
   }
@@ -640,8 +628,8 @@
     window.speechSynthesis.cancel();
     const u = new SpeechSynthesisUtterance(text);
     u.lang = "hu-HU";
-    u.rate = 0.88;
-    u.pitch = 0.72;
+    u.rate = 0.98;
+    u.pitch = 1;
     const voice = pickPresenterVoice();
     if (voice) u.voice = voice;
     window.speechSynthesis.speak(u);
@@ -853,16 +841,26 @@
       state.gpsAccuracy > 28 ? "A GPS pontatlan a sávhoz." : hint
     );
     updateHud(copy, cur.until);
+    applyInferredLimit(cur && cur.step);
+    maybeVignetteAnnounce(cur);
     if (state.navigating && cur.until < 320 && cur.index !== state.lastVibrateStep) {
       state.lastVibrateStep = cur.index;
       if (navigator.vibrate) navigator.vibrate([80, 40, 80]);
     }
+    const kind = String(cur.step?.maneuver?.type || "");
+    const needsPrep = /turn|ramp|roundabout|rotary|fork|merge|end of road/i.test(kind);
+    if (state.navigating && needsPrep && cur.until < 900 && cur.until > 380 && cur.index !== state.lastPrepStep) {
+      state.lastPrepStep = cur.index;
+      speakNav(presenterLine(copy, cur.until, "", "prep"), "turn");
+    }
     if (cur.index !== state.lastSpokenStep && cur.until < 220 && state.navigating) {
       state.lastSpokenStep = cur.index;
-      speakNav(presenterLine(copy, cur.until, state.chatty ? hint : ""), "turn");
+      speakNav(presenterLine(copy, cur.until, hint), "turn");
     } else if (lanes.length && cur.index !== state.lastSpokenLane && cur.until < 90 && state.navigating) {
       state.lastSpokenLane = cur.index;
-      if (hint) speak("Sávasszisztens. " + hint.replace("Válaszd", "Szépen válasszuk").replace("Tartsd", "Tartsuk"));
+      if (/jobb/i.test(hint)) speakNav("Jobb sáv.", "turn");
+      else if (/bal/i.test(hint)) speakNav("Bal sáv.", "turn");
+      else if (/közép/i.test(hint)) speakNav("Középső sáv.", "turn");
     }
     drawJunction();
     warnNearbyHazards();
@@ -1859,6 +1857,79 @@
     return /aut[oó]p[aá]lya/i.test(text);
   }
 
+  function inferredSpeedLimit(step) {
+    if (!step || state.travelMode === "foot" || state.travelMode === "biking") return 0;
+    const ref = String(step.ref || "").toUpperCase();
+    const name = String(step.name || "");
+    if (isMotorwayLabel(ref, name) || /^M\d/.test(ref)) return 130;
+    if (/aut[oó]út/i.test(name)) return 110;
+    return 0;
+  }
+
+  function applyInferredLimit(step) {
+    const n = inferredSpeedLimit(step);
+    if (!n) return;
+    if (state.limitOsmAt && Date.now() - state.limitOsmAt < 25000) return;
+    if (state.speedLimit === n) return;
+    state.speedLimit = n;
+    refreshSpeedLimitUi();
+  }
+
+  function maybeVignetteAnnounce(cur) {
+    const on = !!(cur && isMotorwayLabel(cur.step.ref, cur.step.name));
+    const chip = $("vignetteChip");
+    const routeNeed = state.travelMode === "driving" && routeHasVignette();
+    if (chip) {
+      if (on) {
+        chip.hidden = false;
+        chip.textContent = "D1 matrica";
+      } else if (state.navigating && routeNeed) {
+        chip.hidden = false;
+        chip.textContent = "Lesz matrica";
+      } else if (!routeNeed) chip.hidden = true;
+    }
+    if (on && !state.onMotorway && state.navigating && state.travelMode === "driving") {
+      speakNav("Autópálya. D1-es matrica kell.", "turn");
+    }
+    state.onMotorway = on;
+  }
+
+  function commuteSlot() {
+    const d = new Date();
+    return d.toISOString().slice(0, 10) + (d.getHours() < 14 ? "-am" : "-pm");
+  }
+
+  function commuteDestination() {
+    const h = new Date().getHours() + new Date().getMinutes() / 60;
+    if (h >= 5.5 && h < 10.5) return { place: state.places.work, title: "Munkába?" };
+    if (h >= 15 && h < 21.5) return { place: state.places.home, title: "Haza?" };
+    return null;
+  }
+
+  function maybeShowCommuteCard() {
+    const card = $("commuteCard");
+    if (!card) return;
+    if (state.navigating || state.planning || document.querySelector(".app").classList.contains("is-search")) {
+      card.hidden = true;
+      return;
+    }
+    const offer = commuteDestination();
+    if (!offer || !offer.place || !state.places.home || !state.places.work) {
+      card.hidden = true;
+      return;
+    }
+    if (sessionStorage.getItem("nav_commute_skip") === commuteSlot()) {
+      card.hidden = true;
+      return;
+    }
+    if (state.origin && haversineMeters(state.origin, offer.place) < 220) {
+      card.hidden = true;
+      return;
+    }
+    if ($("commuteTitle")) $("commuteTitle").textContent = offer.title;
+    card.hidden = false;
+  }
+
   function routeUsesMotorway(route) {
     if (!route) return false;
     if (route.hasHighway === true) return true;
@@ -2085,6 +2156,8 @@
       state.lastSpokenStep = -1;
       state.lastSpokenLane = -1;
       state.lastVibrateStep = -1;
+      state.lastPrepStep = -1;
+      state.onMotorway = false;
       state.arrived = false;
       $("arrivalOverlay").hidden = true;
       if (state.overlaysReady) drawRouteProgress();
@@ -2211,6 +2284,7 @@
     maybeReroute();
     maybeFetchSpeedLimit();
     maybeRestReminder();
+    maybeShowCommuteCard();
     if (!$("statusText").classList.contains("is-error") && !(state.statusHoldUntil && Date.now() < state.statusHoldUntil)) {
       setStatus(state.navigating ? "Navigáció" : "GPS kész");
     }
@@ -2295,9 +2369,12 @@
     app.classList.toggle("is-search", !!on);
     if (on) {
       app.classList.remove("is-tools");
+      if ($("commuteCard")) $("commuteCard").hidden = true;
       window.setTimeout(() => {
         if ($("addressInput")) $("addressInput").focus();
       }, 80);
+    } else {
+      maybeShowCommuteCard();
     }
   }
 
@@ -2737,9 +2814,7 @@
     if ($("vignetteChip")) {
       const need = state.travelMode === "driving" && routeHasVignette();
       $("vignetteChip").hidden = !need;
-      if (need && state.chatty) {
-        /* reminder only once per route via status */
-      }
+      if (need) $("vignetteChip").textContent = "Lesz matrica";
     }
     if (!opts || !opts.skipAlts) loadAlternatives();
     loadWeather();
@@ -2946,6 +3021,7 @@
           speakNav("Mostantól " + n + ".");
         }
         state.speedLimit = n;
+        state.limitOsmAt = Date.now();
         refreshSpeedLimitUi();
       }
     } catch (_e) {}
@@ -3561,15 +3637,20 @@
 
   async function startCommute() {
     if (!state.places.home || !state.places.work) {
-      setStatus("Állítsd be az Otthont és a Munkát.", true);
+      setStatus("Állítsd be az Otthont és a Munkát a menüben.", true);
+      setSearchOpen(false);
+      const sidebar = $("sidebar");
+      if (sidebar) sidebar.classList.add("is-expanded");
       return;
     }
+    const offer = commuteDestination() || { place: state.places.work, title: "Munkába?" };
+    const dest = offer.place;
     state.vias = [];
-    if (!state.origin) setOrigin({ lat: state.places.home.lat, lng: state.places.home.lng }, 0, 0);
+    if ($("commuteCard")) $("commuteCard").hidden = true;
     await choosePlace({
-      lat: state.places.work.lat,
-      lon: state.places.work.lng,
-      display_name: state.places.work.label || "Munka"
+      lat: dest.lat,
+      lon: dest.lng,
+      display_name: dest.label || offer.title
     });
   }
 
@@ -3815,6 +3896,13 @@
     });
     $("sosBtn").addEventListener("click", emergencyShare);
     $("commuteBtn").addEventListener("click", startCommute);
+    if ($("commuteGo")) $("commuteGo").addEventListener("click", startCommute);
+    if ($("commuteSkip")) {
+      $("commuteSkip").addEventListener("click", () => {
+        sessionStorage.setItem("nav_commute_skip", commuteSlot());
+        if ($("commuteCard")) $("commuteCard").hidden = true;
+      });
+    }
     $("batterySaver").addEventListener("change", () => setBatterySaver($("batterySaver").checked));
     $("autoDark").addEventListener("change", () => {
       state.autoDark = $("autoDark").checked;
@@ -3874,6 +3962,7 @@
   startGpsTracking();
   parseLaunchHash();
   window.setTimeout(restoreLastTrip, 700);
+  window.setTimeout(maybeShowCommuteCard, 900);
   window.setInterval(() => {
     applyMood(false);
     maybeAutoDark();
