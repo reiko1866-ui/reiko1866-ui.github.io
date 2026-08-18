@@ -78,6 +78,18 @@ button {
   display: none !important;
 }
 
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
 /* Térkép */
 #map {
   position: absolute;
@@ -412,4 +424,18 @@ button {
 
 #status.is-err {
   color: #ff8a80;
+}
+
+noscript {
+  position: absolute;
+  z-index: 30;
+  left: var(--pad);
+  right: var(--pad);
+  top: 40%;
+  padding: 1rem;
+  border-radius: var(--radius);
+  background: var(--bg);
+  color: var(--text);
+  text-align: center;
+  box-shadow: var(--shadow);
 }

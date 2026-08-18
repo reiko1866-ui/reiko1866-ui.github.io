@@ -472,6 +472,7 @@
     $("panel").hidden = true;
     state.follow = true;
     $("follow").classList.add("is-on");
+    $("follow").setAttribute("aria-pressed", "true");
     const cur = currentStep();
     if (cur) {
       const copy = maneuver(cur.step);
@@ -643,6 +644,7 @@
     state.map.on("dragstart", () => {
       state.follow = false;
       $("follow").classList.remove("is-on");
+      $("follow").setAttribute("aria-pressed", "false");
     });
     let t = 0;
     let start = null;
@@ -672,19 +674,24 @@
     $("follow").addEventListener("click", () => {
       state.follow = !state.follow;
       $("follow").classList.toggle("is-on", state.follow);
+      $("follow").setAttribute("aria-pressed", state.follow ? "true" : "false");
       if (state.follow) updateCamera(true);
     });
     $("voice").addEventListener("click", () => {
       state.voice = !state.voice;
       $("voice").classList.toggle("is-on", state.voice);
+      $("voice").setAttribute("aria-pressed", state.voice ? "true" : "false");
       $("voice").textContent = state.voice ? "🔊" : "🔇";
       if (state.voice) speak("Hang be.");
     });
     $("menu").addEventListener("click", () => {
-      $("panel").hidden = !$("panel").hidden;
+      const open = $("panel").hidden;
+      $("panel").hidden = !open;
+      $("menu").setAttribute("aria-expanded", open ? "true" : "false");
     });
     $("panelClose").addEventListener("click", () => {
       $("panel").hidden = true;
+      $("menu").setAttribute("aria-expanded", "false");
     });
     $("homeGo").addEventListener("click", () => goPlace("home"));
     $("workGo").addEventListener("click", () => goPlace("work"));

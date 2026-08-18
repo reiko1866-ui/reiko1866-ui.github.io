@@ -1,30 +1,35 @@
 <!DOCTYPE html>
 <html lang="hu">
 <head>
-  <meta charset="utf-8"/>
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
-  <meta name="theme-color" content="#0b5cab"/>
-  <meta name="mobile-web-app-capable" content="yes"/>
-  <meta name="apple-mobile-web-app-capable" content="yes"/>
-  <meta name="apple-mobile-web-app-title" content="Navigáció"/>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#0b5cab">
+  <meta name="color-scheme" content="light dark">
+  <meta name="description" content="Egyszerű magyar autósnavigáció.">
+  <meta name="format-detection" content="telephone=no">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Navigáció">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <title>Navigáció</title>
-  <link rel="manifest" href="./manifest.webmanifest"/>
-  <link rel="icon" href="./icons/icon-192.png" type="image/png"/>
-  <link rel="apple-touch-icon" href="./icons/apple-touch-icon.png"/>
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/maplibre-gl@5.5.0/dist/maplibre-gl.css"/>
-  <link rel="stylesheet" href="style.css"/>
+  <link rel="manifest" href="./manifest.webmanifest">
+  <link rel="icon" href="./icons/icon-192.png" type="image/png">
+  <link rel="apple-touch-icon" href="./icons/apple-touch-icon.png">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/maplibre-gl@5.5.0/dist/maplibre-gl.css">
+  <link rel="stylesheet" href="./style.css">
 </head>
 <body>
   <div id="app">
     <div id="map" role="application" aria-label="Térkép"></div>
 
     <form id="searchForm" autocomplete="off">
-      <input id="q" type="search" name="q" placeholder="Hova mész?" enterkeyhint="search" inputmode="search"/>
+      <label class="sr-only" for="q">Cél</label>
+      <input id="q" type="search" name="q" placeholder="Hova mész?" enterkeyhint="search" inputmode="search" spellcheck="false" autocapitalize="off">
       <button type="submit" id="go">Menj</button>
     </form>
     <ul id="results" hidden></ul>
 
-    <section id="banner" hidden>
+    <section id="banner" hidden aria-live="assertive">
       <div id="turnIcon" aria-hidden="true">↑</div>
       <div id="turnCopy">
         <p id="turnDist">—</p>
@@ -33,18 +38,18 @@
       </div>
     </section>
 
-    <div id="speed" hidden>
+    <div id="speed" hidden aria-live="off">
       <strong id="kmh">0</strong>
       <span>km/h</span>
     </div>
 
-    <button type="button" id="follow" class="fab is-on" title="Követés">⌖</button>
-    <button type="button" id="voice" class="fab is-on" title="Hang">🔊</button>
-    <button type="button" id="menu" class="fab" title="Menü">☰</button>
+    <button type="button" id="follow" class="fab is-on" title="Követés" aria-pressed="true">⌖</button>
+    <button type="button" id="voice" class="fab is-on" title="Hang" aria-pressed="true">🔊</button>
+    <button type="button" id="menu" class="fab" title="Menü" aria-expanded="false" aria-controls="panel">☰</button>
 
-    <aside id="panel" hidden>
+    <aside id="panel" hidden role="dialog" aria-labelledby="panelTitle">
       <header>
-        <strong>Beállítások</strong>
+        <strong id="panelTitle">Beállítások</strong>
         <button type="button" id="panelClose">Bezár</button>
       </header>
       <p class="hint">Hosszú nyomás a térképen: cél.</p>
@@ -56,9 +61,9 @@
         <button type="button" id="homeSet">Otthon = cél</button>
         <button type="button" id="workSet">Munka = cél</button>
       </div>
-      <label class="check"><input type="checkbox" id="avoidMotorway"/> Autópálya elkerülése</label>
-      <label class="check"><input type="checkbox" id="avoidToll"/> Fizetős utak elkerülése</label>
-      <label class="check"><input type="checkbox" id="dark"/> Sötét térkép</label>
+      <label class="check"><input type="checkbox" id="avoidMotorway"> Autópálya elkerülése</label>
+      <label class="check"><input type="checkbox" id="avoidToll"> Fizetős utak elkerülése</label>
+      <label class="check"><input type="checkbox" id="dark"> Sötét térkép</label>
     </aside>
 
     <footer id="trip" hidden>
@@ -68,10 +73,11 @@
       <button type="button" id="stop">Állj</button>
     </footer>
 
-    <p id="status">GPS indítása…</p>
+    <p id="status" role="status">GPS indítása…</p>
   </div>
 
+  <noscript>A navigációhoz JavaScript kell.</noscript>
   <script src="https://cdn.jsdelivr.net/npm/maplibre-gl@5.5.0/dist/maplibre-gl.js"></script>
-  <script src="app.js"></script>
+  <script src="./app.js"></script>
 </body>
 </html>
