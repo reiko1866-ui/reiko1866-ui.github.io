@@ -1,7 +1,6 @@
 /**
- * Hangnavigáció — 698 feltöltött minta (bal/jobb kijárat változatok).
- * Android: .ogg CDN. iPhone: ugyanazok MP3-ként a voice/clips mappában.
- * Minden gombnyomásra véletlen változat, nem mindig a _100.
+ * Hangnavigáció — a feltöltött csomag vegyes poénok, a fájlnév NEM az irány.
+ * catalog.json a Whisper-átirat alapján sorolja: left/right/straight/uturn/...
  */
 (function (global) {
   "use strict";
@@ -11,38 +10,38 @@
   const ENC = encodeURIComponent(BRANCH);
   const OGG_CDN = "https://cdn.jsdelivr.net/gh/" + REPO + "@" + ENC + "/hungary_jf/";
   const APP_CDN = "https://cdn.jsdelivr.net/gh/" + REPO + "@" + ENC + "/navigacio/";
-  const LEFT_STEM = "and_then_exit_left";
-  const RIGHT_STEM = "and_then_exit_right";
-  const BASE_KEY = "nav2_voice_base";
 
   const PHRASES = {
-    start: { side: "left", tts: "Hang kész." },
-    finish: { tts: "Megérkeztél." },
-    recomputing: { tts: "Újratervezés." },
-    "left-100": { side: "left", tts: "100 méter, fordulj balra." },
-    "right-500": { side: "right", tts: "500 méter, fordulj jobbra." },
-    "right-100": { side: "right", tts: "100 méter, fordulj jobbra." },
-    "left-500": { side: "left", tts: "500 méter, fordulj balra." },
-    "exit-left-100": { side: "left", tts: "100 méter, hajts le balra." },
-    "exit-right-100": { side: "right", tts: "100 méter, hajts le jobbra." },
-    straight: { tts: "Haladj tovább." },
-    uTurn: { side: "left", tts: "Fordulj vissza." }
+    start: { cat: "", tts: "Hang kész." },
+    finish: { cat: "arrive", tts: "Megérkeztél." },
+    recomputing: { cat: "recompute", tts: "Újratervezés." },
+    "left-100": { cat: "left", tts: "Fordulj balra." },
+    "right-500": { cat: "right", tts: "Fordulj jobbra." },
+    "right-100": { cat: "right", tts: "Fordulj jobbra." },
+    "left-500": { cat: "left", tts: "Fordulj balra." },
+    "exit-left-100": { cat: "left", tts: "Hajts le balra." },
+    "exit-right-100": { cat: "right", tts: "Hajts le jobbra." },
+    straight: { cat: "straight", tts: "Haladj tovább." },
+    uTurn: { cat: "uturn", tts: "Fordulj vissza." }
   };
 
-  const MANEUVER_FILE = {
+  const MANEUVER_CAT = {
     "Fordulj jobbra": "right",
     "Fordulj balra": "left",
     "Tarts jobbra": "right",
     "Tarts balra": "left",
     "Élesen jobbra": "right",
     "Élesen balra": "left",
-    "Fordulj vissza": "left",
+    "Fordulj vissza": "uturn",
     "Hajts ki": "right",
-    "Hajts fel": "right",
-    "Hajts le": "right",
-    Csatlakozz: "right",
+    "Hajts fel": "motorway",
+    "Hajts le": "motorway",
+    Csatlakozz: "motorway",
     "Jobb elágazás": "right",
-    "Bal elágazás": "left"
+    "Bal elágazás": "left",
+    "Haladj tovább": "straight",
+    Körforgalom: "roundabout",
+    "Megérkeztél": "arrive"
   };
 
   function unique(list) {
@@ -78,9 +77,9 @@
       this.onLog = (opts && opts.onLog) || function () {};
       this.onFallback = (opts && opts.onFallback) || null;
       this.ogg = canPlayOgg();
-      this.base = OGG_CDN;
       this.started = false;
-      this.inventory = new Set();
+      /** @type {Record<string, string[]>} */
+      this.catalog = {};
       this.lastName = "";
       this.player = document.getElementById("navVoiceEl") || new Audio();
       this.player.setAttribute("playsinline", "true");
@@ -91,10 +90,6 @@
         const err = this.player.error;
         this.log("Lejátszás hiba" + (err ? " (" + err.code + ")" : ""), true);
       });
-      try {
-        const saved = localStorage.getItem(BASE_KEY);
-        if (saved && /^https?:/i.test(saved) && saved.indexOf("hungary_jf") !== -1) this.base = saved;
-      } catch (_e) {}
     }
 
     log(msg, err) {
@@ -106,26 +101,16 @@
       if (text && this.onFallback) this.onFallback(text);
     }
 
-    setBase(path) {
-      const b = String(path || "").trim();
-      if (!b) return;
-      this.base = /\/$/.test(b) ? b : b + "/";
-      this.log("Útvonal: " + this.base);
+    setBase() {}
+
+    filesFor(cat) {
+      const list = this.catalog[cat];
+      return list && list.length ? list : [];
     }
 
-    filesForStem(stem) {
-      const prefix = stem + "_";
-      const out = [];
-      this.inventory.forEach((name) => {
-        if (name.indexOf(prefix) === 0) out.push(name);
-      });
-      return out;
-    }
-
-    pickName(side) {
-      const stem = side === "right" ? RIGHT_STEM : LEFT_STEM;
-      const matches = this.filesForStem(stem);
-      if (!matches.length) return stem + "_100.ogg";
+    pickName(cat) {
+      const matches = this.filesFor(cat);
+      if (!matches.length) return "";
       if (matches.length === 1) return matches[0];
       let name = matches[Math.floor(Math.random() * matches.length)];
       if (name === this.lastName) name = matches[Math.floor(Math.random() * matches.length)];
@@ -133,26 +118,18 @@
       return name;
     }
 
-    hrefsFor(side) {
-      const oggName = this.pickName(side);
+    hrefsForName(oggName) {
+      if (!oggName) return [];
       const mp3Name = oggName.replace(/\.ogg$/i, ".mp3");
       if (this.ogg) {
-        return unique([this.base + oggName, OGG_CDN + oggName]);
+        return unique([OGG_CDN + oggName, rel("../hungary_jf/" + oggName), "/hungary_jf/" + oggName]);
       }
-      const fallback = side === "right" ? "right.mp3" : "left.mp3";
       return unique([
         rel("./voice/clips/" + mp3Name),
-        APP_CDN + "voice/clips/" + mp3Name,
-        rel("./voice/clips/" + fallback),
-        APP_CDN + "voice/clips/" + fallback
+        APP_CDN + "voice/clips/" + mp3Name
       ]);
     }
 
-    /**
-     * Azonnali lejátszás — nincs await a play() előtt.
-     * @param {string[]} hrefs
-     * @param {string} [tts]
-     */
     playNow(hrefs, tts) {
       const urls = (hrefs || []).filter(Boolean);
       if (!urls.length) {
@@ -181,9 +158,22 @@
       }
     }
 
+    playCat(cat, tts) {
+      if (!cat) {
+        this.fallback(tts || "");
+        return false;
+      }
+      const name = this.pickName(cat);
+      if (!name) {
+        this.fallback(tts || "");
+        return false;
+      }
+      return this.playNow(this.hrefsForName(name), tts);
+    }
+
     start() {
       this.started = true;
-      this.playNow(this.hrefsFor("left"), PHRASES.start.tts);
+      this.fallback(PHRASES.start.tts);
       this.findSounds();
       return true;
     }
@@ -194,28 +184,24 @@
         this.log("Nincs ilyen utasítás: " + key, true);
         return;
       }
-      if (!phrase.side) {
-        this.fallback(phrase.tts || "");
-        return;
-      }
-      this.playNow(this.hrefsFor(phrase.side), phrase.tts);
+      this.playCat(phrase.cat, phrase.tts);
     }
 
     announceTurn(copy, until) {
       const text = String(copy && copy.text ? copy.text : "");
       if (/Megérkezt/i.test(text)) return this.playPhrase("finish");
-      const side = MANEUVER_FILE[text];
+      const cat = MANEUVER_CAT[text] || "";
       const distText =
         (until >= 1000
           ? Math.round(until / 100) / 10 + " kilométer, "
           : Math.max(20, Math.round(until / 10) * 10) + " méter, ") +
         text.toLowerCase() +
         ".";
-      if (!side) {
+      if (!cat || !this.filesFor(cat).length) {
         this.fallback(distText);
         return;
       }
-      this.playNow(this.hrefsFor(side), distText);
+      this.playCat(cat, distText);
     }
 
     stop() {
@@ -227,44 +213,44 @@
     }
 
     hasPack() {
-      return true;
+      return this.filesFor("left").length > 0 || this.filesFor("right").length > 0;
     }
 
     async findSounds() {
-      this.log("Hangok keresése…");
-      const urls = unique([rel("./voice/pack.json"), APP_CDN + "voice/pack.json", OGG_CDN + "index.json"]);
+      this.log("Hangok rendezése tartalom szerint…");
+      const urls = unique([rel("./voice/catalog.json"), APP_CDN + "voice/catalog.json"]);
       for (let i = 0; i < urls.length; i++) {
         try {
           const res = await fetch(urls[i], { cache: "no-store" });
           if (!res.ok) continue;
           const data = await res.json();
-          const list = Array.isArray(data) ? data : [];
-          const names = list
-            .map((n) => String(n || "").replace(/^.*\//, ""))
-            .filter((n) => /\.ogg$/i.test(n));
-          if (!names.length) continue;
-          this.inventory = new Set(names);
-          const left = this.filesForStem(LEFT_STEM).length;
-          const right = this.filesForStem(RIGHT_STEM).length;
+          const files = data && data.files ? data.files : data;
+          if (!files || !files.left) continue;
+          this.catalog = files;
+          const n = (files.left || []).length;
+          const r = (files.right || []).length;
           this.log(
-            "Megvan " +
-              names.length +
-              " hang (balra " +
-              left +
-              ", jobbra " +
-              right +
-              "). Minden gomb más változatot sorsol."
+            "Kész: " +
+              n +
+              " balra, " +
+              r +
+              " jobbra, " +
+              (files.straight || []).length +
+              " egyenes, " +
+              (files.roundabout || []).length +
+              " körforgalom, " +
+              (files.recompute || []).length +
+              " újratervezés. A többi poén nem megy kanyarra."
           );
-          return names;
+          return files;
         } catch (_e) {}
       }
-      this.log("A lista lassan jön, a gombok addig a _100 mintát játsszák.");
-      return [];
+      this.log("A hanglista nem töltődött, a kanyarokhoz a telefon hangja szól.", true);
+      return null;
     }
   }
 
   const api = {
-    BASE: OGG_CDN,
     PHRASES,
     AudioManager,
     /** @type {AudioManager|null} */
