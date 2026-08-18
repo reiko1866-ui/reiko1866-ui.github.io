@@ -13,7 +13,26 @@
   ];
   const STYLES = {
     light: "https://tiles.openfreemap.org/styles/liberty",
-    dark: "https://tiles.openfreemap.org/styles/dark"
+    dark: {
+      version: 8,
+      name: "Carto Dark Matter",
+      sources: {
+        carto: {
+          type: "raster",
+          tiles: [
+            "https://a.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}@2x.png",
+            "https://b.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}@2x.png",
+            "https://c.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}@2x.png"
+          ],
+          tileSize: 256,
+          attribution: "&copy; OpenStreetMap contributors &copy; CARTO"
+        }
+      },
+      layers: [
+        { id: "bg", type: "background", paint: { "background-color": "#0F172A" } },
+        { id: "carto", type: "raster", source: "carto" }
+      ]
+    }
   };
 
   const $ = (id) => document.getElementById(id);
@@ -265,6 +284,8 @@
   function setDest(lngLat, label) {
     state.dest = lngLat;
     state.destLabel = label || "";
+    $("destName").textContent = state.destLabel || "Cél —";
+    fetchWeather(lngLat.lat, lngLat.lng);
     if (!state.pin) {
       state.pin = new maplibregl.Marker({ element: makeEl("pin"), anchor: "bottom" })
         .setLngLat([lngLat.lng, lngLat.lat])
@@ -272,23 +293,71 @@
     } else state.pin.setLngLat([lngLat.lng, lngLat.lat]);
   }
 
+  function weatherIcon(code) {
+    if (code === 0) return "☀️";
+    if (code <= 3) return "⛅";
+    if (code <= 48) return "🌫️";
+    if (code <= 57) return "🌦️";
+    if (code <= 67) return "🌧️";
+    if (code <= 77) return "❄️";
+    if (code <= 82) return "🌦️";
+    if (code <= 86) return "❄️";
+    return "⛈️";
+  }
+
+  async function fetchWeather(lat, lng) {
+    const box = $("weather");
+    try {
+      const res = await fetch(
+        "https://api.open-meteo.com/v1/forecast?latitude=" +
+          lat +
+          "&longitude=" +
+          lng +
+          "&current=temperature_2m,weather_code"
+      );
+      if (!res.ok) throw new Error("weather");
+      const data = await res.json();
+      const temp = data.current && data.current.temperature_2m;
+      const code = data.current && data.current.weather_code;
+      if (!Number.isFinite(temp)) throw new Error("weather");
+      $("weatherIcon").textContent = weatherIcon(Number(code) || 0);
+      $("weatherTemp").textContent = Math.round(temp) + "°";
+      box.hidden = false;
+    } catch (_e) {
+      box.hidden = true;
+    }
+  }
+
+  function closeSearch() {
+    $("searchForm").hidden = true;
+    $("results").hidden = true;
+    $("searchBtn").classList.remove("is-on");
+    $("searchBtn").setAttribute("aria-pressed", "false");
+  }
+
+  function toggleSearch() {
+    const open = $("searchForm").hidden;
+    $("searchForm").hidden = !open;
+    $("searchBtn").classList.toggle("is-on", open);
+    $("searchBtn").setAttribute("aria-pressed", open ? "true" : "false");
+    if (open) $("q").focus();
+    else $("results").hidden = true;
+  }
+
   function addLayers() {
     if (!state.map || !state.map.isStyleLoaded()) return;
     if (!state.map.getSource("route")) {
       state.map.addSource("route", { type: "geojson", data: EMPTY });
       state.map.addLayer({
-        id: "route-case",
-        type: "line",
-        source: "route",
-        layout: { "line-cap": "round", "line-join": "round" },
-        paint: { "line-color": "#fff", "line-width": 16 }
-      });
-      state.map.addLayer({
         id: "route-line",
         type: "line",
         source: "route",
         layout: { "line-cap": "round", "line-join": "round" },
-        paint: { "line-color": "#00b4ff", "line-width": 10 }
+        paint: {
+          "line-color": "#3B82F6",
+          "line-width": 8,
+          "line-opacity": 0.8
+        }
       });
     }
     if (state.coords.length) drawRoute();
@@ -507,6 +576,7 @@
     $("trip").hidden = false;
     $("banner").hidden = false;
     closeDrawer();
+    closeSearch();
     window.scrollTo(0, 0);
     spyNav();
     if (state.map) state.map.resize();
@@ -607,6 +677,7 @@
 
   async function choose(place) {
     $("results").hidden = true;
+    closeSearch();
     showHome();
     setDest({ lat: Number(place.lat), lng: Number(place.lon) }, place.display_name);
     $("q").value = place.display_name.split(",")[0];
@@ -671,9 +742,10 @@
   }
 
   function initMap() {
-    const dark = localStorage.getItem(THEME_KEY) === "dark";
+    const dark = localStorage.getItem(THEME_KEY) !== "light";
     document.documentElement.classList.toggle("dark", dark);
     $("dark").checked = dark;
+    $("voiceCheck").checked = state.voice;
     state.map = new maplibregl.Map({
       container: "map",
       style: dark ? STYLES.dark : STYLES.light,
@@ -721,11 +793,9 @@
       $("follow").setAttribute("aria-pressed", state.follow ? "true" : "false");
       if (state.follow) updateCamera(true);
     });
-    $("voice").addEventListener("click", () => {
-      state.voice = !state.voice;
-      $("voice").classList.toggle("is-on", state.voice);
-      $("voice").setAttribute("aria-pressed", state.voice ? "true" : "false");
-      $("voice").textContent = state.voice ? "🔊" : "🔇";
+    $("searchBtn").addEventListener("click", toggleSearch);
+    $("voiceCheck").addEventListener("change", () => {
+      state.voice = $("voiceCheck").checked;
       if (state.voice) speak("Hang be.");
     });
     const hamburgerBtn = $("hamburgerBtn");

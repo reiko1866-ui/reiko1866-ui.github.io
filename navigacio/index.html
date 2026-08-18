@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta name="theme-color" content="#0b5cab">
+  <meta name="theme-color" content="#3B82F6">
   <meta name="color-scheme" content="light dark">
   <meta name="description" content="Egyszerű magyar autósnavigáció.">
   <meta name="format-detection" content="telephone=no">
@@ -24,7 +24,18 @@
       <h1 class="sr-only">Kezdőlap</h1>
       <div id="map" role="application" aria-label="Térkép"></div>
 
-      <form id="searchForm" autocomplete="off">
+      <section id="infoCard">
+        <div id="infoMain">
+          <p id="status" role="status">GPS indítása…</p>
+          <p id="destName">Cél —</p>
+        </div>
+        <div id="weather" hidden>
+          <span id="weatherIcon" aria-hidden="true">☁️</span>
+          <strong id="weatherTemp">—</strong>
+        </div>
+      </section>
+
+      <form id="searchForm" hidden autocomplete="off">
         <label class="sr-only" for="q">Cél</label>
         <input id="q" type="search" name="q" placeholder="Hova mész?" enterkeyhint="search" inputmode="search" spellcheck="false" autocapitalize="off">
         <button type="submit" id="go">Menj</button>
@@ -44,11 +55,6 @@
         <strong id="kmh">0</strong>
         <span>km/h</span>
       </div>
-
-      <button type="button" id="follow" class="fab is-on" title="Követés" aria-pressed="true">⌖</button>
-      <button type="button" id="voice" class="fab is-on" title="Hang" aria-pressed="true">🔊</button>
-
-      <p id="status" role="status">GPS indítása…</p>
 
       <footer id="trip" hidden>
         <div><strong id="eta">—</strong><small>érkezés</small></div>
@@ -85,7 +91,11 @@
       <p>Hosszú nyomás a térképen: cél. A ☰ menüből éred el az Otthont, a Munkát és a térkép beállításait.</p>
     </section>
 
-    <button type="button" id="hamburgerBtn" class="fab" title="Menü" aria-expanded="false" aria-controls="mobileDrawer">☰</button>
+    <div id="fabBar">
+      <button type="button" id="searchBtn" class="fab" title="Kereső" aria-pressed="false">⌕</button>
+      <button type="button" id="follow" class="fab is-on" title="Pozíció" aria-pressed="true">⌖</button>
+      <button type="button" id="hamburgerBtn" class="fab" title="Menü" aria-expanded="false" aria-controls="mobileDrawer">☰</button>
+    </div>
     <div id="drawerOverlay"></div>
     <aside id="mobileDrawer" role="dialog" aria-labelledby="drawerTitle">
       <header>
@@ -109,6 +119,7 @@
       </div>
       <label class="check"><input type="checkbox" id="avoidMotorway"> Autópálya elkerülése</label>
       <label class="check"><input type="checkbox" id="avoidToll"> Fizetős utak elkerülése</label>
+      <label class="check"><input type="checkbox" id="voiceCheck" checked> Hang</label>
       <label class="check"><input type="checkbox" id="dark"> Sötét térkép</label>
     </aside>
   </div>

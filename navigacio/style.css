@@ -1,8 +1,9 @@
 /* Alapbeállítások */
 :root {
-  --blue: #0b5cab;
-  --cyan: #00b4ff;
-  --ink: #1c2331;
+  --blue: #3B82F6;
+  --route: #3B82F6;
+  --cyan: #3B82F6;
+  --ink: #0F172A;
   --red: #d93025;
   --text: #202124;
   --muted: #5f6368;
@@ -11,19 +12,20 @@
   --line: rgba(0, 0, 0, 0.12);
   --shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
   --font: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-  --pad: 0.7rem;
+  --pad: 16px;
   --safe-top: env(safe-area-inset-top, 0px);
   --safe-bottom: env(safe-area-inset-bottom, 0px);
   --radius: 16px;
+  --glass: rgba(15, 23, 42, 0.55);
   color-scheme: light;
 }
 
 html.dark {
-  --text: #e8eaed;
-  --muted: #9aa0a6;
-  --bg: #1c2331;
-  --chip: #2a3344;
-  --line: rgba(255, 255, 255, 0.12);
+  --text: #E2E8F0;
+  --muted: #94a3b8;
+  --bg: #1E293B;
+  --chip: #334155;
+  --line: rgba(226, 232, 240, 0.12);
   color-scheme: dark;
 }
 
@@ -112,6 +114,18 @@ button {
   font-size: 10px;
 }
 
+.maplibregl-ctrl-bottom-right {
+  right: 76px;
+  bottom: 16px;
+  margin: 0;
+}
+
+.maplibregl-ctrl-bottom-left {
+  left: 16px;
+  bottom: 16px;
+  margin: 0;
+}
+
 .puck {
   width: 0;
   height: 0;
@@ -132,9 +146,81 @@ button {
 }
 
 /* Keresés */
-#searchForm {
+#infoCard {
   position: absolute;
   top: calc(var(--pad) + var(--safe-top));
+  left: var(--pad);
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  max-width: min(22rem, calc(100% - 32px));
+  padding: 0.65rem 0.85rem;
+  border-radius: 16px;
+  background: var(--glass);
+  color: #E2E8F0;
+  box-shadow: var(--shadow);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+#app.is-nav #infoCard {
+  top: calc(5.6rem + var(--safe-top));
+}
+
+#infoMain {
+  min-width: 0;
+}
+
+#status,
+#destName {
+  margin: 0;
+}
+
+#status {
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: #93c5fd;
+}
+
+#status.is-err {
+  color: #ff8a80;
+}
+
+#destName {
+  margin-top: 0.15rem;
+  font-size: 0.98rem;
+  font-weight: 800;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+#weather {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-width: 2.6rem;
+  padding-left: 0.65rem;
+  border-left: 1px solid rgba(226, 232, 240, 0.2);
+}
+
+#weatherIcon {
+  font-size: 1.15rem;
+  line-height: 1;
+}
+
+#weatherTemp {
+  margin-top: 0.15rem;
+  font-size: 0.95rem;
+}
+
+#searchForm {
+  position: absolute;
+  top: calc(5.4rem + var(--safe-top));
   left: var(--pad);
   right: var(--pad);
   z-index: 20;
@@ -179,7 +265,7 @@ button {
 
 #results {
   position: absolute;
-  top: calc(4.2rem + var(--safe-top));
+  top: calc(9.1rem + var(--safe-top));
   left: var(--pad);
   right: var(--pad);
   z-index: 20;
@@ -260,7 +346,7 @@ button {
 #speed {
   position: absolute;
   left: var(--pad);
-  bottom: calc(1.2rem + var(--safe-bottom));
+  bottom: calc(var(--pad) + var(--safe-bottom));
   z-index: 18;
   width: 4.4rem;
   height: 4.4rem;
@@ -276,7 +362,7 @@ button {
 }
 
 #app.is-nav #speed {
-  bottom: calc(5.8rem + var(--safe-bottom));
+  bottom: calc(5.6rem + var(--safe-bottom));
 }
 
 #kmh {
@@ -332,38 +418,40 @@ button {
 }
 
 /* Gombok */
-.fab {
-  position: absolute;
+#fabBar {
+  position: fixed;
   right: var(--pad);
+  bottom: calc(var(--pad) + var(--safe-bottom));
   z-index: 19;
-  width: 2.8rem;
-  height: 2.8rem;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 6px;
+  border-radius: 22px;
+  background: var(--glass);
+  box-shadow: var(--shadow);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+#app.is-nav #fabBar {
+  bottom: calc(5.6rem + var(--safe-bottom));
+}
+
+.fab {
+  width: 2.75rem;
+  height: 2.75rem;
   border: 0;
   border-radius: 50%;
-  background: var(--ink);
-  color: #fff;
+  background: transparent;
+  color: #E2E8F0;
   font-size: 1.15rem;
-  box-shadow: var(--shadow);
 }
 
 .fab.is-on {
   background: var(--blue);
+  color: #fff;
 }
-
-#follow { bottom: calc(1.15rem + var(--safe-bottom)); }
-#voice  { bottom: calc(4.3rem + var(--safe-bottom)); }
-#hamburgerBtn {
-  position: fixed;
-  bottom: calc(7.45rem + var(--safe-bottom));
-}
-
-body.is-scrolled #hamburgerBtn {
-  bottom: calc(1.15rem + var(--safe-bottom));
-}
-
-#app.is-nav #follow { bottom: calc(5.8rem + var(--safe-bottom)); }
-#app.is-nav #voice  { bottom: calc(8.95rem + var(--safe-bottom)); }
-#app.is-nav #hamburgerBtn { bottom: calc(12.1rem + var(--safe-bottom)); }
 
 /* Fiók */
 #drawerOverlay {
@@ -466,36 +554,10 @@ body.is-scrolled #hamburgerBtn {
   font-size: 0.85rem;
 }
 
-/* Állapot */
-#status {
-  position: absolute;
-  left: var(--pad);
-  top: calc(4.4rem + var(--safe-top));
-  z-index: 17;
-  margin: 0;
-  max-width: 70%;
-  padding: 0.25rem 0.55rem;
-  border-radius: 8px;
-  background: rgba(28, 35, 49, 0.75);
-  color: #fff;
-  font-size: 0.78rem;
-  pointer-events: none;
-}
-
-#app.is-nav #status {
-  top: auto;
-  bottom: calc(5.9rem + var(--safe-bottom));
-  left: 5.5rem;
-}
-
-#status.is-err {
-  color: #ff8a80;
-}
-
 .peek {
   position: absolute;
   left: 50%;
-  bottom: calc(1.2rem + var(--safe-bottom));
+  bottom: calc(var(--pad) + var(--safe-bottom));
   z-index: 18;
   transform: translateX(-50%);
   padding: 0.45rem 0.9rem;
