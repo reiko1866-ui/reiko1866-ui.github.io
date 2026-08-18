@@ -2,7 +2,7 @@
   "id": "./",
   "name": "Navigáció",
   "short_name": "Navigáció",
-  "description": "Magyar autósnavigáció.",
+  "description": "3D autósnavigáció, Sygic-szerű menetnézet.",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",

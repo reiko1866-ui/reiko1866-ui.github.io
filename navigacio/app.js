@@ -12,7 +12,7 @@
   const TRIP_KEY = "nav_last_trip_v1";
   const AVOID_STREET_KEY = "nav_avoid_streets_v1";
   const OVERPASS_URL = "https://overpass-api.de/api/interpreter";
-  const ROUTE_BLUE = "#1a73e8";
+  const ROUTE_BLUE = "#00b4ff";
   const NOMINATIM_URL = "https://nominatim.openstreetmap.org/search";
   const OSRM_QUERY = "overview=full&geometries=geojson&alternatives=false&steps=true";
   const VALHALLA_URLS = [
@@ -829,12 +829,14 @@
     if (!state.route || !state.steps.length) {
       banner.hidden = true;
       renderLanes([], "");
+      updateThenSign(null);
       return;
     }
     const cur = currentStep();
     if (!cur) {
       banner.hidden = true;
       renderLanes([], "");
+      updateThenSign(null);
       return;
     }
     const copy = maneuverCopy(cur.step);
@@ -845,6 +847,7 @@
     $("maneuverDistance").textContent = formatDistance(cur.until);
     $("maneuverInstruction").textContent = copy.text;
     $("maneuverStreet").textContent = copy.street;
+    updateThenSign(cur);
     renderLanes(
       !state.navigating || state.gpsAccuracy > 28 ? [] : lanes,
       state.gpsAccuracy > 28 ? "A GPS pontatlan a sávhoz." : hint
@@ -885,6 +888,26 @@
       n += 1;
     }
     box.hidden = n < 2;
+  }
+
+  function updateThenSign(cur) {
+    const box = $("thenBox");
+    if (!box) return;
+    if (!state.navigating || !cur) {
+      box.hidden = true;
+      return;
+    }
+    for (let i = cur.index + 1; i < state.steps.length; i++) {
+      const step = state.steps[i];
+      const type = String(step?.maneuver?.type || "");
+      if (type === "new name" || type === "continue" || type === "notification") continue;
+      const copy = maneuverCopy(step);
+      if ($("thenIcon")) $("thenIcon").textContent = copy.icon;
+      if ($("thenDist")) $("thenDist").textContent = formatDistance(step.distance || 0);
+      box.hidden = false;
+      return;
+    }
+    box.hidden = true;
   }
 
   function updateHud(copy, until) {
@@ -933,8 +956,15 @@
     $("driveEta").textContent = formatClock(sec);
     if ($("driveDur")) $("driveDur").textContent = formatDuration(sec);
     if ($("driveDist")) $("driveDist").textContent = formatDistance(leftMeters);
+    if ($("driveProgressFill")) $("driveProgressFill").style.width = frac * 100 + "%";
+    if ($("driveProgress")) $("driveProgress").hidden = false;
     const cur = currentStep();
-    $("driveRoad").textContent = (cur && cur.step && cur.step.name) || shortPlace(state.destinationLabel);
+    const road = (cur && cur.step && cur.step.name) || shortPlace(state.destinationLabel);
+    $("driveRoad").textContent = road;
+    if ($("currentStreet")) {
+      $("currentStreet").hidden = !state.navigating || !road;
+      $("currentStreet").textContent = road;
+    }
   }
 
   function firstLabelLayerId() {
@@ -1022,13 +1052,13 @@
         id: "route-rest-casing",
         type: "line",
         source: "route-rest",
-        paint: { "line-color": "#fff", "line-width": 14, "line-opacity": 0.95 }
+        paint: { "line-color": "#fff", "line-width": 18, "line-opacity": 0.95 }
       });
       state.map.addLayer({
         id: "route-rest-line",
         type: "line",
         source: "route-rest",
-        paint: { "line-color": ROUTE_BLUE, "line-width": 10, "line-opacity": 1 }
+        paint: { "line-color": ROUTE_BLUE, "line-width": 12, "line-opacity": 1 }
       });
       state.map.addLayer({
         id: "route-done-line",
@@ -1126,7 +1156,7 @@
     if (!pane || !canvas) return;
     const cur = currentStep();
     const lanes = cur ? lanesFromStep(cur.step) : [];
-    const show = state.navigating && !state.simulating && lanes.length >= 2 && cur && cur.until < 140;
+    const show = state.navigating && !state.simulating && lanes.length >= 2 && cur && cur.until < 200;
     pane.hidden = !show;
     document.querySelector(".app").classList.toggle("is-junction", show);
     if (!show) return;
@@ -1198,7 +1228,7 @@
     ctx.lineTo(ax - w * 0.05, h * 0.58);
     ctx.closePath();
     ctx.fill();
-    ctx.fillStyle = "#1a73e8";
+    ctx.fillStyle = "#1565c0";
     const gw = w * 0.72;
     const gx = (w - gw) / 2;
     ctx.fillRect(gx, h * 0.06, gw, h * 0.2);
@@ -1215,6 +1245,8 @@
     if (!state.route) return;
     state.navigating = true;
     document.querySelector(".app").classList.add("is-nav");
+    setSearchOpen(false);
+    document.querySelector(".app").classList.remove("is-tools");
     $("driveBar").hidden = false;
     $("startBtn").hidden = true;
     $("stopBtn").hidden = false;
@@ -1250,6 +1282,7 @@
   function stopNavigation() {
     state.navigating = false;
     document.querySelector(".app").classList.remove("is-nav");
+    if ($("currentStreet")) $("currentStreet").hidden = true;
     $("driveBar").hidden = true;
     $("junctionPane").hidden = true;
     $("startBtn").hidden = !state.route;
@@ -1467,26 +1500,25 @@
   function cameraForMode(center, bearing) {
     const mode = state.viewMode;
     const kmh = (state.speedMps || 0) * 3.6;
-    const zOff = kmh < 20 ? 0.2 : kmh < 50 ? 0 : kmh < 90 ? -0.65 : -1.2;
-    const top = state.navigating ? 96 : 108;
-    const bottom = state.navigating ? 108 : 36;
+    let zoom = 17.25;
+    if (kmh >= 110) zoom = 14.7;
+    else if (kmh >= 80) zoom = 15.3;
+    else if (kmh >= 50) zoom = 16.05;
+    else if (kmh >= 25) zoom = 16.7;
+    const top = state.navigating ? 64 : 16;
+    const bottom = state.navigating ? 150 : 88;
     if (mode === "2d") {
-      return { center, zoom: 16.1 + zOff, pitch: 0, bearing: 0, padding: { top, bottom, left: 0, right: 0 } };
+      return { center, zoom: zoom - 0.35, pitch: 0, bearing: 0, padding: { top, bottom, left: 0, right: 0 } };
     }
-    if (mode === "3d") {
-      return {
-        center,
-        zoom: 17 + zOff,
-        pitch: 54,
-        bearing: state.follow ? bearing : state.map.getBearing(),
-        padding: { top, bottom, left: 0, right: 0 }
-      };
-    }
-    const look = alongLine(state.routeCoords.length ? state.routeCoords : [[center[0], center[1]]], state.traveledMeters + 48);
+    const ahead = kmh > 80 ? 110 : kmh > 45 ? 62 : 34;
+    const look = alongLine(
+      state.routeCoords.length ? state.routeCoords : [[center[0], center[1]]],
+      (state.traveledMeters || 0) + ahead
+    );
     return {
       center: look ? [look.lng, look.lat] : center,
-      zoom: 17.6 + zOff,
-      pitch: 62,
+      zoom: zoom + (mode === "4d" ? 0.4 : 0),
+      pitch: mode === "4d" ? 68 : 62,
       bearing: state.follow ? (look ? look.bearing : bearing) : state.map.getBearing(),
       padding: { top, bottom, left: 0, right: 0 }
     };
@@ -1524,7 +1556,7 @@
     document.documentElement.classList.toggle("dark", state.theme === "dark");
     $("themeToggle").setAttribute("aria-pressed", state.theme === "dark" ? "true" : "false");
     const meta = document.querySelector('meta[name="theme-color"]');
-    if (meta) meta.setAttribute("content", state.theme === "dark" ? "#0b1220" : "#1a73e8");
+    if (meta) meta.setAttribute("content", state.theme === "dark" ? "#0e151c" : "#0b5cab");
     localStorage.setItem(THEME_KEY, state.theme);
     if (reloadStyle && state.map) {
       state.overlaysReady = false;
@@ -2101,6 +2133,7 @@
     setDestination(lngLat, place.display_name);
     rememberRecent(lngLat, place.display_name);
     state.wantStart = true;
+    setSearchOpen(false);
     $("sidebar").classList.remove("is-expanded");
     if (!state.origin) {
       setStatus("Várom a GPS-pozíciót, aztán indulok…", false, 8000);
@@ -2257,6 +2290,17 @@
     state.previewRaf = requestAnimationFrame(tick);
   }
 
+  function setSearchOpen(on) {
+    const app = document.querySelector(".app");
+    app.classList.toggle("is-search", !!on);
+    if (on) {
+      app.classList.remove("is-tools");
+      window.setTimeout(() => {
+        if ($("addressInput")) $("addressInput").focus();
+      }, 80);
+    }
+  }
+
   function setupSheet() {
     const sidebar = $("sidebar");
     const handle = $("sheetHandle");
@@ -2266,7 +2310,10 @@
       handle.setAttribute("aria-expanded", open ? "true" : "false");
     }
     handle.addEventListener("click", () => toggleSheet());
-    if ($("menuBtn")) $("menuBtn").addEventListener("click", () => toggleSheet());
+    if ($("menuBtn")) $("menuBtn").addEventListener("click", () => {
+      setSearchOpen(false);
+      toggleSheet();
+    });
     if ($("driveMid")) {
       $("driveMid").addEventListener("click", () => {
         if (state.navigating) toggleSheet();
@@ -2289,8 +2336,8 @@
       container: "map",
       style: STYLES[theme] || STYLES.light,
       center: DEFAULT_CENTER,
-      zoom: 13.8,
-      pitch: 48,
+      zoom: 16.2,
+      pitch: 60,
       bearing: 0,
       maxPitch: 80,
       attributionControl: true
@@ -2299,6 +2346,11 @@
     state.map.on("style.load", ensureOverlays);
     state.map.on("dragstart", () => {
       if (!state.previewing) setFollow(false);
+    });
+    state.map.on("click", () => {
+      const app = document.querySelector(".app");
+      if (app.classList.contains("is-search")) return;
+      app.classList.toggle("is-tools");
     });
     state.map.on("load", setupMapPress);
   }
@@ -2873,7 +2925,7 @@
   }
 
   async function maybeFetchSpeedLimit() {
-    if (!state.origin || !state.navigating) return;
+    if (!state.origin) return;
     if (Date.now() - state.lastLimitAt < 14000) return;
     state.lastLimitAt = Date.now();
     const q =
@@ -3619,6 +3671,16 @@
 
   function bindUi() {
     $("searchForm").addEventListener("submit", searchAddress);
+    if ($("searchFab")) $("searchFab").addEventListener("click", () => setSearchOpen(true));
+    if ($("searchClose")) $("searchClose").addEventListener("click", () => setSearchOpen(false));
+    if ($("zoomIn")) $("zoomIn").addEventListener("click", (e) => {
+      e.stopPropagation();
+      if (state.map) state.map.zoomIn();
+    });
+    if ($("zoomOut")) $("zoomOut").addEventListener("click", (e) => {
+      e.stopPropagation();
+      if (state.map) state.map.zoomOut();
+    });
     $("themeToggle").addEventListener("click", () => applyTheme(state.theme === "dark" ? "light" : "dark", true));
     $("followBtn").addEventListener("click", () => setFollow(!state.follow));
     $("previewBtn").addEventListener("click", playPreview);

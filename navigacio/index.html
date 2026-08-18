@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
-  <meta name="theme-color" content="#1a73e8"/>
+  <meta name="theme-color" content="#0b5cab"/>
   <meta name="mobile-web-app-capable" content="yes"/>
   <meta name="apple-mobile-web-app-capable" content="yes"/>
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
@@ -27,16 +27,43 @@
     <p class="mission" id="missionTitle" hidden></p>
     <p class="flavor" id="flavorLine" hidden></p>
 
+    <section class="maneuver-banner" id="maneuverBanner" hidden>
+      <div class="signpost">
+        <div class="maneuver-icon" id="maneuverIcon" aria-hidden="true">↑</div>
+        <div class="maneuver-text">
+          <p class="maneuver-distance" id="maneuverDistance">—</p>
+          <p class="maneuver-instruction" id="maneuverInstruction">Útvonal keresése…</p>
+          <p class="maneuver-street" id="maneuverStreet"></p>
+        </div>
+        <button type="button" class="repeat-btn" id="repeatBtn" title="Utasítás ismétlése">🔁</button>
+      </div>
+      <div class="then-box" id="thenBox" hidden>
+        <span class="then-label">majd</span>
+        <span class="then-icon" id="thenIcon">↑</span>
+        <span class="then-dist" id="thenDist"></span>
+      </div>
+    </section>
+
+    <section class="lane-assist" id="laneAssist" hidden>
+      <p class="lane-label">Sáv</p>
+      <div class="lane-row" id="laneRow"></div>
+      <p class="lane-hint" id="laneHint"></p>
+    </section>
+
+    <div class="junction-view" id="junctionPane" hidden>
+      <canvas id="junctionCanvas" aria-label="Csomópontnézet"></canvas>
+    </div>
+
     <div class="search-dock" id="searchDock">
       <form class="search-form" id="searchForm" autocomplete="off">
-        <button type="button" class="icon-btn menu-btn" id="menuBtn" title="Beállítások">☰</button>
+        <button type="button" class="icon-btn" id="searchClose" title="Bezár">×</button>
         <label class="visually-hidden" for="addressInput">Hova?</label>
         <input
           id="addressInput"
           name="address"
           type="search"
           inputmode="search"
-          placeholder="Hova mész?"
+          placeholder="Cél, cím vagy hely"
           enterkeyhint="search"
         />
         <button type="button" class="btn-mic" id="micBtn" title="Beszéd">🎤</button>
@@ -49,8 +76,8 @@
         <button type="button" class="chip-btn" id="commuteBtn">Munkába</button>
       </div>
       <div class="recent-row" id="recentPlaces"></div>
-      <p class="status" id="statusText">GPS indítása…</p>
     </div>
+    <p class="status map-status" id="statusText">GPS indítása…</p>
 
     <div class="install-banner" id="installBanner" hidden>
       <p>Telepítsd — úgy nyílik, mint egy app.</p>
@@ -61,28 +88,14 @@
 
     <div class="bg-warn" id="bgWarn" hidden>A GPS leállt a háttérben. Tartsd előtérben a navigációt.</div>
 
-    <section class="maneuver-banner" id="maneuverBanner" hidden>
-      <div class="maneuver-icon" id="maneuverIcon" aria-hidden="true">↑</div>
-      <div class="maneuver-text">
-        <p class="maneuver-distance" id="maneuverDistance">—</p>
-        <p class="maneuver-instruction" id="maneuverInstruction">Útvonal keresése…</p>
-        <p class="maneuver-street" id="maneuverStreet"></p>
+    <div class="speed-stack">
+      <div class="speed-badge" id="speedBadge" hidden>
+        <span class="speed-value" id="speedValue">0</span>
+        <span class="speed-unit">km/h</span>
       </div>
-      <button type="button" class="repeat-btn" id="repeatBtn" title="Utasítás ismétlése">🔁</button>
-    </section>
-
-    <section class="lane-assist" id="laneAssist" hidden>
-      <p class="lane-label">Sáv</p>
-      <div class="lane-row" id="laneRow"></div>
-      <p class="lane-hint" id="laneHint"></p>
-    </section>
-
-    <div class="speed-badge" id="speedBadge" hidden>
-      <span class="speed-value" id="speedValue">0</span>
-      <span class="speed-unit">km/h</span>
       <span class="speed-limit" id="speedLimit" hidden></span>
+      <p class="gps-acc" id="gpsAcc" hidden>± — m</p>
     </div>
-    <p class="gps-acc" id="gpsAcc" hidden>± — m</p>
 
     <div class="alert-stack">
       <div class="vignette-chip" id="vignetteChip" hidden>E-matrica</div>
@@ -92,7 +105,9 @@
       <div class="school-chip" id="schoolChip" hidden>Iskola</div>
     </div>
 
-    <div class="top-actions">
+    <div class="map-tools" id="mapTools">
+      <button type="button" class="icon-btn" id="zoomIn" title="Közelítés">+</button>
+      <button type="button" class="icon-btn" id="zoomOut" title="Távolítás">−</button>
       <button type="button" class="icon-btn" id="satBtn" aria-pressed="false" title="Műhold">🛰️</button>
       <button type="button" class="icon-btn is-on" id="voiceBtn" aria-pressed="true" title="Hang">🔊</button>
       <button type="button" class="icon-btn" id="themeToggle" aria-pressed="false" title="Sötét mód">
@@ -100,10 +115,6 @@
         <span class="theme-icon theme-icon-sun" aria-hidden="true">☀</span>
         <span class="visually-hidden">Világos / sötét téma</span>
       </button>
-    </div>
-
-    <div class="junction-view" id="junctionPane" hidden>
-      <canvas id="junctionCanvas" aria-label="Sávnézet"></canvas>
     </div>
 
     <div class="hud-overlay" id="hudOverlay" hidden>
@@ -125,6 +136,8 @@
       </div>
     </div>
 
+    <button type="button" class="fab fab-menu" id="menuBtn" title="Menü">☰</button>
+    <button type="button" class="fab fab-search" id="searchFab" title="Cél keresése">🔍</button>
     <button type="button" class="fab fab-follow is-active" id="followBtn" aria-pressed="true" title="Követés">
       ⌖
       <span class="visually-hidden">Pozíció követése</span>
@@ -299,16 +312,29 @@
       </details>
     </aside>
 
+    <p class="current-street" id="currentStreet" hidden></p>
+
     <footer class="drive-bar" id="driveBar" hidden>
-      <div class="drive-speed">
-        <span id="driveSpeed">0</span>
-        <small>km/h</small>
+      <div class="drive-progress" id="driveProgress" hidden>
+        <div class="drive-progress-fill" id="driveProgressFill"></div>
       </div>
-      <div class="drive-mid" id="driveMid">
-        <p class="drive-eta-line"><span id="driveEta">—</span> · <span id="driveDur">—</span> · <span id="driveDist">—</span></p>
-        <p class="drive-road" id="driveRoad">—</p>
+      <div class="drive-grid" id="driveMid">
+        <div>
+          <span id="driveDur">—</span>
+          <small>idő</small>
+        </div>
+        <div>
+          <span id="driveDist">—</span>
+          <small>táv</small>
+        </div>
+        <div>
+          <span id="driveEta">—</span>
+          <small>érkezés</small>
+        </div>
+        <button type="button" class="btn-stop" id="stopBtn" hidden>×</button>
       </div>
-      <button type="button" class="btn-stop" id="stopBtn" hidden>Állj</button>
+      <p class="drive-road" id="driveRoad">—</p>
+      <span id="driveSpeed" hidden>0</span>
     </footer>
 
     <div id="arrivalOverlay" class="arrival-overlay" hidden>
@@ -325,10 +351,10 @@
         <p>Ez a telefonodra kerül, mint app. A kocsi gyári kijelzőjére (Android Auto / CarPlay) nem települ.</p>
         <ol class="help-steps">
           <li>Nyisd meg <strong>Chrome-ban a telefonodon</strong> ezt az oldalt.</li>
-          <li>Chrome menü (⋮) → <em>Alkalmazás telepítése</em> vagy <em>Hozzáadás a kezdőképernyőhöz</em>.</li>
-          <li>A <strong>Navigáció</strong> ikonból nyisd, ne a böngészőből.</li>
-          <li>Engedélyezd a <strong>helyhozzáférést</strong>.</li>
-          <li>Írd be a címet, nyomd meg: <strong>Menj</strong>.</li>
+          <li>Chrome menü (⋮) → <em>Alkalmazás telepítése</em>.</li>
+          <li>A <strong>Navigáció</strong> ikonból nyisd.</li>
+          <li>Engedélyezd a helyhozzáférést.</li>
+          <li>A nagyítóra koppintva add meg a célt, majd <strong>Menj</strong>.</li>
         </ol>
         <p><strong>iPhone:</strong> Safari → Megosztás → Hozzáadás a Főképernyőhöz.</p>
         <button type="button" class="btn-primary" id="helpClose">Értem</button>
