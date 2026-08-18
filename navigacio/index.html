@@ -45,17 +45,18 @@
 
     <button type="button" id="follow" class="fab is-on" title="Követés" aria-pressed="true">⌖</button>
     <button type="button" id="voice" class="fab is-on" title="Hang" aria-pressed="true">🔊</button>
-    <button type="button" id="menu" class="fab" title="Menü" aria-expanded="false" aria-controls="panel">☰</button>
+    <button type="button" id="hamburgerBtn" class="fab" title="Menü" aria-expanded="false" aria-controls="mobileDrawer">☰</button>
 
-    <aside id="panel" hidden role="dialog" aria-labelledby="panelTitle">
+    <div id="drawerOverlay"></div>
+    <aside id="mobileDrawer" role="dialog" aria-labelledby="drawerTitle">
       <header>
-        <strong id="panelTitle">Beállítások</strong>
-        <button type="button" id="panelClose">Bezár</button>
+        <strong id="drawerTitle">Beállítások</strong>
+        <button type="button" id="closeBtn">Bezár</button>
       </header>
       <p class="hint">Hosszú nyomás a térképen: cél.</p>
       <div class="row">
-        <button type="button" id="homeGo">Otthon</button>
-        <button type="button" id="workGo">Munka</button>
+        <button type="button" id="homeGo" class="mobile-link" data-place="home">Otthon</button>
+        <button type="button" id="workGo" class="mobile-link" data-place="work">Munka</button>
       </div>
       <div class="row">
         <button type="button" id="homeSet">Otthon = cél</button>

@@ -340,14 +340,29 @@ button {
 
 #follow { bottom: calc(1.15rem + var(--safe-bottom)); }
 #voice  { bottom: calc(4.3rem + var(--safe-bottom)); }
-#menu   { bottom: calc(7.45rem + var(--safe-bottom)); }
+#hamburgerBtn { bottom: calc(7.45rem + var(--safe-bottom)); }
 
 #app.is-nav #follow { bottom: calc(5.8rem + var(--safe-bottom)); }
 #app.is-nav #voice  { bottom: calc(8.95rem + var(--safe-bottom)); }
-#app.is-nav #menu   { bottom: calc(12.1rem + var(--safe-bottom)); }
+#app.is-nav #hamburgerBtn { bottom: calc(12.1rem + var(--safe-bottom)); }
 
-/* Beállítások */
-#panel {
+/* Fiók */
+#drawerOverlay {
+  position: absolute;
+  inset: 0;
+  z-index: 24;
+  background: rgba(14, 21, 28, 0.55);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease;
+}
+
+#drawerOverlay.open {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+#mobileDrawer {
   position: absolute;
   left: 0;
   right: 0;
@@ -360,22 +375,37 @@ button {
   border-radius: 18px 18px 0 0;
   background: var(--bg);
   box-shadow: 0 -10px 30px rgba(0, 0, 0, 0.25);
+  transform: translateY(110%);
+  visibility: hidden;
+  pointer-events: none;
+  transition: transform 0.25s ease, visibility 0.25s ease;
 }
 
-#panel header {
+#mobileDrawer.open {
+  transform: translateY(0);
+  visibility: visible;
+  pointer-events: auto;
+}
+
+#mobileDrawer header {
   display: flex;
   align-items: center;
   justify-content: space-between;
 }
 
-#panelClose,
-#panel .row button {
+#closeBtn,
+#mobileDrawer .row button {
   height: 2.4rem;
   border: 0;
   border-radius: 10px;
   background: var(--chip);
   color: var(--text);
   font-weight: 700;
+}
+
+.mobile-link.active {
+  background: var(--blue);
+  color: #fff;
 }
 
 .row {

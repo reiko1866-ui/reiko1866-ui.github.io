@@ -18,6 +18,20 @@
 
   const $ = (id) => document.getElementById(id);
 
+  function openDrawer() {
+    $("mobileDrawer").classList.add("open");
+    $("drawerOverlay").classList.add("open");
+    $("hamburgerBtn").setAttribute("aria-expanded", "true");
+    document.body.style.overflow = "hidden";
+  }
+
+  function closeDrawer() {
+    $("mobileDrawer").classList.remove("open");
+    $("drawerOverlay").classList.remove("open");
+    $("hamburgerBtn").setAttribute("aria-expanded", "false");
+    document.body.style.overflow = "";
+  }
+
   const state = {
     map: null,
     origin: null,
@@ -469,8 +483,7 @@
     $("app").classList.add("is-nav");
     $("trip").hidden = false;
     $("banner").hidden = false;
-    $("panel").hidden = true;
-    $("menu").setAttribute("aria-expanded", "false");
+    closeDrawer();
     state.follow = true;
     $("follow").classList.add("is-on");
     $("follow").setAttribute("aria-pressed", "true");
@@ -685,14 +698,31 @@
       $("voice").textContent = state.voice ? "🔊" : "🔇";
       if (state.voice) speak("Hang be.");
     });
-    $("menu").addEventListener("click", () => {
-      const open = $("panel").hidden;
-      $("panel").hidden = !open;
-      $("menu").setAttribute("aria-expanded", open ? "true" : "false");
+    const hamburgerBtn = $("hamburgerBtn");
+    const closeBtn = $("closeBtn");
+    const drawerOverlay = $("drawerOverlay");
+    const allNavLinks = document.querySelectorAll(".nav-link, .mobile-link");
+
+    hamburgerBtn.addEventListener("click", () => {
+      if ($("mobileDrawer").classList.contains("open")) closeDrawer();
+      else openDrawer();
     });
-    $("panelClose").addEventListener("click", () => {
-      $("panel").hidden = true;
-      $("menu").setAttribute("aria-expanded", "false");
+    closeBtn.addEventListener("click", closeDrawer);
+    drawerOverlay.addEventListener("click", closeDrawer);
+
+    allNavLinks.forEach((link) => {
+      link.addEventListener("click", () => {
+        allNavLinks.forEach((item) => item.classList.remove("active"));
+        const place = link.getAttribute("data-place");
+        if (place) {
+          document.querySelectorAll('[data-place="' + place + '"]').forEach((item) => {
+            item.classList.add("active");
+          });
+        } else {
+          link.classList.add("active");
+        }
+        closeDrawer();
+      });
     });
     $("homeGo").addEventListener("click", () => goPlace("home"));
     $("workGo").addEventListener("click", () => goPlace("work"));
