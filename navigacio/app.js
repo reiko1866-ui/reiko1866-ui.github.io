@@ -892,6 +892,9 @@
         el.textContent = line;
         el.classList.toggle("is-err", !!isError);
       }
+    }).then((mgr) => {
+      const el = $("voiceBase");
+      if (el && mgr && mgr.base) el.value = mgr.base;
     }).catch((err) => console.warn("[NavVoice] init", err));
   }
   if (!navigator.geolocation) setStatus("Nincs GPS ebben a böngészőben.", true);
