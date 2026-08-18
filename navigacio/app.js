@@ -32,6 +32,23 @@
     document.body.style.overflow = "";
   }
 
+  function spyNav() {
+    const allNavLinks = document.querySelectorAll(".nav-link, .mobile-link");
+    const sections = document.querySelectorAll("section");
+    let current = "";
+    sections.forEach((section) => {
+      if (section.hidden) return;
+      if (window.scrollY >= section.offsetTop - 100) {
+        current = section.getAttribute("id") || "";
+      }
+    });
+    if (!current) current = state.navigating ? "banner" : "kereses";
+    allNavLinks.forEach((link) => {
+      link.classList.remove("active");
+      if (link.getAttribute("href") === "#" + current) link.classList.add("active");
+    });
+  }
+
   const state = {
     map: null,
     origin: null,
@@ -484,6 +501,7 @@
     $("trip").hidden = false;
     $("banner").hidden = false;
     closeDrawer();
+    spyNav();
     state.follow = true;
     $("follow").classList.add("is-on");
     $("follow").setAttribute("aria-pressed", "true");
@@ -507,6 +525,7 @@
     $("banner").hidden = true;
     if (window.speechSynthesis) window.speechSynthesis.cancel();
     setStatus("Megállítva");
+    spyNav();
   }
 
   function maybeReroute() {
@@ -703,27 +722,16 @@
     const drawerOverlay = $("drawerOverlay");
     const allNavLinks = document.querySelectorAll(".nav-link, .mobile-link");
 
-    hamburgerBtn.addEventListener("click", () => {
-      if ($("mobileDrawer").classList.contains("open")) closeDrawer();
-      else openDrawer();
-    });
+    hamburgerBtn.addEventListener("click", openDrawer);
     closeBtn.addEventListener("click", closeDrawer);
     drawerOverlay.addEventListener("click", closeDrawer);
 
     allNavLinks.forEach((link) => {
-      link.addEventListener("click", () => {
-        allNavLinks.forEach((item) => item.classList.remove("active"));
-        const place = link.getAttribute("data-place");
-        if (place) {
-          document.querySelectorAll('[data-place="' + place + '"]').forEach((item) => {
-            item.classList.add("active");
-          });
-        } else {
-          link.classList.add("active");
-        }
-        closeDrawer();
-      });
+      link.addEventListener("click", () => closeDrawer());
     });
+
+    window.addEventListener("scroll", spyNav, { passive: true });
+    spyNav();
     $("homeGo").addEventListener("click", () => goPlace("home"));
     $("workGo").addEventListener("click", () => goPlace("work"));
     $("homeSet").addEventListener("click", () => savePlace("home"));

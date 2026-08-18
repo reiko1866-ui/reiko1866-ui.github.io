@@ -135,6 +135,7 @@ button {
   box-shadow: var(--shadow);
 }
 
+#app.is-nav #kereses,
 #app.is-nav #searchForm,
 #app.is-nav #results {
   display: none;

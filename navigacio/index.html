@@ -22,12 +22,14 @@
   <div id="app">
     <div id="map" role="application" aria-label="Térkép"></div>
 
-    <form id="searchForm" autocomplete="off">
-      <label class="sr-only" for="q">Cél</label>
-      <input id="q" type="search" name="q" placeholder="Hova mész?" enterkeyhint="search" inputmode="search" spellcheck="false" autocapitalize="off">
-      <button type="submit" id="go">Menj</button>
-    </form>
-    <ul id="results" hidden></ul>
+    <section id="kereses">
+      <form id="searchForm" autocomplete="off">
+        <label class="sr-only" for="q">Cél</label>
+        <input id="q" type="search" name="q" placeholder="Hova mész?" enterkeyhint="search" inputmode="search" spellcheck="false" autocapitalize="off">
+        <button type="submit" id="go">Menj</button>
+      </form>
+      <ul id="results" hidden></ul>
+    </section>
 
     <section id="banner" hidden aria-live="assertive">
       <div id="turnIcon" aria-hidden="true">↑</div>
@@ -55,8 +57,8 @@
       </header>
       <p class="hint">Hosszú nyomás a térképen: cél.</p>
       <div class="row">
-        <button type="button" id="homeGo" class="mobile-link" data-place="home">Otthon</button>
-        <button type="button" id="workGo" class="mobile-link" data-place="work">Munka</button>
+        <button type="button" class="mobile-link" id="homeGo">Otthon</button>
+        <button type="button" class="mobile-link" id="workGo">Munka</button>
       </div>
       <div class="row">
         <button type="button" id="homeSet">Otthon = cél</button>
