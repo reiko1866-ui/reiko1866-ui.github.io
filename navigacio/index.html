@@ -20,45 +20,88 @@
 </head>
 <body>
   <div id="app">
-    <div id="map" role="application" aria-label="Térkép"></div>
+    <section id="kezdolap">
+      <h1 class="sr-only">Kezdőlap</h1>
+      <div id="map" role="application" aria-label="Térkép"></div>
 
-    <section id="kereses">
       <form id="searchForm" autocomplete="off">
         <label class="sr-only" for="q">Cél</label>
         <input id="q" type="search" name="q" placeholder="Hova mész?" enterkeyhint="search" inputmode="search" spellcheck="false" autocapitalize="off">
         <button type="submit" id="go">Menj</button>
       </form>
       <ul id="results" hidden></ul>
-    </section>
 
-    <section id="banner" hidden aria-live="assertive">
-      <div id="turnIcon" aria-hidden="true">↑</div>
-      <div id="turnCopy">
-        <p id="turnDist">—</p>
-        <p id="turnText">—</p>
-        <p id="turnStreet"></p>
+      <div id="banner" hidden aria-live="assertive">
+        <div id="turnIcon" aria-hidden="true">↑</div>
+        <div id="turnCopy">
+          <p id="turnDist">—</p>
+          <p id="turnText">—</p>
+          <p id="turnStreet"></p>
+        </div>
       </div>
+
+      <div id="speed" hidden aria-live="off">
+        <strong id="kmh">0</strong>
+        <span>km/h</span>
+      </div>
+
+      <button type="button" id="follow" class="fab is-on" title="Követés" aria-pressed="true">⌖</button>
+      <button type="button" id="voice" class="fab is-on" title="Hang" aria-pressed="true">🔊</button>
+
+      <p id="status" role="status">GPS indítása…</p>
+
+      <footer id="trip" hidden>
+        <div><strong id="eta">—</strong><small>érkezés</small></div>
+        <div><strong id="remain">—</strong><small>idő</small></div>
+        <div><strong id="dist">—</strong><small>táv</small></div>
+        <button type="button" id="stop">Állj</button>
+      </footer>
+
+      <a class="peek nav-link" href="#funkciok">Funkciók ↓</a>
     </section>
 
-    <div id="speed" hidden aria-live="off">
-      <strong id="kmh">0</strong>
-      <span>km/h</span>
-    </div>
+    <section id="funkciok" class="page">
+      <h1>Funkciók</h1>
+      <ul>
+        <li>Magyar hang: „200 méter, fordulj jobbra.”</li>
+        <li>Letéréskor magától újratervez.</li>
+        <li>3D követő kamera, ciánkék útvonal, kék kanyartábla.</li>
+        <li>Otthon és munka egy gombbal a menüből.</li>
+      </ul>
+    </section>
 
-    <button type="button" id="follow" class="fab is-on" title="Követés" aria-pressed="true">⌖</button>
-    <button type="button" id="voice" class="fab is-on" title="Hang" aria-pressed="true">🔊</button>
+    <section id="Ajanlatok" class="page">
+      <h1>Ajánlatok</h1>
+      <ul>
+        <li>Ingyenes. Nincs fiók, nincs hirdetés.</li>
+        <li>Telepíthető a telefonra, mint app.</li>
+        <li>Autópálya vagy fizetős út elkerülése a menüből.</li>
+      </ul>
+    </section>
+
+    <section id="kapcsolat" class="page">
+      <h1>Kapcsolat</h1>
+      <p>A navigáció a telefonodon fut, nincs szerveres ügyfélszolgálat.</p>
+      <p>Hosszú nyomás a térképen: cél. A ☰ menüből éred el az Otthont, a Munkát és a térkép beállításait.</p>
+    </section>
+
     <button type="button" id="hamburgerBtn" class="fab" title="Menü" aria-expanded="false" aria-controls="mobileDrawer">☰</button>
-
     <div id="drawerOverlay"></div>
     <aside id="mobileDrawer" role="dialog" aria-labelledby="drawerTitle">
       <header>
-        <strong id="drawerTitle">Beállítások</strong>
+        <strong id="drawerTitle">Menü</strong>
         <button type="button" id="closeBtn">Bezár</button>
       </header>
+      <nav class="drawer-nav">
+        <a class="nav-link mobile-link" href="#kezdolap">Kezdőlap</a>
+        <a class="nav-link mobile-link" href="#funkciok">Funkciók</a>
+        <a class="nav-link mobile-link" href="#Ajanlatok">Ajánlatok</a>
+        <a class="nav-link mobile-link" href="#kapcsolat">Kapcsolat</a>
+      </nav>
       <p class="hint">Hosszú nyomás a térképen: cél.</p>
       <div class="row">
-        <button type="button" class="mobile-link" id="homeGo">Otthon</button>
-        <button type="button" class="mobile-link" id="workGo">Munka</button>
+        <button type="button" id="homeGo">Otthon</button>
+        <button type="button" id="workGo">Munka</button>
       </div>
       <div class="row">
         <button type="button" id="homeSet">Otthon = cél</button>
@@ -68,15 +111,6 @@
       <label class="check"><input type="checkbox" id="avoidToll"> Fizetős utak elkerülése</label>
       <label class="check"><input type="checkbox" id="dark"> Sötét térkép</label>
     </aside>
-
-    <footer id="trip" hidden>
-      <div><strong id="eta">—</strong><small>érkezés</small></div>
-      <div><strong id="remain">—</strong><small>idő</small></div>
-      <div><strong id="dist">—</strong><small>táv</small></div>
-      <button type="button" id="stop">Állj</button>
-    </footer>
-
-    <p id="status" role="status">GPS indítása…</p>
   </div>
 
   <noscript>A navigációhoz JavaScript kell.</noscript>

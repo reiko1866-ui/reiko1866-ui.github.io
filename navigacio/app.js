@@ -34,19 +34,25 @@
 
   function spyNav() {
     const allNavLinks = document.querySelectorAll(".nav-link, .mobile-link");
-    const sections = document.querySelectorAll("section");
-    let current = "";
-    sections.forEach((section) => {
-      if (section.hidden) return;
-      if (window.scrollY >= section.offsetTop - 100) {
-        current = section.getAttribute("id") || "";
-      }
+    const pageIds = ["kezdolap", "funkciok", "Ajanlatok", "kapcsolat"];
+    let current = pageIds[0];
+    pageIds.forEach((id) => {
+      const section = $(id);
+      if (!section || section.hidden) return;
+      if (window.scrollY >= section.offsetTop - 100) current = id;
     });
-    if (!current) current = state.navigating ? "banner" : "kereses";
+    if (state.navigating) current = "kezdolap";
     allNavLinks.forEach((link) => {
       link.classList.remove("active");
       if (link.getAttribute("href") === "#" + current) link.classList.add("active");
     });
+    document.body.classList.toggle("is-scrolled", window.scrollY > 80);
+  }
+
+  function showHome() {
+    const home = $("kezdolap");
+    if (home) home.scrollIntoView();
+    if (state.map) state.map.resize();
   }
 
   const state = {
@@ -501,7 +507,9 @@
     $("trip").hidden = false;
     $("banner").hidden = false;
     closeDrawer();
+    window.scrollTo(0, 0);
     spyNav();
+    if (state.map) state.map.resize();
     state.follow = true;
     $("follow").classList.add("is-on");
     $("follow").setAttribute("aria-pressed", "true");
@@ -526,6 +534,7 @@
     if (window.speechSynthesis) window.speechSynthesis.cancel();
     setStatus("Megállítva");
     spyNav();
+    if (state.map) state.map.resize();
   }
 
   function maybeReroute() {
@@ -598,6 +607,7 @@
 
   async function choose(place) {
     $("results").hidden = true;
+    showHome();
     setDest({ lat: Number(place.lat), lng: Number(place.lon) }, place.display_name);
     $("q").value = place.display_name.split(",")[0];
     if (!state.origin) {
@@ -647,6 +657,7 @@
   function goPlace(kind) {
     const p = state.places[kind];
     if (!p) return setStatus("Előbb mentsd el ezt a helyet a menüben.", true);
+    closeDrawer();
     choose({ lat: p.lat, lon: p.lng, display_name: p.label || kind });
   }
 

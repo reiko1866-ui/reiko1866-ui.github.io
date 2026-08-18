@@ -33,17 +33,21 @@ html.dark {
   box-sizing: border-box;
 }
 
-html,
-body,
-#app {
-  height: 100%;
-  margin: 0;
+html {
+  scroll-behavior: smooth;
 }
 
 html,
 body {
+  margin: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+
+html:has(#app.is-nav),
+body:has(#app.is-nav) {
   overflow: hidden;
-  overscroll-behavior: none;
+  height: 100%;
 }
 
 body {
@@ -60,7 +64,6 @@ body {
 #app {
   position: relative;
   min-height: 100dvh;
-  user-select: none;
 }
 
 button,
@@ -91,6 +94,15 @@ button {
 }
 
 /* Térkép */
+#kezdolap {
+  position: relative;
+  height: 100dvh;
+  min-height: 100dvh;
+  overflow: hidden;
+  user-select: none;
+  background: var(--ink);
+}
+
 #map {
   position: absolute;
   inset: 0;
@@ -135,7 +147,6 @@ button {
   box-shadow: var(--shadow);
 }
 
-#app.is-nav #kereses,
 #app.is-nav #searchForm,
 #app.is-nav #results {
   display: none;
@@ -341,7 +352,14 @@ button {
 
 #follow { bottom: calc(1.15rem + var(--safe-bottom)); }
 #voice  { bottom: calc(4.3rem + var(--safe-bottom)); }
-#hamburgerBtn { bottom: calc(7.45rem + var(--safe-bottom)); }
+#hamburgerBtn {
+  position: fixed;
+  bottom: calc(7.45rem + var(--safe-bottom));
+}
+
+body.is-scrolled #hamburgerBtn {
+  bottom: calc(1.15rem + var(--safe-bottom));
+}
 
 #app.is-nav #follow { bottom: calc(5.8rem + var(--safe-bottom)); }
 #app.is-nav #voice  { bottom: calc(8.95rem + var(--safe-bottom)); }
@@ -349,7 +367,7 @@ button {
 
 /* Fiók */
 #drawerOverlay {
-  position: absolute;
+  position: fixed;
   inset: 0;
   z-index: 24;
   background: rgba(14, 21, 28, 0.55);
@@ -364,7 +382,7 @@ button {
 }
 
 #mobileDrawer {
-  position: absolute;
+  position: fixed;
   left: 0;
   right: 0;
   bottom: 0;
@@ -404,9 +422,26 @@ button {
   font-weight: 700;
 }
 
-.mobile-link.active {
+.mobile-link.active,
+.nav-link.active {
   background: var(--blue);
   color: #fff;
+}
+
+.drawer-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.drawer-nav a {
+  display: block;
+  padding: 0.7rem 0.85rem;
+  border-radius: 10px;
+  background: var(--chip);
+  color: var(--text);
+  font-weight: 700;
+  text-decoration: none;
 }
 
 .row {
@@ -455,6 +490,57 @@ button {
 
 #status.is-err {
   color: #ff8a80;
+}
+
+.peek {
+  position: absolute;
+  left: 50%;
+  bottom: calc(1.2rem + var(--safe-bottom));
+  z-index: 18;
+  transform: translateX(-50%);
+  padding: 0.45rem 0.9rem;
+  border-radius: 999px;
+  background: rgba(28, 35, 49, 0.82);
+  color: #fff;
+  font-size: 0.85rem;
+  font-weight: 700;
+  text-decoration: none;
+  box-shadow: var(--shadow);
+}
+
+#app.is-nav .peek,
+#app.is-nav #funkciok,
+#app.is-nav #Ajanlatok,
+#app.is-nav #kapcsolat {
+  display: none;
+}
+
+.page {
+  padding: 2.2rem var(--pad) 3rem;
+  background: var(--bg);
+  color: var(--text);
+}
+
+.page h1 {
+  margin: 0 0 0.8rem;
+  font-size: 1.6rem;
+}
+
+.page p,
+.page li {
+  color: var(--text);
+  font-size: 1.02rem;
+  line-height: 1.45;
+}
+
+.page ul {
+  margin: 0;
+  padding-left: 1.2rem;
+}
+
+.page li + li,
+.page p + p {
+  margin-top: 0.55rem;
 }
 
 noscript {
