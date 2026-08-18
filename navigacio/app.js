@@ -814,11 +814,27 @@
     });
     $("searchBtn").addEventListener("click", toggleSearch);
     const voiceStart = $("voiceStart");
+    const voiceFind = $("voiceFind");
+    const voiceBase = $("voiceBase");
+    if (voiceBase && window.NavVoice && window.NavVoice.instance) {
+      voiceBase.value = window.NavVoice.instance.base || "/hungary_jf/";
+    } else if (voiceBase) {
+      voiceBase.value = "/hungary_jf/";
+    }
+    if (voiceFind) {
+      voiceFind.addEventListener("click", () => {
+        const nv = navVoice();
+        if (!nv) return setStatus("A hangmodul nem töltődött be.", true);
+        if (voiceBase) nv.setBase(voiceBase.value);
+        nv.findSounds();
+      });
+    }
     if (voiceStart) {
       voiceStart.addEventListener("click", () => {
         const nv = navVoice();
-        if (nv) nv.start();
-        else setStatus("A hangmodul nem töltődött be.", true);
+        if (!nv) return setStatus("A hangmodul nem töltődött be.", true);
+        if (voiceBase) nv.setBase(voiceBase.value);
+        nv.start();
       });
     }
     $("voiceCheck").addEventListener("change", () => {

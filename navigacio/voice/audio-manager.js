@@ -14,7 +14,31 @@
 
   /** Webes gyökér, ahogy kérted. */
   const BASE = "/hungary_jf/";
+  const BASE_KEY = "nav2_voice_base";
   const GAP = 0.03;
+
+  const SCAN = [
+    "start.ogg",
+    "finish.ogg",
+    "recomputing.ogg",
+    "turn_left.ogg",
+    "turn_right.ogg",
+    "turn_left_100.ogg",
+    "turn_right_500.ogg",
+    "and_then_exit_left_100.ogg",
+    "and_then_exit_left.ogg",
+    "and_then_exit_right_100.ogg",
+    "100.ogg",
+    "200.ogg",
+    "500.ogg",
+    "1000.ogg",
+    "go_straight.ogg",
+    "u_turn.ogg",
+    "keep_left.ogg",
+    "keep_right.ogg",
+    "exit_left.ogg",
+    "exit_right.ogg"
+  ];
 
   /**
    * Pontos fájlnevek. `prefer`: egyben; ha nincs, `mosaic` megy a sorba.
@@ -97,6 +121,11 @@
       /** @type {Map<string, AudioBuffer|null>} */
       this.cache = new Map();
       this.started = false;
+      this.base = BASE;
+      try {
+        const saved = localStorage.getItem(BASE_KEY);
+        if (saved) this.base = saved;
+      } catch (_e) {}
     }
 
     log(msg, err) {
@@ -104,10 +133,61 @@
       if (err) console.warn("[NavVoice]", msg);
     }
 
+    /**
+     * @param {string} path  pl. /hungary_jf/ vagy https://pelda.hu/hungary_jf/
+     */
+    setBase(path) {
+      let b = String(path || "").trim() || BASE;
+      if (!/\/$/.test(b)) b += "/";
+      this.base = b;
+      this.cache.clear();
+      try {
+        localStorage.setItem(BASE_KEY, b);
+      } catch (_e) {}
+      api.BASE = b;
+      this.log("Útvonal: " + this.base);
+    }
+
     url(file) {
       const name = String(file || "").replace(/^\//, "");
-      if (!/\.ogg$/i.test(name)) return BASE + name + ".ogg";
-      return BASE + name;
+      const fileName = /\.ogg$/i.test(name) ? name : name + ".ogg";
+      return this.base + fileName;
+    }
+
+    /**
+     * Végigpróbálja a ismert ETS2 fájlneveket a megadott mappában.
+     * @returns {Promise<string[]>}
+     */
+    async findSounds() {
+      this.log("Keresés: " + this.base);
+      const found = [];
+      for (let i = 0; i < SCAN.length; i++) {
+        const href = this.url(SCAN[i]);
+        const ok = await this.exists(href);
+        if (ok) found.push(SCAN[i]);
+      }
+      if (found.length) {
+        this.log("Megvan (" + found.length + "): " + found.join(", "));
+      } else {
+        this.log("Itt nincs ismert .ogg. A mappának CORS-szal elérhetőnek kell lennie, pl. /hungary_jf/", true);
+      }
+      return found;
+    }
+
+    /**
+     * @param {string} href
+     * @returns {Promise<boolean>}
+     */
+    async exists(href) {
+      try {
+        let res = await fetch(href, { method: "HEAD" });
+        if (res.status === 405 || res.status === 501) {
+          res = await fetch(href, { method: "GET" });
+        }
+        return res.ok;
+      } catch (_e) {
+        return false;
+      }
     }
 
     /**
@@ -118,7 +198,7 @@
       const ok = await this.unlock();
       if (!ok) return false;
       this.started = true;
-      this.log("Hang indítva. Forrás: " + BASE);
+      this.log("Hang indítva. Forrás: " + this.base);
       await this.playPhrase("start");
       return true;
     }
