@@ -813,6 +813,14 @@
       if (state.follow) updateCamera(true);
     });
     $("searchBtn").addEventListener("click", toggleSearch);
+    const voiceStart = $("voiceStart");
+    if (voiceStart) {
+      voiceStart.addEventListener("click", () => {
+        const nv = navVoice();
+        if (nv) nv.start();
+        else setStatus("A hangmodul nem töltődött be.", true);
+      });
+    }
     $("voiceCheck").addEventListener("change", () => {
       state.voice = $("voiceCheck").checked;
       if (!state.voice) {

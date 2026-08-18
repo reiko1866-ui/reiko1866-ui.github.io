@@ -1,18 +1,4 @@
-# hungary_jf — ETS2 hangcsomag
+A böngésző NEM ezt a mappát olvassa.
 
-Másold ide az ETS2 navigációs `.ogg` fájlokat (SCS névkonvenció).
-
-Példák:
-- turn_left.ogg
-- turn_right.ogg
-- turn_left_100.ogg
-- and_then_exit_left.ogg
-- recomputing.ogg
-- finish.ogg
-- start.ogg
-- go_straight.ogg
-- u_turn.ogg
-- 100.ogg / 200.ogg / 500.ogg / 1000.ogg
-
-A böngésző a `navigacio/hungary_jf/` vagy a gyökér `/hungary_jf/` mappát keresi.
-A kész hangcsomagot (copyright) ne a gitbe commitold, ha nincs jogod terjeszteni.
+A hangok webcíme: /hungary_jf/
+azaz a repo gyökerében: hungary_jf/*.ogg

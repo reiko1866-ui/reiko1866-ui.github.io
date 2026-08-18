@@ -566,6 +566,15 @@ button {
   font-size: 0.85rem;
 }
 
+#voiceStart {
+  height: 2.6rem;
+  border: 0;
+  border-radius: 10px;
+  background: var(--blue);
+  color: #fff;
+  font-weight: 800;
+}
+
 #voiceLog {
   margin: 0;
   min-height: 2.4em;
