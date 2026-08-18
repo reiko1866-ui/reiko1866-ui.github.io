@@ -1,10 +1,11 @@
-const CACHE = "nav-v13";
+const CACHE = "nav-v14";
 const CORE = [
   "./",
   "./index.html",
   "./app.js",
   "./style.css",
   "./voice/audio-manager.js",
+  "./voice/pack.json",
   "./manifest.webmanifest",
   "./icons/icon-192.png",
   "./icons/icon-512.png",
@@ -30,11 +31,14 @@ self.addEventListener("fetch", (event) => {
   if (req.method !== "GET") return;
   const url = new URL(req.url);
   if (url.origin !== self.location.origin) return;
+  if (/\.ogg$/i.test(url.pathname) || /hungary_jf/i.test(url.pathname)) return;
   event.respondWith(
     fetch(req)
       .then((res) => {
-        const copy = res.clone();
-        caches.open(CACHE).then((cache) => cache.put(req, copy)).catch(() => {});
+        if (res.ok) {
+          const copy = res.clone();
+          caches.open(CACHE).then((cache) => cache.put(req, copy)).catch(() => {});
+        }
         return res;
       })
       .catch(() => caches.match(req).then((hit) => hit || caches.match("./index.html")))

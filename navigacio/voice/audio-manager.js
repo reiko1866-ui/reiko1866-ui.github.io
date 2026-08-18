@@ -1,37 +1,23 @@
 /**
- * Hangnavigáció — ETS2 .ogg mozaikok, lejátszási sor, autoplay-feloldás.
- *
- * A feltöltött csomag (hungary_jf) jelenleg csak két szótőt tartalmaz:
- *   and_then_exit_left_*.ogg  (479)
- *   and_then_exit_right_*.ogg (219)
- * start / finish / recomputing nincs — azokra TTS megy.
- *
- * Amíg a GitHub Pages a main ágat szolgálja ki, a fájlok CDN-ről
- * (jsDelivr / raw.githubusercontent) töltődnek. Merge után /hungary_jf/ is él.
+ * Hangnavigáció — a feltöltött hungary_jf csomag (bal/jobb kijárat .ogg).
+ * A lista a navigacio/voice/pack.json-ból jön; a hangfájlok CDN-ről,
+ * amíg a GitHub Pages (main) nem szolgálja ki a /hungary_jf/ mappát.
  */
 (function (global) {
   "use strict";
 
-  const PAGES_BASE = "/hungary_jf/";
   const BRANCH = "cursor/terkep-navigacio-925b";
   const REPO = "reiko1866-ui/reiko1866-ui.github.io";
-  const CDN_BRANCH =
-    "https://cdn.jsdelivr.net/gh/" + REPO + "@" + BRANCH + "/hungary_jf/";
-  const RAW_BRANCH =
+  const CDN =
+    "https://cdn.jsdelivr.net/gh/" + REPO + "@" + encodeURIComponent(BRANCH) + "/hungary_jf/";
+  const RAW =
     "https://raw.githubusercontent.com/" + REPO + "/" + BRANCH + "/hungary_jf/";
-  const CDN_MAIN = "https://cdn.jsdelivr.net/gh/" + REPO + "@main/hungary_jf/";
-  const BASE = PAGES_BASE;
+  const PROBE = "and_then_exit_left_100.ogg";
   const BASE_KEY = "nav2_voice_base";
   const GAP = 0.03;
-
   const LEFT_STEM = "and_then_exit_left";
   const RIGHT_STEM = "and_then_exit_right";
 
-  /**
-   * Pontos fájlnevek. `stem` + `prefer`: a feltöltött csomag számozott változatai.
-   * Ha nincs egyezés, véletlen fájl ugyanabból a szótőből.
-   * @typedef {{ stem?: string, prefer?: string, files?: string[] }} Phrase
-   */
   const PHRASES = {
     start: { files: ["start.ogg"] },
     finish: { files: ["finish.ogg"] },
@@ -88,6 +74,19 @@
     return out;
   }
 
+  function withSlash(path) {
+    const b = String(path || "");
+    return /\/$/.test(b) ? b : b + "/";
+  }
+
+  function rel(path) {
+    try {
+      return new URL(path, document.baseURI).href;
+    } catch (_e) {
+      return path;
+    }
+  }
+
   function distBucket(m) {
     if (m >= 1500) return 2000;
     if (m >= 750) return 1000;
@@ -120,12 +119,15 @@
       /** @type {Map<string, AudioBuffer|null>} */
       this.cache = new Map();
       this.started = false;
-      this.base = BASE;
+      this.base = CDN;
+      this.searchGen = 0;
       /** @type {Set<string>} */
       this.inventory = new Set();
       try {
         const saved = localStorage.getItem(BASE_KEY);
-        if (saved) this.base = saved;
+        if (saved && saved !== "/hungary_jf/" && saved !== "/navigacio/hungary_jf/") {
+          this.base = withSlash(saved);
+        }
       } catch (_e) {}
     }
 
@@ -134,16 +136,12 @@
       if (err) console.warn("[NavVoice]", msg);
     }
 
-    /**
-     * @param {string} path
-     */
     setBase(path) {
-      let b = String(path || "").trim() || BASE;
-      if (!/\/$/.test(b)) b += "/";
+      let b = String(path || "").trim() || CDN;
+      b = withSlash(b);
       if (b === this.base) return;
       this.base = b;
       this.cache.clear();
-      this.inventory = new Set();
       try {
         localStorage.setItem(BASE_KEY, b);
       } catch (_e) {}
@@ -155,28 +153,6 @@
       if (text && this.onFallback) this.onFallback(text);
     }
 
-    candidateBases() {
-      let here = "./";
-      try {
-        here = new URL("./", document.baseURI).href;
-      } catch (_e) {}
-      return unique([
-        this.base,
-        PAGES_BASE,
-        CDN_BRANCH,
-        RAW_BRANCH,
-        CDN_MAIN,
-        new URL("hungary_jf/", here).href,
-        "/navigacio/hungary_jf/"
-      ]).map((b) => (/\/$/.test(b) ? b : b + "/"));
-    }
-
-    url(file) {
-      const name = String(file || "").replace(/^\//, "");
-      const fileName = /\.ogg$/i.test(name) ? name : name + ".ogg";
-      return this.base + fileName;
-    }
-
     persistBase() {
       try {
         localStorage.setItem(BASE_KEY, this.base);
@@ -184,60 +160,59 @@
       api.BASE = this.base;
     }
 
+    candidateBases() {
+      return unique([
+        CDN,
+        RAW,
+        rel("../hungary_jf/"),
+        rel("./hungary_jf/"),
+        "/hungary_jf/",
+        this.base
+      ]).map(withSlash);
+    }
+
+    indexUrls() {
+      return unique([
+        rel("./voice/pack.json"),
+        CDN + "index.json",
+        RAW + "index.json",
+        rel("../hungary_jf/index.json"),
+        rel("./hungary_jf/index.json"),
+        "/hungary_jf/index.json"
+      ]);
+    }
+
+    url(file, base) {
+      const name = String(file || "").replace(/^\//, "");
+      const fileName = /\.ogg$/i.test(name) ? name : name + ".ogg";
+      return withSlash(base || this.base) + fileName;
+    }
+
     /**
+     * Párhuzamos keresés: lista (pack.json / index.json) + egy próba .ogg.
      * @returns {Promise<string[]>}
      */
     async findSounds() {
-      this.inventory = new Set();
-      const bases = this.candidateBases();
-      const probes = [
-        "index.json",
-        "and_then_exit_left_100.ogg",
-        "and_then_exit_right_100.ogg"
-      ];
+      const gen = ++this.searchGen;
+      this.log("Hangok keresése…");
+      const namesP = this.loadAnyIndex();
+      const baseP = this.probeAudioBase();
+      const names = await namesP;
+      const base = await baseP;
+      if (gen !== this.searchGen) return Array.from(this.inventory);
+      this.inventory = new Set(names.length ? names : [PROBE, "and_then_exit_right_100.ogg"]);
 
-      for (let b = 0; b < bases.length; b++) {
-        this.base = bases[b];
-        this.log("Keresés: " + this.base);
-
-        const listed = await this.loadIndex();
-        if (listed.length) {
-          listed.forEach((f) => this.inventory.add(f));
-          this.persistBase();
-          this.logPackFound();
-          return Array.from(this.inventory).sort();
-        }
-
-        const dir = await this.listDirectory();
-        if (dir.length) {
-          dir.forEach((f) => this.inventory.add(f));
-          this.persistBase();
-          this.logPackFound();
-          return Array.from(this.inventory).sort();
-        }
-
-        let hit = false;
-        for (let i = 0; i < probes.length; i++) {
-          if (probes[i] === "index.json") continue;
-          if (await this.exists(this.url(probes[i]))) {
-            this.inventory.add(probes[i]);
-            hit = true;
-          }
-        }
-        if (hit) {
-          this.persistBase();
-          this.logPackFound();
-          return Array.from(this.inventory).sort();
-        }
+      if (!base) {
+        this.log(
+          "A hangfájlok a github.io-n még nincsenek (a Pages a main ágat szolgálja). A CDN sem elérhető ebből a böngészőből.",
+          true
+        );
+        return [];
       }
-
-      this.log(
-        "A .ogg fájlok nincsenek a weben (404). Próbált: " +
-          bases.join(" ") +
-          " — a gombok most a telefon magyar hangját használják.",
-        true
-      );
-      return [];
+      this.base = base;
+      this.persistBase();
+      this.logPackFound();
+      return Array.from(this.inventory).sort();
     }
 
     logPackFound() {
@@ -246,7 +221,7 @@
       this.log(
         "Megvan " +
           this.inventory.size +
-          " hang itt: " +
+          " hang. Forrás: " +
           this.base +
           " (balra " +
           left +
@@ -256,13 +231,22 @@
       );
     }
 
-    /**
-     * @returns {Promise<string[]>}
-     */
-    async loadIndex() {
+    fetchTimeout(href, ms) {
+      const ctrl = typeof AbortController !== "undefined" ? new AbortController() : null;
+      const timer = setTimeout(() => {
+        if (ctrl) ctrl.abort();
+      }, ms || 7000);
+      return fetch(href, { cache: "no-store", signal: ctrl ? ctrl.signal : undefined }).finally(() =>
+        clearTimeout(timer)
+      );
+    }
+
+    async fetchJsonList(href) {
       try {
-        const res = await fetch(this.base + "index.json", { cache: "no-store" });
+        const res = await this.fetchTimeout(href, 7000);
         if (!res.ok) return [];
+        const type = (res.headers.get("content-type") || "").toLowerCase();
+        if (type.indexOf("text/html") !== -1) return [];
         const data = await res.json();
         const list = Array.isArray(data) ? data : data && data.files;
         if (!Array.isArray(list)) return [];
@@ -274,32 +258,77 @@
       }
     }
 
-    /**
-     * @returns {Promise<string[]>}
-     */
-    async listDirectory() {
-      try {
-        const res = await fetch(this.base);
-        if (!res.ok) return [];
-        const html = await res.text();
-        if (!/href\s*=/i.test(html) || html.length > 2e6) return [];
-        const out = [];
-        const re = /href\s*=\s*["']([^"']+\.ogg)["']/gi;
-        let m;
-        while ((m = re.exec(html))) {
-          const raw = decodeURIComponent(m[1].split("?")[0]);
-          const baseName = raw.replace(/^.*\//, "");
-          if (baseName && out.indexOf(baseName) === -1) out.push(baseName);
+    firstMatch(tasks) {
+      return new Promise((resolve) => {
+        let pending = tasks.length;
+        let done = false;
+        if (!pending) {
+          resolve(null);
+          return;
         }
-        return out;
+        function good(value) {
+          if (value == null || value === "") return false;
+          if (Array.isArray(value) && !value.length) return false;
+          return true;
+        }
+        tasks.forEach((task) => {
+          Promise.resolve()
+            .then(task)
+            .then((value) => {
+              if (!done && good(value)) {
+                done = true;
+                resolve(value);
+              }
+            })
+            .catch(() => {})
+            .then(() => {
+              pending -= 1;
+              if (!pending && !done) resolve(null);
+            });
+        });
+      });
+    }
+
+    async loadAnyIndex() {
+      const urls = this.indexUrls();
+      const hit = await this.firstMatch(urls.map((href) => () => this.fetchJsonList(href)));
+      return hit || [];
+    }
+
+    /**
+     * @returns {Promise<string>}
+     */
+    async probeAudioBase() {
+      const bases = this.candidateBases();
+      const hit = await this.firstMatch(
+        bases.map((base) => async () => ((await this.isOgg(this.url(PROBE, base))) ? base : ""))
+      );
+      return hit || "";
+    }
+
+    /**
+     * GET, nem HEAD (a HEAD gyakran CORS-hiba). OggS mágikus szám.
+     * @param {string} href
+     * @returns {Promise<boolean>}
+     */
+    async isOgg(href) {
+      try {
+        const res = await this.fetchTimeout(href, 7000);
+        if (!res.ok) return false;
+        const type = (res.headers.get("content-type") || "").toLowerCase();
+        if (type.indexOf("text/html") !== -1) return false;
+        const raw = await res.arrayBuffer();
+        if (raw.byteLength < 8) return false;
+        const b = new Uint8Array(raw);
+        return b[0] === 0x4f && b[1] === 0x67 && b[2] === 0x67 && b[3] === 0x53;
       } catch (_e) {
-        return [];
+        return false;
       }
     }
 
     known(file) {
       const name = /\.ogg$/i.test(file) ? file : file + ".ogg";
-      if (!this.inventory.size) return false;
+      if (!this.inventory.size) return true;
       return this.inventory.has(name);
     }
 
@@ -312,66 +341,29 @@
       return out;
     }
 
-    /**
-     * Előnyben a kért sorszám (pl. _100), különben véletlen ugyanabból a szótőből.
-     * @param {string} stem
-     * @param {string} [prefer]
-     * @returns {string}
-     */
     pickFromStem(stem, prefer) {
       if (prefer) {
         const exact = stem + "_" + prefer + ".ogg";
-        if (this.known(exact)) return exact;
+        if (!this.inventory.size || this.inventory.has(exact)) return exact;
       }
       const matches = this.filesForStem(stem);
       if (!matches.length) {
-        const bare = stem + ".ogg";
-        return this.known(bare) ? bare : "";
+        const fallback = stem + (prefer ? "_" + prefer : "_100") + ".ogg";
+        return fallback;
       }
       return matches[Math.floor(Math.random() * matches.length)];
     }
 
-    /**
-     * @param {string} href
-     * @returns {Promise<boolean>}
-     */
-    async exists(href) {
-      try {
-        let res = await fetch(href, { method: "HEAD" });
-        if (res.status === 405 || res.status === 501) {
-          res = await fetch(href, { method: "GET" });
-        }
-        return res.ok;
-      } catch (_e) {
-        return false;
-      }
-    }
-
-    /**
-     * Indító gomb: feloldja az autoplay-t. A csomagban nincs start.ogg.
-     * @returns {Promise<boolean>}
-     */
     async start() {
       const ok = await this.unlock();
       if (!ok) return false;
       this.started = true;
       if (!this.inventory.size) await this.findSounds();
-      if (!this.inventory.size) {
-        this.log(
-          "Nincs .ogg a weben. A fájlok a repo gyökerében: hungary_jf/. Most a telefon hangja szól.",
-          true
-        );
-        this.fallback(TTS.start);
-        return false;
-      }
       this.log("Hang indítva. Forrás: " + this.base + " (" + this.inventory.size + " fájl)");
       this.fallback(TTS.start);
       return true;
     }
 
-    /**
-     * @returns {Promise<boolean>}
-     */
     async unlock() {
       try {
         const Ctx = window.AudioContext || window.webkitAudioContext;
@@ -400,37 +392,40 @@
       }
     }
 
-    /**
-     * @param {string} file
-     * @param {boolean} [quiet]
-     * @returns {Promise<AudioBuffer|null>}
-     */
     async loadFile(file, quiet) {
-      const href = this.url(file);
-      if (this.cache.has(href)) return this.cache.get(href);
-      try {
-        const res = await fetch(href);
-        if (!res.ok) {
+      const name = /\.ogg$/i.test(file) ? file : file + ".ogg";
+      const hrefs = unique([this.url(name), this.url(name, CDN), this.url(name, RAW)]);
+      for (let i = 0; i < hrefs.length; i++) {
+        const href = hrefs[i];
+        if (this.cache.has(href) && this.cache.get(href)) return this.cache.get(href);
+        if (this.cache.has(href) && this.cache.get(href) === null) continue;
+        try {
+          const res = await fetch(href);
+          if (!res.ok) {
+            this.cache.set(href, null);
+            continue;
+          }
+          if (!this.ctx) await this.unlock();
+          const raw = await res.arrayBuffer();
+          const view = new Uint8Array(raw);
+          if (raw.byteLength < 8 || view[0] !== 0x4f) {
+            this.cache.set(href, null);
+            continue;
+          }
+          const buf = await this.ctx.decodeAudioData(raw.slice(0));
+          this.cache.set(href, buf);
+          const slash = href.lastIndexOf("/") + 1;
+          this.base = href.slice(0, slash);
+          this.persistBase();
+          return buf;
+        } catch (e) {
           this.cache.set(href, null);
-          if (!quiet) this.log("Hiányzik: " + href, true);
-          return null;
         }
-        if (!this.ctx) await this.unlock();
-        const raw = await res.arrayBuffer();
-        const buf = await this.ctx.decodeAudioData(raw.slice(0));
-        this.cache.set(href, buf);
-        return buf;
-      } catch (e) {
-        this.cache.set(href, null);
-        if (!quiet) this.log("Nem játszható: " + href, true);
-        return null;
       }
+      if (!quiet) this.log("Hiányzik: " + name, true);
+      return null;
     }
 
-    /**
-     * @param {string[]} files
-     * @param {{ interrupt?: boolean }} [opts]
-     */
     async enqueue(files, opts) {
       const interrupt = !opts || opts.interrupt !== false;
       if (!(await this.unlock())) return false;
@@ -446,7 +441,7 @@
         }
       }
       if (!buffers.length) {
-        this.log("Nincs .ogg itt: " + this.url(files[0] || "and_then_exit_left_100.ogg"), true);
+        this.log("Nincs lejátszható .ogg: " + (files[0] || PROBE), true);
         return false;
       }
       this.queue = played.slice();
@@ -455,9 +450,6 @@
       return true;
     }
 
-    /**
-     * @param {AudioBuffer[]} buffers
-     */
     schedule(buffers) {
       if (!this.ctx || !this.gain) return;
       let t = this.ctx.currentTime + 0.02;
@@ -477,26 +469,22 @@
       });
     }
 
-    /**
-     * @param {string} key
-     */
     async playPhrase(key) {
       const phrase = PHRASES[key];
       if (!phrase) {
         this.log("Nincs ilyen utasítás: " + key, true);
         return;
       }
-      if (!this.inventory.size) await this.findSounds();
+      if (!this.inventory.size) {
+        this.findSounds().catch(() => {});
+      }
 
       const files = [];
       if (phrase.stem) {
         const picked = this.pickFromStem(phrase.stem, phrase.prefer);
         if (picked) files.push(picked);
-      }
-      if (!files.length && phrase.files) {
-        phrase.files.forEach((f) => {
-          if (this.known(f)) files.push(f);
-        });
+      } else if (phrase.files && phrase.files.length) {
+        files.push.apply(files, phrase.files.filter((f) => this.known(f)));
       }
 
       if (!files.length) {
@@ -507,10 +495,6 @@
       if (!ok) this.fallback(TTS[key] || "");
     }
 
-    /**
-     * @param {{ text: string }} copy
-     * @param {number} until
-     */
     async announceTurn(copy, until) {
       const text = String(copy && copy.text ? copy.text : "");
       if (/Megérkezt/i.test(text)) return this.playPhrase("finish");
@@ -519,40 +503,22 @@
       if (maneuver === "start" || maneuver === "finish") return this.playPhrase(maneuver);
 
       const stem = packStem(maneuver);
+      const distText =
+        (until >= 1000
+          ? Math.round(until / 100) / 10 + " kilométer, "
+          : Math.max(20, Math.round(until / 10) * 10) + " méter, ") +
+        text.toLowerCase() +
+        ".";
       if (!stem) {
-        this.fallback(
-          (until >= 1000
-            ? Math.round(until / 100) / 10 + " kilométer, "
-            : Math.max(20, Math.round(until / 10) * 10) + " méter, ") +
-            text.toLowerCase() +
-            "."
-        );
+        this.fallback(distText);
         return;
       }
 
-      if (!this.inventory.size) await this.findSounds();
       const d = distBucket(until);
       const picked = this.pickFromStem(stem, String(d));
-      if (!picked) {
-        this.fallback(
-          (until >= 1000
-            ? Math.round(until / 100) / 10 + " kilométer, "
-            : Math.max(20, Math.round(until / 10) * 10) + " méter, ") +
-            text.toLowerCase() +
-            "."
-        );
-        return;
-      }
-
       const buf = await this.loadFile(picked, true);
       if (!buf) {
-        this.fallback(
-          (until >= 1000
-            ? Math.round(until / 100) / 10 + " kilométer, "
-            : Math.max(20, Math.round(until / 10) * 10) + " méter, ") +
-            text.toLowerCase() +
-            "."
-        );
+        this.fallback(distText);
         return;
       }
       this.log("Menet: " + picked);
@@ -573,19 +539,16 @@
     }
 
     hasPack() {
-      return this.inventory.size > 0;
+      return this.inventory.size > 0 || this.base === CDN || this.base === RAW;
     }
   }
 
   const api = {
-    BASE,
+    BASE: CDN,
     PHRASES,
     AudioManager,
     /** @type {AudioManager|null} */
     instance: null,
-    /**
-     * @param {{ onLog?: (msg: string, err?: boolean) => void, onFallback?: (text: string) => void }} [opts]
-     */
     init(opts) {
       api.instance = new AudioManager(opts);
       return api.instance.findSounds().then(() => api.instance);

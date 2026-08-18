@@ -817,21 +817,22 @@
     const voiceFind = $("voiceFind");
     const voiceBase = $("voiceBase");
     if (voiceBase && window.NavVoice && window.NavVoice.instance) {
-      voiceBase.value = window.NavVoice.instance.base || "/hungary_jf/";
-    } else if (voiceBase) {
-      voiceBase.value = "/hungary_jf/";
-    }
-    function applyVoiceBase(nv) {
-      if (!voiceBase) return;
-      const next = String(voiceBase.value || "").trim();
-      if (next) nv.setBase(next);
+      voiceBase.value = window.NavVoice.instance.base || "";
     }
     if (voiceFind) {
       voiceFind.addEventListener("click", () => {
         const nv = navVoice();
         if (!nv) return setStatus("A hangmodul nem töltődött be.", true);
-        applyVoiceBase(nv);
-        nv.findSounds();
+        const typed = voiceBase ? String(voiceBase.value || "").trim() : "";
+        const isAuto =
+          !typed ||
+          typed === "automatikus" ||
+          typed === "/hungary_jf/" ||
+          typed === "/navigacio/hungary_jf/";
+        if (!isAuto) nv.setBase(typed);
+        nv.findSounds().then(() => {
+          if (voiceBase && nv.base) voiceBase.value = nv.base;
+        });
       });
     }
     if (voiceStart) {
