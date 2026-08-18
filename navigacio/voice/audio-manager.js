@@ -1,106 +1,49 @@
 /**
  * Hangnavigáció — ETS2 .ogg mozaikok, lejátszási sor, autoplay-feloldás.
  *
- * Feltétel: a fájlok a webgyökér /hungary_jf/ mappában vannak,
- * pontos névvel, pl. /hungary_jf/and_then_exit_left_100.ogg
+ * A feltöltött csomag (hungary_jf) jelenleg csak két szótőt tartalmaz:
+ *   and_then_exit_left_*.ogg  (479)
+ *   and_then_exit_right_*.ogg (219)
+ * start / finish / recomputing nincs — azokra TTS megy.
  *
- * Használat:
- *   await NavVoice.init({ onLog });
- *   await NavVoice.instance.start();          // Indító gomb
- *   await NavVoice.instance.playPhrase("left-100");
+ * Amíg a GitHub Pages a main ágat szolgálja ki, a fájlok CDN-ről
+ * (jsDelivr / raw.githubusercontent) töltődnek. Merge után /hungary_jf/ is él.
  */
 (function (global) {
   "use strict";
 
-  /** Webes gyökér, ahogy kérted. */
-  const BASE = "/hungary_jf/";
+  const PAGES_BASE = "/hungary_jf/";
+  const BRANCH = "cursor/terkep-navigacio-925b";
+  const REPO = "reiko1866-ui/reiko1866-ui.github.io";
+  const CDN_BRANCH =
+    "https://cdn.jsdelivr.net/gh/" + REPO + "@" + BRANCH + "/hungary_jf/";
+  const RAW_BRANCH =
+    "https://raw.githubusercontent.com/" + REPO + "/" + BRANCH + "/hungary_jf/";
+  const CDN_MAIN = "https://cdn.jsdelivr.net/gh/" + REPO + "@main/hungary_jf/";
+  const BASE = PAGES_BASE;
   const BASE_KEY = "nav2_voice_base";
   const GAP = 0.03;
-  const DISTS = ["", "_50", "_100", "_200", "_300", "_500", "_800", "_1000", "_2000"];
-  const STEMS = [
-    "start",
-    "finish",
-    "recomputing",
-    "u_turn",
-    "go_straight",
-    "turn_left",
-    "turn_right",
-    "keep_left",
-    "keep_right",
-    "exit_left",
-    "exit_right",
-    "exit_now",
-    "speed_warning",
-    "speed_signal",
-    "roundabout_1",
-    "roundabout_2",
-    "roundabout_3",
-    "roundabout_4",
-    "roundabout_5",
-    "roundabout_6",
-    "prepare_turn_left",
-    "prepare_turn_right",
-    "prepare_exit_left",
-    "prepare_exit_right",
-    "compound_turn_left",
-    "compound_turn_right",
-    "compound_keep_left",
-    "compound_keep_right",
-    "compound_exit_left",
-    "compound_exit_right",
-    "compound_go_straight",
-    "and_then_turn_left",
-    "and_then_turn_right",
-    "and_then_keep_left",
-    "and_then_keep_right",
-    "and_then_exit_left",
-    "and_then_exit_right",
-    "and_then_go_straight"
-  ];
 
-  function catalog() {
-    const files = ["50.ogg", "100.ogg", "200.ogg", "300.ogg", "500.ogg", "800.ogg", "1000.ogg", "2000.ogg"];
-    STEMS.forEach((stem) => {
-      DISTS.forEach((d) => files.push(stem + d + ".ogg"));
-    });
-    return files;
-  }
+  const LEFT_STEM = "and_then_exit_left";
+  const RIGHT_STEM = "and_then_exit_right";
 
   /**
-   * Pontos fájlnevek. `prefer`: egyben; ha nincs, `mosaic` megy a sorba.
-   * @typedef {{ prefer?: string, mosaic: string[] }} Phrase
-   * @type {Record<string, Phrase>}
+   * Pontos fájlnevek. `stem` + `prefer`: a feltöltött csomag számozott változatai.
+   * Ha nincs egyezés, véletlen fájl ugyanabból a szótőből.
+   * @typedef {{ stem?: string, prefer?: string, files?: string[] }} Phrase
    */
   const PHRASES = {
-    start: { mosaic: ["start.ogg"] },
-    finish: { mosaic: ["finish.ogg"] },
-    recomputing: { mosaic: ["recomputing.ogg"] },
-    "left-100": {
-      prefer: "turn_left_100.ogg",
-      mosaic: ["100.ogg", "turn_left.ogg"]
-    },
-    "right-500": {
-      prefer: "turn_right_500.ogg",
-      mosaic: ["500.ogg", "turn_right.ogg"]
-    },
-    "right-100": {
-      prefer: "turn_right_100.ogg",
-      mosaic: ["100.ogg", "turn_right.ogg"]
-    },
-    "left-500": {
-      prefer: "turn_left_500.ogg",
-      mosaic: ["500.ogg", "turn_left.ogg"]
-    },
-    "exit-left-100": {
-      prefer: "and_then_exit_left_100.ogg",
-      mosaic: ["100.ogg", "and_then_exit_left.ogg", "exit_left.ogg"]
-    },
-    "exit-right-100": {
-      prefer: "and_then_exit_right_100.ogg",
-      mosaic: ["100.ogg", "and_then_exit_right.ogg", "exit_right.ogg"]
-    },
-    straight: { mosaic: ["go_straight.ogg"] },
-    uTurn: { mosaic: ["u_turn.ogg"] }
+    start: { files: ["start.ogg"] },
+    finish: { files: ["finish.ogg"] },
+    recomputing: { files: ["recomputing.ogg"] },
+    "left-100": { stem: LEFT_STEM, prefer: "100" },
+    "right-500": { stem: RIGHT_STEM, prefer: "500" },
+    "right-100": { stem: RIGHT_STEM, prefer: "100" },
+    "left-500": { stem: LEFT_STEM, prefer: "500" },
+    "exit-left-100": { stem: LEFT_STEM, prefer: "100" },
+    "exit-right-100": { stem: RIGHT_STEM, prefer: "100" },
+    straight: { files: ["go_straight.ogg"] },
+    uTurn: { files: ["u_turn.ogg"] }
   };
 
   const MANEUVER_FILE = {
@@ -111,13 +54,13 @@
     "Élesen jobbra": "turn_right",
     "Élesen balra": "turn_left",
     "Fordulj vissza": "u_turn",
-    "Indulás": "start",
+    Indulás: "start",
     "Megérkeztél": "finish",
-    "Körforgalom": "roundabout_1",
+    Körforgalom: "roundabout_1",
     "Hajts ki": "exit_now",
     "Hajts fel": "keep_right",
     "Hajts le": "exit_right",
-    "Csatlakozz": "keep_right",
+    Csatlakozz: "keep_right",
     "Jobb elágazás": "keep_right",
     "Bal elágazás": "keep_left",
     "Haladj tovább": "go_straight"
@@ -153,9 +96,16 @@
     return 100;
   }
 
+  function packStem(maneuver) {
+    const s = String(maneuver || "");
+    if (/left|u_turn|roundabout/i.test(s)) return LEFT_STEM;
+    if (/right|exit_now/i.test(s)) return RIGHT_STEM;
+    return "";
+  }
+
   class AudioManager {
     /**
-     * @param {{ onLog?: (msg: string, err?: boolean) => void }} [opts]
+     * @param {{ onLog?: (msg: string, err?: boolean) => void, onFallback?: (text: string) => void }} [opts]
      */
     constructor(opts) {
       this.onLog = (opts && opts.onLog) || function () {};
@@ -165,13 +115,13 @@
       this.unlocked = false;
       /** @type {AudioBufferSourceNode[]} */
       this.sources = [];
-      /** @type {string[]} fájlnevek, amik még mennek */
+      /** @type {string[]} */
       this.queue = [];
       /** @type {Map<string, AudioBuffer|null>} */
       this.cache = new Map();
       this.started = false;
       this.base = BASE;
-      /** @type {Set<string>} minden megtalált .ogg ugyanabból a mappából */
+      /** @type {Set<string>} */
       this.inventory = new Set();
       try {
         const saved = localStorage.getItem(BASE_KEY);
@@ -185,11 +135,12 @@
     }
 
     /**
-     * @param {string} path  pl. /hungary_jf/ vagy https://pelda.hu/hungary_jf/
+     * @param {string} path
      */
     setBase(path) {
       let b = String(path || "").trim() || BASE;
       if (!/\/$/.test(b)) b += "/";
+      if (b === this.base) return;
       this.base = b;
       this.cache.clear();
       this.inventory = new Set();
@@ -211,9 +162,12 @@
       } catch (_e) {}
       return unique([
         this.base,
+        PAGES_BASE,
+        CDN_BRANCH,
+        RAW_BRANCH,
+        CDN_MAIN,
         new URL("hungary_jf/", here).href,
-        "/navigacio/hungary_jf/",
-        "/hungary_jf/"
+        "/navigacio/hungary_jf/"
       ]).map((b) => (/\/$/.test(b) ? b : b + "/"));
     }
 
@@ -223,48 +177,60 @@
       return this.base + fileName;
     }
 
+    persistBase() {
+      try {
+        localStorage.setItem(BASE_KEY, this.base);
+      } catch (_e) {}
+      api.BASE = this.base;
+    }
+
     /**
-     * Végignézi a lehetséges mappákat, gyors próbával (start/turn_left/finish).
      * @returns {Promise<string[]>}
      */
     async findSounds() {
       this.inventory = new Set();
       const bases = this.candidateBases();
-      const probes = ["start.ogg", "turn_left.ogg", "finish.ogg", "recomputing.ogg", "turn_left_100.ogg"];
+      const probes = [
+        "index.json",
+        "and_then_exit_left_100.ogg",
+        "and_then_exit_right_100.ogg"
+      ];
+
       for (let b = 0; b < bases.length; b++) {
         this.base = bases[b];
         this.log("Keresés: " + this.base);
-        const listed = await this.listDirectory();
+
+        const listed = await this.loadIndex();
         if (listed.length) {
           listed.forEach((f) => this.inventory.add(f));
-          this.log("Megvan " + listed.length + " hang itt: " + this.base);
+          this.persistBase();
+          this.logPackFound();
           return Array.from(this.inventory).sort();
         }
+
+        const dir = await this.listDirectory();
+        if (dir.length) {
+          dir.forEach((f) => this.inventory.add(f));
+          this.persistBase();
+          this.logPackFound();
+          return Array.from(this.inventory).sort();
+        }
+
         let hit = false;
         for (let i = 0; i < probes.length; i++) {
+          if (probes[i] === "index.json") continue;
           if (await this.exists(this.url(probes[i]))) {
             this.inventory.add(probes[i]);
             hit = true;
           }
         }
         if (hit) {
-          const names = catalog();
-          for (let i = 0; i < names.length; i += 8) {
-            const slice = names.slice(i, i + 8);
-            const hits = await Promise.all(
-              slice.map(async (f) => ((await this.exists(this.url(f))) ? f : null))
-            );
-            hits.forEach((f) => {
-              if (f) this.inventory.add(f);
-            });
-          }
-          this.log("Megvan " + this.inventory.size + " hang itt: " + this.base);
-          try {
-            localStorage.setItem(BASE_KEY, this.base);
-          } catch (_e) {}
+          this.persistBase();
+          this.logPackFound();
           return Array.from(this.inventory).sort();
         }
       }
+
       this.log(
         "A .ogg fájlok nincsenek a weben (404). Próbált: " +
           bases.join(" ") +
@@ -272,6 +238,40 @@
         true
       );
       return [];
+    }
+
+    logPackFound() {
+      const left = this.filesForStem(LEFT_STEM).length;
+      const right = this.filesForStem(RIGHT_STEM).length;
+      this.log(
+        "Megvan " +
+          this.inventory.size +
+          " hang itt: " +
+          this.base +
+          " (balra " +
+          left +
+          ", jobbra " +
+          right +
+          "). Start / cél / újratervezés: beszédszintetizátor."
+      );
+    }
+
+    /**
+     * @returns {Promise<string[]>}
+     */
+    async loadIndex() {
+      try {
+        const res = await fetch(this.base + "index.json", { cache: "no-store" });
+        if (!res.ok) return [];
+        const data = await res.json();
+        const list = Array.isArray(data) ? data : data && data.files;
+        if (!Array.isArray(list)) return [];
+        return list
+          .map((n) => String(n || "").replace(/^.*\//, ""))
+          .filter((n) => /\.ogg$/i.test(n));
+      } catch (_e) {
+        return [];
+      }
     }
 
     /**
@@ -299,8 +299,36 @@
 
     known(file) {
       const name = /\.ogg$/i.test(file) ? file : file + ".ogg";
-      if (!this.inventory.size) return true;
+      if (!this.inventory.size) return false;
       return this.inventory.has(name);
+    }
+
+    filesForStem(stem) {
+      const prefix = stem + "_";
+      const out = [];
+      this.inventory.forEach((name) => {
+        if (name.indexOf(prefix) === 0 && /\.ogg$/i.test(name)) out.push(name);
+      });
+      return out;
+    }
+
+    /**
+     * Előnyben a kért sorszám (pl. _100), különben véletlen ugyanabból a szótőből.
+     * @param {string} stem
+     * @param {string} [prefer]
+     * @returns {string}
+     */
+    pickFromStem(stem, prefer) {
+      if (prefer) {
+        const exact = stem + "_" + prefer + ".ogg";
+        if (this.known(exact)) return exact;
+      }
+      const matches = this.filesForStem(stem);
+      if (!matches.length) {
+        const bare = stem + ".ogg";
+        return this.known(bare) ? bare : "";
+      }
+      return matches[Math.floor(Math.random() * matches.length)];
     }
 
     /**
@@ -320,7 +348,7 @@
     }
 
     /**
-     * Indító gomb: feloldja az autoplay-t, lejátssza a start.ogg-et.
+     * Indító gomb: feloldja az autoplay-t. A csomagban nincs start.ogg.
      * @returns {Promise<boolean>}
      */
     async start() {
@@ -330,19 +358,18 @@
       if (!this.inventory.size) await this.findSounds();
       if (!this.inventory.size) {
         this.log(
-          "Nincs .ogg a weben. Tedd a fájlokat a navigacio/hungary_jf mappába, vagy a repo gyökerébe: hungary_jf/. Most a telefon hangja szól.",
+          "Nincs .ogg a weben. A fájlok a repo gyökerében: hungary_jf/. Most a telefon hangja szól.",
           true
         );
         this.fallback(TTS.start);
         return false;
       }
       this.log("Hang indítva. Forrás: " + this.base + " (" + this.inventory.size + " fájl)");
-      await this.playPhrase("start");
+      this.fallback(TTS.start);
       return true;
     }
 
     /**
-     * Autoplay tiltás feloldása (kötelező user gesztus).
      * @returns {Promise<boolean>}
      */
     async unlock() {
@@ -374,8 +401,8 @@
     }
 
     /**
-     * Pontos fájlnév betöltése. 404 / decode hiba → null, a sor megy tovább.
      * @param {string} file
+     * @param {boolean} [quiet]
      * @returns {Promise<AudioBuffer|null>}
      */
     async loadFile(file, quiet) {
@@ -401,13 +428,12 @@
     }
 
     /**
-     * Fájlnevek a sorba, egymás után, zökkenőmentesen.
      * @param {string[]} files
      * @param {{ interrupt?: boolean }} [opts]
      */
     async enqueue(files, opts) {
       const interrupt = !opts || opts.interrupt !== false;
-      if (!(await this.unlock())) return;
+      if (!(await this.unlock())) return false;
       if (interrupt) this.stop();
 
       const buffers = [];
@@ -420,7 +446,7 @@
         }
       }
       if (!buffers.length) {
-        this.log("Nincs .ogg itt: " + this.url(files[0] || "start.ogg"), true);
+        this.log("Nincs .ogg itt: " + this.url(files[0] || "and_then_exit_left_100.ogg"), true);
         return false;
       }
       this.queue = played.slice();
@@ -430,7 +456,6 @@
     }
 
     /**
-     * Bufferök időzítése az AudioContext óráján (nincs hézag a klipek között).
      * @param {AudioBuffer[]} buffers
      */
     schedule(buffers) {
@@ -461,24 +486,28 @@
         this.log("Nincs ilyen utasítás: " + key, true);
         return;
       }
-      if (phrase.prefer && this.known(phrase.prefer)) {
-        const one = await this.loadFile(phrase.prefer, true);
-        if (one) {
-          this.log("Lejátszás: " + phrase.prefer);
-          if (this.ctx) await this.ctx.resume();
-          this.stop();
-          this.queue = [phrase.prefer];
-          this.schedule([one]);
-          return;
-        }
+      if (!this.inventory.size) await this.findSounds();
+
+      const files = [];
+      if (phrase.stem) {
+        const picked = this.pickFromStem(phrase.stem, phrase.prefer);
+        if (picked) files.push(picked);
       }
-      const mosaic = phrase.mosaic.filter((f) => this.known(f));
-      const ok = await this.enqueue(mosaic.length ? mosaic : phrase.mosaic, { interrupt: true });
+      if (!files.length && phrase.files) {
+        phrase.files.forEach((f) => {
+          if (this.known(f)) files.push(f);
+        });
+      }
+
+      if (!files.length) {
+        this.fallback(TTS[key] || "");
+        return;
+      }
+      const ok = await this.enqueue(files, { interrupt: true });
       if (!ok) this.fallback(TTS[key] || "");
     }
 
     /**
-     * Menet közben: kanyar + távolság → pontos .ogg nevek.
      * @param {{ text: string }} copy
      * @param {number} until
      */
@@ -486,50 +515,50 @@
       const text = String(copy && copy.text ? copy.text : "");
       if (/Megérkezt/i.test(text)) return this.playPhrase("finish");
 
-      const stem = MANEUVER_FILE[text] || "go_straight";
-      if (stem === "start" || stem === "finish") return this.playPhrase(stem);
+      const maneuver = MANEUVER_FILE[text] || "go_straight";
+      if (maneuver === "start" || maneuver === "finish") return this.playPhrase(maneuver);
 
-      const d = distBucket(until);
-      const files = [
-        stem + "_" + d + ".ogg",
-        "and_then_" + stem + "_" + d + ".ogg",
-        "prepare_" + stem + "_" + d + ".ogg",
-        "compound_" + stem + "_" + d + ".ogg",
-        "prepare_" + stem + ".ogg",
-        "compound_" + stem + ".ogg",
-        "and_then_" + stem + ".ogg",
-        stem + ".ogg"
-      ];
-      if (until > 400) {
-        files.unshift("prepare_" + stem + "_" + d + ".ogg");
-        files.unshift("prepare_" + stem + ".ogg");
-      }
-
-      const unique = [];
-      files.forEach((f) => {
-        if (unique.indexOf(f) === -1) unique.push(f);
-      });
-
-      const bufs = [];
-      const names = [];
-      for (let i = 0; i < unique.length; i++) {
-        if (!this.known(unique[i])) continue;
-        const buf = await this.loadFile(unique[i], true);
-        if (buf) {
-          bufs.push(buf);
-          names.push(unique[i]);
-          break;
-        }
-      }
-      if (!bufs.length) {
-        this.log("Nincs .ogg ehhez: " + stem, true);
-        this.fallback((until >= 1000 ? Math.round(until / 100) / 10 + " kilométer, " : Math.max(20, Math.round(until / 10) * 10) + " méter, ") + text.toLowerCase() + ".");
+      const stem = packStem(maneuver);
+      if (!stem) {
+        this.fallback(
+          (until >= 1000
+            ? Math.round(until / 100) / 10 + " kilométer, "
+            : Math.max(20, Math.round(until / 10) * 10) + " méter, ") +
+            text.toLowerCase() +
+            "."
+        );
         return;
       }
-      this.log("Menet: " + names.join(" → "));
+
+      if (!this.inventory.size) await this.findSounds();
+      const d = distBucket(until);
+      const picked = this.pickFromStem(stem, String(d));
+      if (!picked) {
+        this.fallback(
+          (until >= 1000
+            ? Math.round(until / 100) / 10 + " kilométer, "
+            : Math.max(20, Math.round(until / 10) * 10) + " méter, ") +
+            text.toLowerCase() +
+            "."
+        );
+        return;
+      }
+
+      const buf = await this.loadFile(picked, true);
+      if (!buf) {
+        this.fallback(
+          (until >= 1000
+            ? Math.round(until / 100) / 10 + " kilométer, "
+            : Math.max(20, Math.round(until / 10) * 10) + " méter, ") +
+            text.toLowerCase() +
+            "."
+        );
+        return;
+      }
+      this.log("Menet: " + picked);
       this.stop();
-      this.queue = names.slice();
-      this.schedule(bufs);
+      this.queue = [picked];
+      this.schedule([buf]);
     }
 
     stop() {
@@ -555,11 +584,11 @@
     /** @type {AudioManager|null} */
     instance: null,
     /**
-     * @param {{ onLog?: (msg: string, err?: boolean) => void }} [opts]
+     * @param {{ onLog?: (msg: string, err?: boolean) => void, onFallback?: (text: string) => void }} [opts]
      */
     init(opts) {
       api.instance = new AudioManager(opts);
-      return Promise.resolve(api.instance);
+      return api.instance.findSounds().then(() => api.instance);
     }
   };
 

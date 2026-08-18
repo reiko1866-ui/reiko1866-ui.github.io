@@ -821,11 +821,16 @@
     } else if (voiceBase) {
       voiceBase.value = "/hungary_jf/";
     }
+    function applyVoiceBase(nv) {
+      if (!voiceBase) return;
+      const next = String(voiceBase.value || "").trim();
+      if (next) nv.setBase(next);
+    }
     if (voiceFind) {
       voiceFind.addEventListener("click", () => {
         const nv = navVoice();
         if (!nv) return setStatus("A hangmodul nem töltődött be.", true);
-        if (voiceBase) nv.setBase(voiceBase.value);
+        applyVoiceBase(nv);
         nv.findSounds();
       });
     }
@@ -833,7 +838,6 @@
       voiceStart.addEventListener("click", () => {
         const nv = navVoice();
         if (!nv) return setStatus("A hangmodul nem töltődött be.", true);
-        if (voiceBase) nv.setBase(voiceBase.value);
         nv.start();
       });
     }
