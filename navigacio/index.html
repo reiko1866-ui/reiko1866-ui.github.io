@@ -1,94 +1,159 @@
 <!DOCTYPE html>
 <html lang="hu">
 <head>
-  <meta charset="utf-8"/>
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
-  <meta name="theme-color" content="#f4f6f8"/>
-  <meta name="mobile-web-app-capable" content="yes"/>
-  <meta name="apple-mobile-web-app-capable" content="yes"/>
-  <meta name="apple-mobile-web-app-status-bar-style" content="default"/>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#3B82F6">
+  <meta name="color-scheme" content="light dark">
+  <meta name="description" content="Egyszerű magyar autósnavigáció.">
+  <meta name="format-detection" content="telephone=no">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Navigáció">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <title>Navigáció</title>
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
-  <link rel="stylesheet" href="style.css"/>
+  <style>
+    html, body { margin: 0; background: #0F172A; color: #E2E8F0; font-family: system-ui, sans-serif; }
+    #kezdolap { position: relative; height: 100dvh; min-height: 100vh; overflow: hidden; background: #0F172A; }
+    #map { position: absolute; inset: 0; }
+    #infoCard { position: absolute; top: 16px; left: 16px; z-index: 20; max-width: 22rem; padding: 10px 14px; border-radius: 16px; background: rgba(15, 23, 42, 0.72); color: #E2E8F0; }
+    #fabBar { position: fixed; right: 16px; bottom: 24px; z-index: 22; display: flex; flex-direction: column; gap: 6px; }
+    .fab { width: 44px; height: 44px; border: 0; border-radius: 50%; background: #3B82F6; color: #fff; font-size: 1.1rem; }
+    #status.is-err { color: #ff8a80; }
+  </style>
+  <link rel="manifest" href="./manifest.webmanifest">
+  <link rel="icon" href="./icons/icon-192.png" type="image/png">
+  <link rel="apple-touch-icon" href="./icons/apple-touch-icon.png">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/maplibre-gl@5.5.0/dist/maplibre-gl.css">
+  <link rel="stylesheet" href="./style.css">
 </head>
 <body>
-  <div class="app">
-    <aside class="sidebar" id="sidebar" aria-label="Navigációs panel">
-      <button type="button" class="sheet-handle" id="sheetHandle" aria-expanded="false" aria-controls="sidebar">
-        <span class="sheet-handle-bar" aria-hidden="true"></span>
-        <span class="visually-hidden">Panel kinyitása vagy becsukása</span>
-      </button>
+  <div id="app">
+    <section id="kezdolap">
+      <h1 class="sr-only">Kezdőlap</h1>
+      <div id="map" role="application" aria-label="Térkép"></div>
 
-      <header class="sidebar-header">
-        <h1>Navigáció</h1>
-        <button type="button" class="icon-btn" id="themeToggle" aria-pressed="false" title="Sötét mód">
-          <span class="theme-icon theme-icon-moon" aria-hidden="true">☾</span>
-          <span class="theme-icon theme-icon-sun" aria-hidden="true">☀</span>
-          <span class="visually-hidden">Világos / sötét téma</span>
-        </button>
-      </header>
-
-      <form class="search-form" id="searchForm" autocomplete="off">
-        <label class="field-label" for="addressInput">Célállomás címe</label>
-        <div class="search-row">
-          <input
-            id="addressInput"
-            name="address"
-            type="search"
-            inputmode="search"
-            placeholder="pl. Budapest, Váci út 1."
-            enterkeyhint="search"
-          />
-          <button type="submit" class="btn-primary" id="searchBtn">Keresés</button>
+      <section id="infoCard">
+        <div id="infoMain">
+          <p id="status" role="status">GPS indítása…</p>
+          <p id="destName">Cél —</p>
         </div>
-        <ul class="search-results" id="searchResults" hidden></ul>
-      </form>
-
-      <fieldset class="mode-fieldset">
-        <legend>Közlekedési mód</legend>
-        <div class="mode-switch" role="radiogroup" aria-label="Közlekedési mód">
-          <label class="mode-option">
-            <input type="radio" name="travelMode" value="driving" checked/>
-            <span>Autó</span>
-          </label>
-          <label class="mode-option">
-            <input type="radio" name="travelMode" value="biking"/>
-            <span>Kerékpár</span>
-          </label>
-          <label class="mode-option">
-            <input type="radio" name="travelMode" value="foot"/>
-            <span>Gyalogos</span>
-          </label>
-        </div>
-      </fieldset>
-
-      <section class="route-card" id="routeCard" hidden>
-        <p class="route-label">Útvonal</p>
-        <p class="route-destination" id="routeDestination">—</p>
-        <div class="route-metrics">
-          <div>
-            <span class="metric-value" id="routeDistance">—</span>
-            <span class="metric-label">távolság</span>
-          </div>
-          <div>
-            <span class="metric-value" id="routeDuration">—</span>
-            <span class="metric-label">időtartam</span>
-          </div>
+        <div id="weather" hidden>
+          <span id="weatherIcon" aria-hidden="true">☁️</span>
+          <strong id="weatherTemp">—</strong>
         </div>
       </section>
 
-      <p class="status" id="statusText">GPS indítása…</p>
+      <form id="searchForm" hidden autocomplete="off">
+        <label class="sr-only" for="q">Cél</label>
+        <input id="q" type="search" name="q" placeholder="Hova mész?" enterkeyhint="search" inputmode="search" spellcheck="false" autocapitalize="off">
+        <button type="submit" id="go">Menj</button>
+      </form>
+      <ul id="results" hidden></ul>
+
+      <div id="banner" hidden aria-live="assertive">
+        <div id="turnIcon" aria-hidden="true">↑</div>
+        <div id="turnCopy">
+          <p id="turnDist">—</p>
+          <p id="turnText">—</p>
+          <p id="turnStreet"></p>
+        </div>
+      </div>
+
+      <div id="speed" hidden aria-live="off">
+        <strong id="kmh">0</strong>
+        <span>km/h</span>
+      </div>
+
+      <footer id="trip" hidden>
+        <div><strong id="eta">—</strong><small>érkezés</small></div>
+        <div><strong id="remain">—</strong><small>idő</small></div>
+        <div><strong id="dist">—</strong><small>táv</small></div>
+        <button type="button" id="stop">Állj</button>
+      </footer>
+
+      <a class="peek nav-link" href="#funkciok">Funkciók ↓</a>
+    </section>
+
+    <section id="funkciok" class="page">
+      <h1>Funkciók</h1>
+      <ul>
+        <li>Magyar hang: „200 méter, fordulj jobbra.”</li>
+        <li>Letéréskor magától újratervez.</li>
+        <li>3D követő kamera, neonkék útvonal, kék kanyartábla.</li>
+        <li>Otthon és munka egy gombbal a menüből.</li>
+      </ul>
+    </section>
+
+    <section id="Ajanlatok" class="page">
+      <h1>Ajánlatok</h1>
+      <ul>
+        <li>Ingyenes. Nincs fiók, nincs hirdetés.</li>
+        <li>Telepíthető a telefonra, mint app.</li>
+        <li>Autópálya vagy fizetős út elkerülése a menüből.</li>
+      </ul>
+    </section>
+
+    <section id="kapcsolat" class="page">
+      <h1>Kapcsolat</h1>
+      <p>A navigáció a telefonodon fut, nincs szerveres ügyfélszolgálat.</p>
+      <p>Hosszú nyomás a térképen: cél. A ☰ menüből éred el az Otthont, a Munkát és a térkép beállításait.</p>
+    </section>
+
+    <div id="fabBar">
+      <button type="button" id="searchBtn" class="fab" title="Kereső" aria-pressed="false">⌕</button>
+      <button type="button" id="follow" class="fab is-on" title="Pozíció" aria-pressed="true">⌖</button>
+      <button type="button" id="hamburgerBtn" class="fab" title="Menü" aria-expanded="false" aria-controls="mobileDrawer">☰</button>
+    </div>
+    <div id="drawerOverlay"></div>
+    <aside id="mobileDrawer" role="dialog" aria-labelledby="drawerTitle">
+      <header>
+        <strong id="drawerTitle">Menü</strong>
+        <button type="button" id="closeBtn">Bezár</button>
+      </header>
+      <nav class="drawer-nav">
+        <a class="nav-link mobile-link" href="#kezdolap">Kezdőlap</a>
+        <a class="nav-link mobile-link" href="#funkciok">Funkciók</a>
+        <a class="nav-link mobile-link" href="#Ajanlatok">Ajánlatok</a>
+        <a class="nav-link mobile-link" href="#kapcsolat">Kapcsolat</a>
+      </nav>
+      <p class="hint">Hosszú nyomás a térképen: cél.</p>
+      <div class="row">
+        <button type="button" id="homeGo">Otthon</button>
+        <button type="button" id="workGo">Munka</button>
+      </div>
+      <div class="row">
+        <button type="button" id="homeSet">Otthon = cél</button>
+        <button type="button" id="workSet">Munka = cél</button>
+      </div>
+      <label class="check"><input type="checkbox" id="avoidMotorway"> Autópálya elkerülése</label>
+      <label class="check"><input type="checkbox" id="avoidToll"> Fizetős utak elkerülése</label>
+      <label class="check"><input type="checkbox" id="voiceCheck" checked> Hang</label>
+      <label class="check"><input type="checkbox" id="dark"> Sötét térkép</label>
+      <div id="voiceTest">
+        <p class="hint">A tesztgomb a kattintásra azonnal szól (Android: ogg, iPhone: mp3).</p>
+        <input id="voiceBase" type="text" spellcheck="false" placeholder="automatikus" hidden>
+        <button type="button" id="voiceFind">Hangok keresése</button>
+        <button type="button" id="voiceStart">Hang indítása</button>
+        <div class="row">
+          <button type="button" data-voice="left-100">Balra 100m</button>
+          <button type="button" data-voice="right-500">Jobbra 500m</button>
+        </div>
+        <div class="row">
+          <button type="button" data-voice="exit-left-100">Majd balra le 100m</button>
+          <button type="button" data-voice="recomputing">Újratervezés</button>
+        </div>
+        <div class="row">
+          <button type="button" data-voice="finish">Megérkeztél</button>
+        </div>
+        <p id="voiceLog">Nyomd meg: Hang indítása</p>
+      </div>
     </aside>
-
-    <div id="map" role="application" aria-label="Térkép"></div>
-
-    <button type="button" class="fab fab-follow is-active" id="followBtn" aria-pressed="true" title="Kövesse a pozíciómat">
-      ⌖
-      <span class="visually-hidden">Pozíció követése</span>
-    </button>
   </div>
 
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
-  <script src="app.js"></script>
+  <noscript>A navigációhoz JavaScript kell.</noscript>
+  <audio id="navVoiceEl" playsinline preload="auto"></audio>
+  <script src="./voice/audio-manager.js"></script>
+  <script src="./app.js"></script>
 </body>
 </html>
