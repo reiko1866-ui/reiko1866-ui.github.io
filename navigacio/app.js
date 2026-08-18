@@ -771,12 +771,16 @@
     if ($("voiceCheck")) $("voiceCheck").checked = state.voice;
     state.map = new maplibregl.Map({
       container: "map",
-      style: dark ? STYLES.dark : STYLES.light,
+      style: STYLES.dark,
       center: BUDAPEST,
       zoom: 13.5,
       pitch: 50,
       maxPitch: 75,
       attributionControl: true
+    });
+    state.map.on("error", (e) => {
+      const msg = e && e.error && (e.error.message || e.error.statusText);
+      if (msg) setStatus("Térkép: " + msg, true);
     });
     state.map.on("load", addLayers);
     state.map.on("style.load", addLayers);
@@ -898,18 +902,39 @@
     });
   }
 
-  loadPlaces();
-  try {
-    initMap();
-  } catch (err) {
-    setStatus("Térkép hiba: " + (err && err.message ? err.message : err), true);
+  function loadMapLibre() {
+    const cssHref = "https://cdn.jsdelivr.net/npm/maplibre-gl@5.5.0/dist/maplibre-gl.css";
+    const jsHrefs = [
+      "https://cdn.jsdelivr.net/npm/maplibre-gl@5.5.0/dist/maplibre-gl.js",
+      "https://unpkg.com/maplibre-gl@5.5.0/dist/maplibre-gl.js"
+    ];
+    if (!document.querySelector("link[data-maplibre]")) {
+      const css = document.createElement("link");
+      css.rel = "stylesheet";
+      css.href = cssHref;
+      css.setAttribute("data-maplibre", "1");
+      document.head.appendChild(css);
+    }
+    if (window.maplibregl) return Promise.resolve();
+    return new Promise((resolve, reject) => {
+      let i = 0;
+      function next() {
+        if (window.maplibregl) return resolve();
+        if (i >= jsHrefs.length) return reject(new Error("A térképkönyvtár nem elérhető."));
+        const s = document.createElement("script");
+        s.src = jsHrefs[i++];
+        s.onload = function () {
+          window.maplibregl ? resolve() : next();
+        };
+        s.onerror = next;
+        document.head.appendChild(s);
+      }
+      next();
+    });
   }
-  try {
-    bind();
-  } catch (err) {
-    console.error("[nav] bind", err);
-  }
-  if (window.NavVoice) {
+
+  function initVoice() {
+    if (!window.NavVoice) return;
     window.NavVoice.init({
       onLog(line, isError) {
         const el = $("voiceLog");
@@ -933,14 +958,36 @@
       if (el && mgr && mgr.base) el.value = mgr.base;
     }).catch((err) => console.warn("[NavVoice] init", err));
   }
-  if (!navigator.geolocation) setStatus("Nincs GPS ebben a böngészőben.", true);
-  else {
-    const opts = { enableHighAccuracy: true, maximumAge: 1000, timeout: 12000 };
-    navigator.geolocation.getCurrentPosition(onPos, (e) => setStatus(e.message || "GPS hiba", true), opts);
-    navigator.geolocation.watchPosition(onPos, () => {}, opts);
+
+  function initGps() {
+    if (!navigator.geolocation) setStatus("Nincs GPS ebben a böngészőben.", true);
+    else {
+      const opts = { enableHighAccuracy: true, maximumAge: 1000, timeout: 12000 };
+      navigator.geolocation.getCurrentPosition(onPos, (e) => setStatus(e.message || "GPS hiba", true), opts);
+      navigator.geolocation.watchPosition(onPos, () => {}, opts);
+    }
+    if (window.speechSynthesis) window.speechSynthesis.getVoices();
+    if ("serviceWorker" in navigator && location.hostname === "reiko1866-ui.github.io") {
+      navigator.serviceWorker.register("./sw.js").catch(() => {});
+    }
   }
-  if (window.speechSynthesis) window.speechSynthesis.getVoices();
-  if ("serviceWorker" in navigator && location.hostname === "reiko1866-ui.github.io") {
-    navigator.serviceWorker.register("./sw.js").catch(() => {});
+
+  function boot() {
+    loadPlaces();
+    loadMapLibre()
+      .then(() => {
+        initMap();
+        bind();
+        initVoice();
+        initGps();
+      })
+      .catch((err) => {
+        setStatus(err && err.message ? err.message : "A térkép nem töltődött be.", true);
+        try {
+          bind();
+        } catch (_e) {}
+      });
   }
+
+  boot();
 })();

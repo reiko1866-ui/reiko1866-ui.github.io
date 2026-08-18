@@ -2,15 +2,6 @@
 <html lang="hu">
 <head>
   <meta charset="utf-8">
-  <script>
-  (function () {
-    var host = location.hostname;
-    if (host === "reiko1866-ui.github.io" || host === "localhost" || host === "127.0.0.1") return;
-    var b = document.createElement("base");
-    b.href = "https://cdn.jsdelivr.net/gh/reiko1866-ui/reiko1866-ui.github.io@cursor%2Fterkep-navigacio-925b/navigacio/";
-    document.head.appendChild(b);
-  })();
-  </script>
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#3B82F6">
   <meta name="color-scheme" content="light dark">
@@ -34,7 +25,7 @@
   <link rel="icon" href="./icons/icon-192.png" type="image/png">
   <link rel="apple-touch-icon" href="./icons/apple-touch-icon.png">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/maplibre-gl@5.5.0/dist/maplibre-gl.css">
-  <link rel="stylesheet" href="./style.css?v=16">
+  <link rel="stylesheet" href="./style.css">
 </head>
 <body>
   <div id="app">
@@ -162,8 +153,7 @@
 
   <noscript>A navigációhoz JavaScript kell.</noscript>
   <audio id="navVoiceEl" playsinline preload="auto"></audio>
-  <script src="https://cdn.jsdelivr.net/npm/maplibre-gl@5.5.0/dist/maplibre-gl.js"></script>
-  <script src="./voice/audio-manager.js?v=16"></script>
-  <script src="./app.js?v=16"></script>
+  <script src="./voice/audio-manager.js"></script>
+  <script src="./app.js"></script>
 </body>
 </html>
