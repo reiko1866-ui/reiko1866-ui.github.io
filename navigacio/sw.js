@@ -1,4 +1,4 @@
-const CACHE = "nav-4d-v9";
+const CACHE = "nav-v1";
 const CORE = [
   "./",
   "./index.html",
@@ -28,8 +28,7 @@ self.addEventListener("fetch", (event) => {
   const req = event.request;
   if (req.method !== "GET") return;
   const url = new URL(req.url);
-  const local = url.origin === self.location.origin;
-  if (!local) return;
+  if (url.origin !== self.location.origin) return;
   event.respondWith(
     fetch(req)
       .then((res) => {
