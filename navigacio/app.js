@@ -836,7 +836,8 @@
       });
     }
     if (voiceStart) {
-      voiceStart.addEventListener("click", () => {
+      voiceStart.addEventListener("click", (ev) => {
+        ev.preventDefault();
         const nv = navVoice();
         if (!nv) return setStatus("A hangmodul nem töltődött be.", true);
         nv.start();
@@ -852,7 +853,8 @@
       speak("Hang be.");
     });
     document.querySelectorAll("[data-voice]").forEach((btn) => {
-      btn.addEventListener("click", () => {
+      btn.addEventListener("click", (ev) => {
+        ev.preventDefault();
         const nv = navVoice();
         const key = btn.getAttribute("data-voice");
         if (nv) nv.playPhrase(key);

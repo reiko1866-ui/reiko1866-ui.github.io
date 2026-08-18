@@ -17,6 +17,7 @@
   <link rel="apple-touch-icon" href="./icons/apple-touch-icon.png">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/maplibre-gl@5.5.0/dist/maplibre-gl.css">
   <link rel="stylesheet" href="./style.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/reiko1866-ui/reiko1866-ui.github.io@cursor%2Fterkep-navigacio-925b/navigacio/style.css">
 </head>
 <body>
   <div id="app">
@@ -122,8 +123,8 @@
       <label class="check"><input type="checkbox" id="voiceCheck" checked> Hang</label>
       <label class="check"><input type="checkbox" id="dark"> Sötét térkép</label>
       <div id="voiceTest">
-        <p class="hint">A hangok a feltöltött csomagból jönnek (CDN, amíg nincs merge a mainre).</p>
-        <input id="voiceBase" type="text" spellcheck="false" placeholder="automatikus">
+        <p class="hint">A tesztgomb a kattintásra azonnal szól (Android: ogg, iPhone: mp3).</p>
+        <input id="voiceBase" type="text" spellcheck="false" placeholder="automatikus" hidden>
         <button type="button" id="voiceFind">Hangok keresése</button>
         <button type="button" id="voiceStart">Hang indítása</button>
         <div class="row">
@@ -137,14 +138,33 @@
         <div class="row">
           <button type="button" data-voice="finish">Megérkeztél</button>
         </div>
-        <p id="voiceLog">Hangok keresése…</p>
+        <p id="voiceLog">Nyomd meg: Hang indítása</p>
       </div>
     </aside>
   </div>
 
   <noscript>A navigációhoz JavaScript kell.</noscript>
+  <audio id="navVoiceEl" playsinline preload="auto"></audio>
   <script src="https://cdn.jsdelivr.net/npm/maplibre-gl@5.5.0/dist/maplibre-gl.js"></script>
-  <script src="./voice/audio-manager.js"></script>
-  <script src="./app.js"></script>
+  <script>
+  (function () {
+    var CDN = "https://cdn.jsdelivr.net/gh/reiko1866-ui/reiko1866-ui.github.io@cursor%2Fterkep-navigacio-925b/navigacio/";
+    function add(src) {
+      return new Promise(function (resolve, reject) {
+        var s = document.createElement("script");
+        s.src = src;
+        s.onload = resolve;
+        s.onerror = reject;
+        document.body.appendChild(s);
+      });
+    }
+    function chain(local, name) {
+      return add(local).catch(function () { return add(CDN + name); });
+    }
+    chain("./voice/audio-manager.js", "voice/audio-manager.js")
+      .then(function () { return chain("./app.js", "app.js"); })
+      .catch(function (err) { console.error("[nav] script", err); });
+  })();
+  </script>
 </body>
 </html>
