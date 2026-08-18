@@ -2,10 +2,10 @@
   "counts": {
     "left": 98,
     "right": 117,
-    "other": 141,
+    "other": 139,
     "straight": 29,
     "uturn": 12,
-    "recompute": 14,
+    "recompute": 16,
     "roundabout": 25,
     "motorway": 27,
     "gps": 12,
@@ -345,7 +345,6 @@
       "and_then_exit_left_468.ogg",
       "and_then_exit_left_471.ogg",
       "and_then_exit_left_472.ogg",
-      "and_then_exit_left_476.ogg",
       "and_then_exit_left_479.ogg",
       "and_then_exit_left_481.ogg",
       "and_then_exit_left_482.ogg",
@@ -354,7 +353,6 @@
       "and_then_exit_left_488.ogg",
       "and_then_exit_left_489.ogg",
       "and_then_exit_left_492.ogg",
-      "and_then_exit_left_498.ogg",
       "and_then_exit_left_50.ogg",
       "and_then_exit_left_500.ogg",
       "and_then_exit_left_51.ogg",
@@ -433,8 +431,10 @@
       "and_then_exit_left_334.ogg",
       "and_then_exit_left_338.ogg",
       "and_then_exit_left_349.ogg",
+      "and_then_exit_left_476.ogg",
       "and_then_exit_left_477.ogg",
-      "and_then_exit_left_48.ogg"
+      "and_then_exit_left_48.ogg",
+      "and_then_exit_left_498.ogg"
     ],
     "roundabout": [
       "and_then_exit_left_115.ogg",
