@@ -123,6 +123,28 @@
     "Haladj tovább": "go_straight"
   };
 
+  const TTS = {
+    start: "Hang kész.",
+    finish: "Megérkeztél.",
+    recomputing: "Újratervezés.",
+    "left-100": "100 méter, fordulj balra.",
+    "right-500": "500 méter, fordulj jobbra.",
+    "right-100": "100 méter, fordulj jobbra.",
+    "left-500": "500 méter, fordulj balra.",
+    "exit-left-100": "100 méter, hajts le balra.",
+    "exit-right-100": "100 méter, hajts le jobbra.",
+    straight: "Haladj tovább.",
+    uTurn: "Fordulj vissza."
+  };
+
+  function unique(list) {
+    const out = [];
+    list.forEach((x) => {
+      if (x && out.indexOf(x) === -1) out.push(x);
+    });
+    return out;
+  }
+
   function distBucket(m) {
     if (m >= 1500) return 2000;
     if (m >= 750) return 1000;
@@ -137,6 +159,7 @@
      */
     constructor(opts) {
       this.onLog = (opts && opts.onLog) || function () {};
+      this.onFallback = (opts && opts.onFallback) || null;
       this.ctx = null;
       this.gain = null;
       this.unlocked = false;
@@ -177,6 +200,23 @@
       this.log("Útvonal: " + this.base);
     }
 
+    fallback(text) {
+      if (text && this.onFallback) this.onFallback(text);
+    }
+
+    candidateBases() {
+      let here = "./";
+      try {
+        here = new URL("./", document.baseURI).href;
+      } catch (_e) {}
+      return unique([
+        this.base,
+        new URL("hungary_jf/", here).href,
+        "/navigacio/hungary_jf/",
+        "/hungary_jf/"
+      ]).map((b) => (/\/$/.test(b) ? b : b + "/"));
+    }
+
     url(file) {
       const name = String(file || "").replace(/^\//, "");
       const fileName = /\.ogg$/i.test(name) ? name : name + ".ogg";
@@ -184,35 +224,54 @@
     }
 
     /**
-     * Ugyanabban a mappában keresi az összes .ogg-et.
-     * Először mappalistát próbál, ha nincs, a teljes ETS2 névsort.
+     * Végignézi a lehetséges mappákat, gyors próbával (start/turn_left/finish).
      * @returns {Promise<string[]>}
      */
     async findSounds() {
-      this.log("Keresés ugyanitt: " + this.base);
       this.inventory = new Set();
-      const listed = await this.listDirectory();
-      if (listed.length) {
-        listed.forEach((f) => this.inventory.add(f));
-      } else {
-        const names = catalog();
-        for (let i = 0; i < names.length; i += 8) {
-          const slice = names.slice(i, i + 8);
-          const hits = await Promise.all(
-            slice.map(async (f) => ((await this.exists(this.url(f))) ? f : null))
-          );
-          hits.forEach((f) => {
-            if (f) this.inventory.add(f);
-          });
+      const bases = this.candidateBases();
+      const probes = ["start.ogg", "turn_left.ogg", "finish.ogg", "recomputing.ogg", "turn_left_100.ogg"];
+      for (let b = 0; b < bases.length; b++) {
+        this.base = bases[b];
+        this.log("Keresés: " + this.base);
+        const listed = await this.listDirectory();
+        if (listed.length) {
+          listed.forEach((f) => this.inventory.add(f));
+          this.log("Megvan " + listed.length + " hang itt: " + this.base);
+          return Array.from(this.inventory).sort();
+        }
+        let hit = false;
+        for (let i = 0; i < probes.length; i++) {
+          if (await this.exists(this.url(probes[i]))) {
+            this.inventory.add(probes[i]);
+            hit = true;
+          }
+        }
+        if (hit) {
+          const names = catalog();
+          for (let i = 0; i < names.length; i += 8) {
+            const slice = names.slice(i, i + 8);
+            const hits = await Promise.all(
+              slice.map(async (f) => ((await this.exists(this.url(f))) ? f : null))
+            );
+            hits.forEach((f) => {
+              if (f) this.inventory.add(f);
+            });
+          }
+          this.log("Megvan " + this.inventory.size + " hang itt: " + this.base);
+          try {
+            localStorage.setItem(BASE_KEY, this.base);
+          } catch (_e) {}
+          return Array.from(this.inventory).sort();
         }
       }
-      const found = Array.from(this.inventory).sort();
-      if (found.length) {
-        this.log("Ugyanebben a mappában megvan " + found.length + " hang.");
-      } else {
-        this.log("A mappában most nincs elérhető .ogg (404 vagy CORS).", true);
-      }
-      return found;
+      this.log(
+        "A .ogg fájlok nincsenek a weben (404). Próbált: " +
+          bases.join(" ") +
+          " — a gombok most a telefon magyar hangját használják.",
+        true
+      );
+      return [];
     }
 
     /**
@@ -269,6 +328,14 @@
       if (!ok) return false;
       this.started = true;
       if (!this.inventory.size) await this.findSounds();
+      if (!this.inventory.size) {
+        this.log(
+          "Nincs .ogg a weben. Tedd a fájlokat a navigacio/hungary_jf mappába, vagy a repo gyökerébe: hungary_jf/. Most a telefon hangja szól.",
+          true
+        );
+        this.fallback(TTS.start);
+        return false;
+      }
       this.log("Hang indítva. Forrás: " + this.base + " (" + this.inventory.size + " fájl)");
       await this.playPhrase("start");
       return true;
@@ -353,12 +420,13 @@
         }
       }
       if (!buffers.length) {
-        this.log("A sor üres: egyik fájl sem tölthető.", true);
-        return;
+        this.log("Nincs .ogg itt: " + this.url(files[0] || "start.ogg"), true);
+        return false;
       }
       this.queue = played.slice();
       this.schedule(buffers);
       this.log("Sor: " + played.join(" → "));
+      return true;
     }
 
     /**
@@ -405,7 +473,8 @@
         }
       }
       const mosaic = phrase.mosaic.filter((f) => this.known(f));
-      await this.enqueue(mosaic.length ? mosaic : phrase.mosaic, { interrupt: true });
+      const ok = await this.enqueue(mosaic.length ? mosaic : phrase.mosaic, { interrupt: true });
+      if (!ok) this.fallback(TTS[key] || "");
     }
 
     /**
@@ -453,7 +522,8 @@
         }
       }
       if (!bufs.length) {
-        this.log("Nincs hang ehhez ugyanabban a mappában: " + stem + "_" + d + ".ogg", true);
+        this.log("Nincs .ogg ehhez: " + stem, true);
+        this.fallback((until >= 1000 ? Math.round(until / 100) / 10 + " kilométer, " : Math.max(20, Math.round(until / 10) * 10) + " méter, ") + text.toLowerCase() + ".");
         return;
       }
       this.log("Menet: " + names.join(" → "));
@@ -474,7 +544,7 @@
     }
 
     hasPack() {
-      return this.inventory.size > 0 || this.unlocked;
+      return this.inventory.size > 0;
     }
   }
 

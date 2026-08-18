@@ -891,6 +891,17 @@
         if (!el) return;
         el.textContent = line;
         el.classList.toggle("is-err", !!isError);
+      },
+      onFallback(text) {
+        if (!state.voice || !text || !window.speechSynthesis) return;
+        window.speechSynthesis.cancel();
+        const u = new SpeechSynthesisUtterance(text);
+        u.lang = "hu-HU";
+        u.rate = 0.98;
+        const voices = window.speechSynthesis.getVoices();
+        const hu = voices.find((v) => String(v.lang || "").toLowerCase().startsWith("hu"));
+        if (hu) u.voice = hu;
+        window.speechSynthesis.speak(u);
       }
     }).then((mgr) => {
       const el = $("voiceBase");
