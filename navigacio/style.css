@@ -470,6 +470,7 @@ button {
 
 #app.is-nav #fabBar {
   bottom: calc(5.6rem + var(--safe-bottom));
+  z-index: 23;
 }
 
 .fab {
@@ -512,6 +513,10 @@ button {
   display: flex;
   flex-direction: column;
   gap: 0.7rem;
+  max-height: min(92dvh, 100%);
+  overflow-x: hidden;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
   padding: 1rem 1rem calc(1.1rem + var(--safe-bottom));
   border-radius: 18px 18px 0 0;
   background: var(--bg);
@@ -529,9 +534,15 @@ button {
 }
 
 #mobileDrawer header {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  margin: -1rem -1rem 0;
+  padding: 1rem 1rem 0.4rem;
   display: flex;
   align-items: center;
   justify-content: space-between;
+  background: var(--bg);
 }
 
 #closeBtn,
