@@ -258,6 +258,16 @@
         actionNow: cap(action)
       });
     }
+    if (type.includes("ferry")) {
+      const off = type.includes("exit") || mod.includes("off") || type.includes("end");
+      return Object.assign(base, {
+        cat: off ? "ferryOff" : "ferryOn",
+        icon: "⛴",
+        label: off ? "Hajts le a kompról" : "Hajts fel a kompra",
+        action: off ? "hajts le a kompról" : "hajts fel a kompra",
+        actionNow: off ? "Hajts le a kompról" : "Hajts fel a kompra"
+      });
+    }
     if (type.includes("on ramp") || type === "merge") {
       const side = mod.includes("left") ? " balra" : mod.includes("right") ? " jobbra" : "";
       return Object.assign(base, {
@@ -682,7 +692,9 @@
       24: ["fork", "left"],
       25: ["merge", ""],
       26: ["roundabout", ""],
-      27: ["exit roundabout", ""]
+      27: ["exit roundabout", ""],
+      28: ["ferry", ""],
+      29: ["ferry", "off"]
     };
     function decode(str) {
       const inv = 1e-6;
