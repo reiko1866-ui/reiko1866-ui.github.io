@@ -1,7 +1,6 @@
 /**
- * Hangnavigáció — a feltöltött csomag vegyes poénok, a fájlnév NEM az irány.
- * catalog.json a Whisper-átirat alapján sorolja a kanyarokat.
- * Távot a telefon magyar hangja mondja (Google Maps mód); a kanyarnál a clip szól.
+ * Hangnavigáció — csak a GitHubra feltöltött csomag.
+ * Nincs telefon-TTS. Egy gomb / egy kanyar = egy klip.
  */
 (function (global) {
   "use strict";
@@ -13,27 +12,27 @@
   const APP_CDN = "https://cdn.jsdelivr.net/gh/" + REPO + "@" + ENC + "/navigacio/";
 
   const PHRASES = {
-    start: { cat: "", tts: "Hang kész.", phase: "soon" },
-    finish: { cat: "arrive", tts: "Megérkeztél.", phase: "now" },
-    recomputing: { cat: "recompute", tts: "Újratervezés.", phase: "now" },
-    "left-100": { cat: "left", tts: "Száz méter múlva fordulj balra.", phase: "near" },
-    "right-500": { cat: "right", tts: "Ötszáz méter múlva fordulj jobbra.", phase: "soon" },
-    "now-left": { cat: "left", tts: "Fordulj balra.", phase: "now" },
-    "now-right": { cat: "right", tts: "Fordulj jobbra.", phase: "now" },
-    "right-100": { cat: "right", tts: "Száz méter múlva fordulj jobbra.", phase: "near" },
-    "left-500": { cat: "left", tts: "Ötszáz méter múlva fordulj balra.", phase: "soon" },
-    "exit-left-100": { cat: "motorwayOff", tts: "Száz méter múlva hajts le balra.", phase: "near" },
-    "exit-right-100": { cat: "motorwayOff", tts: "Száz méter múlva hajts le jobbra.", phase: "near" },
-    straight: { cat: "straight", tts: "Haladj tovább egyenesen.", phase: "now" },
-    uTurn: { cat: "uturn", tts: "Fordulj vissza.", phase: "now" },
-    "keep-left": { cat: "leftKeep", tts: "Tarts balra.", phase: "now" },
-    "keep-right": { cat: "rightKeep", tts: "Tarts jobbra.", phase: "now" },
-    "sharp-left": { cat: "leftSharp", tts: "Fordulj élesen balra.", phase: "now" },
-    "sharp-right": { cat: "rightSharp", tts: "Fordulj élesen jobbra.", phase: "now" },
-    roundabout: { cat: "roundabout", tts: "Hajts be a körforgalomba.", phase: "now" },
-    "motorway-on": { cat: "motorwayOn", tts: "Hajts fel az autópályára.", phase: "now" },
-    "motorway-off": { cat: "motorwayOff", tts: "Hajts le az autópályáról.", phase: "now" },
-    gps: { cat: "gps", tts: "A GPS-vétel gyenge.", phase: "now" }
+    start: { cat: "" },
+    finish: { cat: "arrive" },
+    recomputing: { cat: "recompute" },
+    "left-100": { cat: "left" },
+    "right-500": { cat: "right" },
+    "now-left": { cat: "left" },
+    "now-right": { cat: "right" },
+    "right-100": { cat: "right" },
+    "left-500": { cat: "left" },
+    "exit-left-100": { cat: "motorwayOff" },
+    "exit-right-100": { cat: "motorwayOff" },
+    straight: { cat: "straight" },
+    uTurn: { cat: "uturn" },
+    "keep-left": { cat: "leftKeep" },
+    "keep-right": { cat: "rightKeep" },
+    "sharp-left": { cat: "leftSharp" },
+    "sharp-right": { cat: "rightSharp" },
+    roundabout: { cat: "roundabout" },
+    "motorway-on": { cat: "motorwayOn" },
+    "motorway-off": { cat: "motorwayOff" },
+    gps: { cat: "gps" }
   };
 
   const FALLBACK = {
@@ -44,13 +43,7 @@
     motorwayOff: ["right"],
     motorwayOn: ["straight"],
     roundabout: ["straight"],
-    uturn: ["left"],
-    arrive: [],
-    recompute: [],
-    gps: [],
-    straight: [],
-    left: [],
-    right: []
+    uturn: ["left"]
   };
 
   function unique(list) {
@@ -78,18 +71,24 @@
     }
   }
 
+  function hushSpeech() {
+    try {
+      if (global.speechSynthesis) global.speechSynthesis.cancel();
+    } catch (_e) {}
+  }
+
   class AudioManager {
     /**
-     * @param {{ onLog?: (msg: string, err?: boolean) => void, onFallback?: (text: string) => void }} [opts]
+     * @param {{ onLog?: (msg: string, err?: boolean) => void }} [opts]
      */
     constructor(opts) {
       this.onLog = (opts && opts.onLog) || function () {};
-      this.onFallback = (opts && opts.onFallback) || null;
       this.ogg = canPlayOgg();
       this.started = false;
       /** @type {Record<string, string[]>} */
       this.catalog = {};
       this.lastName = "";
+      this.playId = 0;
       this.player = document.getElementById("navVoiceEl") || new Audio();
       this.player.setAttribute("playsinline", "true");
       this.player.preload = "auto";
@@ -104,10 +103,6 @@
     log(msg, err) {
       this.onLog(msg, !!err);
       if (err) console.warn("[NavVoice]", msg);
-    }
-
-    fallback(text) {
-      if (text && this.onFallback) this.onFallback(text);
     }
 
     setBase() {}
@@ -136,68 +131,85 @@
       return unique([rel("./voice/clips/" + mp3Name), APP_CDN + "voice/clips/" + mp3Name]);
     }
 
-    hushSpeech() {
-      try {
-        if (global.speechSynthesis) global.speechSynthesis.cancel();
-      } catch (_e) {}
-    }
-
-    playNow(hrefs, tts) {
+    playNow(hrefs) {
+      hushSpeech();
       const urls = (hrefs || []).filter(Boolean);
       if (!urls.length) {
-        this.fallback(tts || "");
+        this.log("Nincs fájl ehhez a hanghoz.", true);
         return false;
       }
-      const href = urls[0];
-      try {
-        this.hushSpeech();
-        this.player.pause();
-        this.player.src = href;
-        const p = this.player.play();
-        this.log("Lejátszás: " + decodeURIComponent(href.split("/").pop() || href));
-        if (p && p.catch) {
-          p.catch(() => {
-            if (urls[1]) {
-              this.player.src = urls[1];
-              const p2 = this.player.play();
-              if (p2 && p2.catch) p2.catch(() => this.fallback(tts || ""));
-            } else this.fallback(tts || "");
-          });
+      const id = ++this.playId;
+      const tryAt = (i) => {
+        if (id !== this.playId) return;
+        if (i >= urls.length) {
+          this.log("A feltöltött hang nem játszható.", true);
+          return;
         }
-        return true;
-      } catch (_e) {
-        this.fallback(tts || "");
-        return false;
-      }
+        try {
+          this.player.pause();
+          this.player.volume = 1;
+          this.player.src = urls[i];
+          const p = this.player.play();
+          this.log("Lejátszás: " + decodeURIComponent(urls[i].split("/").pop() || urls[i]));
+          if (p && p.catch) {
+            p.catch(() => {
+              if (id !== this.playId) return;
+              tryAt(i + 1);
+            });
+          }
+        } catch (_e) {
+          tryAt(i + 1);
+        }
+      };
+      tryAt(0);
+      return true;
     }
 
-    playCat(cat, tts) {
+    playCat(cat) {
+      hushSpeech();
+      if (!cat) return false;
       const order = [cat].concat(FALLBACK[cat] || []);
       for (let i = 0; i < order.length; i++) {
         const name = this.pickName(order[i]);
         if (!name) continue;
-        return this.playNow(this.hrefsForName(name), tts);
+        return this.playNow(this.hrefsForName(name));
       }
-      this.fallback(tts || "");
+      this.log("Nincs feltöltött hang: " + cat, true);
       return false;
     }
 
-    /**
-     * soon/near: csak TTS (táv + utasítás). now: a kategória clipje.
-     * @param {string} cat
-     * @param {{ phase?: string, tts?: string }} [opts]
-     */
-    announce(cat, opts) {
-      const phase = (opts && opts.phase) || "now";
-      const tts = (opts && opts.tts) || "";
-      if (phase === "now" || phase === "clip") return this.playCat(cat, tts);
-      this.fallback(tts);
-      return false;
+    announce(cat) {
+      return this.playCat(cat);
+    }
+
+    unlock() {
+      hushSpeech();
+      const silence =
+        "data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA";
+      const done = () => {
+        try {
+          this.player.pause();
+        } catch (_e) {}
+        this.player.muted = false;
+        this.player.volume = 1;
+      };
+      this.player.muted = true;
+      this.player.volume = 0;
+      try {
+        this.player.src = silence;
+        const p = this.player.play();
+        if (p && p.then) p.then(done).catch(done);
+        else done();
+      } catch (_e) {
+        done();
+      }
     }
 
     start() {
       this.started = true;
-      this.fallback(PHRASES.start.tts);
+      hushSpeech();
+      this.unlock();
+      this.log("Hang kész. Csak a feltöltött csomag szól.");
       this.findSounds();
       return true;
     }
@@ -208,16 +220,20 @@
         this.log("Nincs ilyen utasítás: " + key, true);
         return;
       }
-      this.announce(phrase.cat, { phase: phrase.phase, tts: phrase.tts });
+      if (!phrase.cat) {
+        this.start();
+        return;
+      }
+      this.playCat(phrase.cat);
     }
 
-    announceTurn(copy, until, phase) {
-      const cat = copy && copy.cat ? copy.cat : "";
-      const tts = copy && copy.tts ? copy.tts : "";
-      return this.announce(cat, { phase: phase || "now", tts: tts || "" });
+    announceTurn(copy) {
+      return this.playCat(copy && copy.cat);
     }
 
     stop() {
+      this.playId += 1;
+      hushSpeech();
       try {
         this.player.pause();
         this.player.removeAttribute("src");
@@ -230,7 +246,7 @@
     }
 
     async findSounds() {
-      this.log("Hangok rendezése navigációs utasítás szerint…");
+      this.log("Hangok betöltése a GitHub-csomagból…");
       const urls = unique([rel("./voice/catalog.json"), APP_CDN + "voice/catalog.json"]);
       for (let i = 0; i < urls.length; i++) {
         try {
@@ -245,20 +261,12 @@
               (files.left || []).length +
               " balra, " +
               (files.right || []).length +
-              " jobbra, " +
-              (files.leftKeep || []).length +
-              " tarts balra, " +
-              (files.roundabout || []).length +
-              " körforgalom, " +
-              (files.recompute || []).length +
-              " újratervezés, " +
-              (files.arrive || []).length +
-              " megérkezés. Távot a telefon mondja, kanyarnál a csomag szól."
+              " jobbra. Csak ez a csomag szól, a telefon hangja nem."
           );
           return files;
         } catch (_e) {}
       }
-      this.log("A hanglista nem töltődött, a kanyarokhoz a telefon hangja szól.", true);
+      this.log("A hanglista nem töltődött.", true);
       return null;
     }
   }
@@ -270,10 +278,11 @@
     instance: null,
     init(opts) {
       api.instance = new AudioManager(opts);
+      hushSpeech();
       return api.instance.findSounds().then(() => api.instance);
     },
-    playCat(cat, tts) {
-      return api.instance ? api.instance.playCat(cat, tts) : false;
+    playCat(cat) {
+      return api.instance ? api.instance.playCat(cat) : false;
     }
   };
 

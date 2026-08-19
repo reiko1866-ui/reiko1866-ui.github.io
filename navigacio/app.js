@@ -449,28 +449,17 @@
     return window.NavVoice && window.NavVoice.instance;
   }
 
-  function speak(text) {
-    if (!state.voice || !text) return;
-    if (!window.speechSynthesis) return;
-    window.speechSynthesis.cancel();
-    const u = new SpeechSynthesisUtterance(text);
-    u.lang = "hu-HU";
-    u.rate = 0.98;
-    const voices = window.speechSynthesis.getVoices();
-    const hu = voices.find((v) => String(v.lang || "").toLowerCase().startsWith("hu"));
-    if (hu) u.voice = hu;
-    window.speechSynthesis.speak(u);
+  function hushSpeech() {
+    try {
+      if (window.speechSynthesis) window.speechSynthesis.cancel();
+    } catch (_e) {}
   }
 
-  function speakGuidance(kind, until, phase) {
-    if (!state.voice || !kind) return;
-    const tts = promptText(kind, until, phase);
+  function speakGuidance(kind, phase) {
+    if (!state.voice || !kind || phase !== "now") return;
+    hushSpeech();
     const nv = navVoice();
-    if (nv && nv.hasPack()) {
-      nv.announce(kind.cat, { phase, tts });
-      return;
-    }
-    if (tts) speak(tts);
+    if (nv) nv.playCat(kind.cat);
   }
 
   function makeEl(cls) {
@@ -630,16 +619,16 @@
     $("turnDist").textContent = fmtDist(cur.until);
     $("turnText").textContent = kind.label;
     $("turnStreet").textContent = kind.street || "";
-    let phase = desiredPhase(cur.until, kind);
-    if (phase && !already(cur.index, phase)) {
-      markSpoken(cur.index, phase);
-      speakGuidance(kind, cur.until, phase);
+    const phase = desiredPhase(cur.until, kind);
+    if (phase === "now" && !already(cur.index, "now")) {
+      markSpoken(cur.index, "now");
+      speakGuidance(kind, "now");
     }
     if ((kind.cat === "arrive" && cur.until < 35 && !state.arrived) || (r.m < 30 && !state.arrived)) {
       state.arrived = true;
       if (!already(cur.index, "now")) {
         markSpoken(cur.index, "now");
-        speakGuidance(kind.cat === "arrive" ? kind : classify({ maneuver: { type: "arrive" }, name: "" }), 0, "now");
+        speakGuidance(kind.cat === "arrive" ? kind : classify({ maneuver: { type: "arrive" }, name: "" }), "now");
       }
       stopNav({ keepAudio: true });
     }
@@ -829,13 +818,9 @@
     $("follow").classList.add("is-on");
     $("follow").setAttribute("aria-pressed", "true");
     state.spoken = {};
+    hushSpeech();
     setStatus("Navigáció");
     updateNav();
-    const cur = nextActionable();
-    if (cur && !state.spoken[cur.index]) {
-      markSpoken(cur.index, "soon");
-      speakGuidance(cur.kind, cur.until, "soon");
-    }
     updateCamera(true);
     if (navigator.wakeLock) navigator.wakeLock.request("screen").catch(() => {});
   }
@@ -847,7 +832,7 @@
     $("trip").hidden = true;
     $("banner").hidden = true;
     if (!(opts && opts.keepAudio)) {
-      if (window.speechSynthesis) window.speechSynthesis.cancel();
+      hushSpeech();
       const nv = navVoice();
       if (nv) nv.stop();
       setStatus("Megállítva");
@@ -871,11 +856,9 @@
     if (Date.now() - state.lastOff < 6000) return;
     state.lastOff = Date.now();
     state.offHits = 0;
+    hushSpeech();
     const nv = navVoice();
-    if (state.voice) {
-      if (nv && nv.hasPack()) nv.playCat("recompute", "Újratervezés.");
-      else speak("Újratervezés.");
-    }
+    if (state.voice && nv) nv.playCat("recompute");
     plan(true);
   }
 
@@ -885,11 +868,6 @@
       pos.coords.heading,
       pos.coords.speed
     );
-    if (state.navigating && Number(pos.coords.accuracy) > 90 && Date.now() - state.lastGpsWarn > 45000) {
-      state.lastGpsWarn = Date.now();
-      const nv = navVoice();
-      if (state.voice && nv && nv.hasPack()) nv.playCat("gps", "A GPS-vétel gyenge.");
-    }
     if (state.pendingPlan && state.dest && !state.route && !state.planning) {
       state.pendingPlan = false;
       plan(false);
@@ -1101,7 +1079,7 @@
         if (nv) nv.stop();
         return;
       }
-      speak("Hang be.");
+      hushSpeech();
     });
     document.querySelectorAll("[data-voice]").forEach((btn) => {
       btn.addEventListener("click", (ev) => {
@@ -1184,17 +1162,6 @@
         if (!el) return;
         el.textContent = line;
         el.classList.toggle("is-err", !!isError);
-      },
-      onFallback(text) {
-        if (!state.voice || !text || !window.speechSynthesis) return;
-        window.speechSynthesis.cancel();
-        const u = new SpeechSynthesisUtterance(text);
-        u.lang = "hu-HU";
-        u.rate = 0.98;
-        const voices = window.speechSynthesis.getVoices();
-        const hu = voices.find((v) => String(v.lang || "").toLowerCase().startsWith("hu"));
-        if (hu) u.voice = hu;
-        window.speechSynthesis.speak(u);
       }
     }).then((mgr) => {
       const el = $("voiceBase");
@@ -1209,7 +1176,6 @@
       navigator.geolocation.getCurrentPosition(onPos, (e) => setStatus(e.message || "GPS hiba", true), opts);
       navigator.geolocation.watchPosition(onPos, () => {}, opts);
     }
-    if (window.speechSynthesis) window.speechSynthesis.getVoices();
     if ("serviceWorker" in navigator && location.hostname === "reiko1866-ui.github.io") {
       navigator.serviceWorker.register("./sw.js").catch(() => {});
     }
