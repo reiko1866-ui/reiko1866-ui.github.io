@@ -4,6 +4,7 @@
   const BUDAPEST = [19.0402, 47.4979];
   const THEME_KEY = "nav2_theme";
   const PLACE_KEY = "nav2_places";
+  const OPTS_KEY = "nav2_opts";
   const EMPTY = { type: "FeatureCollection", features: [] };
   const NOMINATIM = "https://nominatim.openstreetmap.org/search";
   const VALHALLA = "https://valhalla1.openstreetmap.de/route";
@@ -42,13 +43,81 @@
     $("drawerOverlay").classList.add("open");
     $("hamburgerBtn").setAttribute("aria-expanded", "true");
     document.body.style.overflow = "hidden";
+    armBack();
   }
 
-  function closeDrawer() {
+  function drawerOpen() {
+    const el = $("mobileDrawer");
+    return !!(el && el.classList.contains("open"));
+  }
+
+  function searchOpen() {
+    const el = $("searchForm");
+    return !!(el && !el.hidden);
+  }
+
+  function isOnHome() {
+    return window.scrollY < 80;
+  }
+
+  function anyOverlay() {
+    return drawerOpen() || searchOpen() || state.navigating || !isOnHome();
+  }
+
+  function armBack() {
+    if (state.histArmed) return;
+    state.histArmed = true;
+    history.pushState({ nav2: 1 }, "");
+  }
+
+  function disarmBack() {
+    if (!state.histArmed) return;
+    state.histArmed = false;
+    state.ignorePop = true;
+    history.back();
+    setTimeout(function () {
+      state.ignorePop = false;
+    }, 80);
+  }
+
+  function syncBack(fromPop) {
+    if (fromPop === true) {
+      state.histArmed = false;
+      if (anyOverlay()) armBack();
+      return;
+    }
+    if (anyOverlay()) armBack();
+    else disarmBack();
+  }
+
+  function closeDrawer(fromPop) {
     $("mobileDrawer").classList.remove("open");
     $("drawerOverlay").classList.remove("open");
     $("hamburgerBtn").setAttribute("aria-expanded", "false");
     document.body.style.overflow = "";
+    if (fromPop !== "keep") syncBack(fromPop);
+  }
+
+  function onPopState() {
+    if (state.ignorePop) return;
+    if (drawerOpen()) {
+      closeDrawer(true);
+      return;
+    }
+    if (searchOpen()) {
+      closeSearch(true);
+      return;
+    }
+    if (state.navigating) {
+      stopNav({ fromPop: true });
+      return;
+    }
+    if (!isOnHome()) {
+      showHome();
+      syncBack(true);
+      return;
+    }
+    state.histArmed = false;
   }
 
   function spyNav() {
@@ -69,6 +138,7 @@
   }
 
   function showHome() {
+    window.scrollTo(0, 0);
     const home = $("kezdolap");
     if (home) home.scrollIntoView();
     if (state.map) state.map.resize();
@@ -99,6 +169,9 @@
     puck: null,
     pin: null,
     pendingPlan: false,
+    needPlan: false,
+    histArmed: false,
+    ignorePop: false,
     places: { home: null, work: null }
   };
 
@@ -583,20 +656,24 @@
     }
   }
 
-  function closeSearch() {
+  function closeSearch(fromPop) {
     $("searchForm").hidden = true;
     $("results").hidden = true;
     $("searchBtn").classList.remove("is-on");
     $("searchBtn").setAttribute("aria-pressed", "false");
+    if (fromPop !== "keep") syncBack(fromPop);
   }
 
   function toggleSearch() {
-    const open = $("searchForm").hidden;
-    $("searchForm").hidden = !open;
-    $("searchBtn").classList.toggle("is-on", open);
-    $("searchBtn").setAttribute("aria-pressed", open ? "true" : "false");
-    if (open) $("q").focus();
-    else $("results").hidden = true;
+    if (searchOpen()) {
+      closeSearch();
+      return;
+    }
+    $("searchForm").hidden = false;
+    $("searchBtn").classList.add("is-on");
+    $("searchBtn").setAttribute("aria-pressed", "true");
+    $("q").focus();
+    armBack();
   }
 
   function addLayers() {
@@ -694,8 +771,40 @@
     }
   }
 
-  async function fetchOsrm(from, to) {
-    const path = from.lng + "," + from.lat + ";" + to.lng + "," + to.lat + "?overview=full&geometries=geojson&steps=true";
+  function routeOpts() {
+    return {
+      avoidMotorway: !!( $("avoidMotorway") && $("avoidMotorway").checked ),
+      avoidToll: !!( $("avoidToll") && $("avoidToll").checked )
+    };
+  }
+
+  function osrmExcludeQs() {
+    const parts = [];
+    const o = routeOpts();
+    if (o.avoidMotorway) parts.push("motorway");
+    if (o.avoidToll) parts.push("toll");
+    return parts.length ? "&exclude=" + parts.join(",") : "";
+  }
+
+  function avoidStatus(reroute) {
+    const o = routeOpts();
+    if (o.avoidMotorway && o.avoidToll) return reroute ? "Újratervezés autópálya és fizető nélkül…" : "Autópálya és fizető nélkül…";
+    if (o.avoidMotorway) return reroute ? "Újratervezés autópálya nélkül…" : "Autópálya nélkül…";
+    if (o.avoidToll) return reroute ? "Újratervezés fizető nélkül…" : "Fizető út nélkül…";
+    return reroute ? "Újratervezés…" : "Útvonal…";
+  }
+
+  async function fetchOsrm(from, to, extraQs) {
+    const path =
+      from.lng +
+      "," +
+      from.lat +
+      ";" +
+      to.lng +
+      "," +
+      to.lat +
+      "?overview=full&geometries=geojson&steps=true" +
+      (extraQs || "");
     let last = null;
     for (let i = 0; i < OSRM.length; i++) {
       try {
@@ -829,14 +938,37 @@
   }
 
   async function plan(reroute) {
-    if (!state.origin || !state.dest || state.planning) return;
+    if (!state.origin || !state.dest) return;
+    if (state.planning) {
+      state.needPlan = true;
+      return;
+    }
     state.planning = true;
-    setStatus(reroute ? "Újratervezés…" : "Útvonal…");
+    state.needPlan = false;
+    const exclude = osrmExcludeQs();
+    setStatus(avoidStatus(reroute));
     try {
-      const route =
-        $("avoidMotorway").checked || $("avoidToll").checked
-          ? await fetchValhalla(state.origin, state.dest)
-          : await fetchOsrm(state.origin, state.dest);
+      let route = null;
+      let last = null;
+      const tries = exclude
+        ? [
+            function () { return fetchValhalla(state.origin, state.dest); },
+            function () { return fetchOsrm(state.origin, state.dest, exclude); }
+          ]
+        : [
+            function () { return fetchOsrm(state.origin, state.dest, ""); },
+            function () { return fetchValhalla(state.origin, state.dest); }
+          ];
+      for (let i = 0; i < tries.length; i++) {
+        try {
+          route = await tries[i]();
+          last = null;
+          break;
+        } catch (err) {
+          last = err;
+        }
+      }
+      if (!route) throw last || new Error("Az útvonal nem jött össze.");
       state.route = route;
       state.coords = (route.geometry && route.geometry.coordinates) || [];
       state.steps = [];
@@ -848,7 +980,16 @@
       addLayers();
       drawRoute();
       if (reroute) {
-        setStatus("Új útvonal.");
+        const o = routeOpts();
+        setStatus(
+          o.avoidMotorway && o.avoidToll
+            ? "Útvonal autópálya és fizető nélkül."
+            : o.avoidMotorway
+              ? "Útvonal autópálya nélkül."
+              : o.avoidToll
+                ? "Útvonal fizető nélkül."
+                : "Új útvonal."
+        );
         if (state.navigating) {
           const nxt = nextActionable();
           if (nxt && desiredPhase(nxt.until, nxt.kind) === "soon") markSpoken(nxt.index, "soon");
@@ -861,6 +1002,10 @@
       setStatus(err.message || "Az útvonal nem jött össze.", true);
     } finally {
       state.planning = false;
+      if (state.needPlan) {
+        state.needPlan = false;
+        plan(!!state.navigating || !!state.route);
+      }
     }
   }
 
@@ -871,8 +1016,9 @@
     $("app").classList.add("is-nav");
     $("trip").hidden = false;
     $("banner").hidden = false;
-    closeDrawer();
-    closeSearch();
+    closeDrawer("keep");
+    closeSearch("keep");
+    armBack();
     window.scrollTo(0, 0);
     spyNav();
     if (state.map) state.map.resize();
@@ -904,6 +1050,7 @@
     }
     spyNav();
     if (state.map) state.map.resize();
+    syncBack(opts && opts.fromPop);
   }
 
   function maybeReroute() {
@@ -996,7 +1143,7 @@
   async function choose(place) {
     armVoice();
     $("results").hidden = true;
-    closeSearch();
+    closeSearch("keep");
     showHome();
     setDest({ lat: Number(place.lat), lng: Number(place.lon) }, place.display_name);
     $("q").value = place.display_name.split(",")[0];
@@ -1028,6 +1175,18 @@
     }
   }
 
+  function loadNavOpts() {
+    try {
+      const o = JSON.parse(localStorage.getItem(OPTS_KEY) || "{}");
+      if ($("avoidMotorway") && o.avoidMotorway) $("avoidMotorway").checked = true;
+      if ($("avoidToll") && o.avoidToll) $("avoidToll").checked = true;
+    } catch (_e) {}
+  }
+
+  function saveNavOpts() {
+    localStorage.setItem(OPTS_KEY, JSON.stringify(routeOpts()));
+  }
+
   function loadPlaces() {
     try {
       state.places = Object.assign({ home: null, work: null }, JSON.parse(localStorage.getItem(PLACE_KEY) || "{}"));
@@ -1047,7 +1206,7 @@
   function goPlace(kind) {
     const p = state.places[kind];
     if (!p) return setStatus("Előbb mentsd el ezt a helyet a menüben.", true);
-    closeDrawer();
+    closeDrawer("keep");
     choose({ lat: p.lat, lon: p.lng, display_name: p.label || kind });
   }
 
@@ -1178,20 +1337,37 @@
     const allNavLinks = document.querySelectorAll(".nav-link, .mobile-link");
 
     hamburgerBtn.addEventListener("click", openDrawer);
-    closeBtn.addEventListener("click", closeDrawer);
-    drawerOverlay.addEventListener("click", closeDrawer);
+    closeBtn.addEventListener("click", function () {
+      closeDrawer();
+    });
+    drawerOverlay.addEventListener("click", function () {
+      closeDrawer();
+    });
 
     allNavLinks.forEach((link) => {
       link.addEventListener("click", (ev) => {
         ev.preventDefault();
         const id = String(link.getAttribute("href") || "").replace(/^#/, "");
-        closeDrawer();
+        closeDrawer("keep");
+        if (state.navigating && id !== "kezdolap") {
+          syncBack();
+          return;
+        }
+        if (id === "kezdolap") {
+          showHome();
+          syncBack();
+          return;
+        }
         const section = $(id);
-        if (section) section.scrollIntoView();
+        if (section) {
+          section.scrollIntoView();
+          armBack();
+        }
       });
     });
 
     window.addEventListener("scroll", spyNav, { passive: true });
+    window.addEventListener("popstate", onPopState);
     spyNav();
     $("homeGo").addEventListener("click", () => goPlace("home"));
     $("workGo").addEventListener("click", () => goPlace("work"));
@@ -1200,7 +1376,11 @@
     $("dark").addEventListener("change", () => applyTheme($("dark").checked));
     ["avoidMotorway", "avoidToll"].forEach((id) => {
       $(id).addEventListener("change", () => {
-        if (state.origin && state.dest) plan(state.navigating);
+        saveNavOpts();
+        const on = $(id).checked;
+        const name = id === "avoidMotorway" ? "Autópálya elkerülése" : "Fizetős utak elkerülése";
+        setStatus(name + (on ? " bekapcsolva" : " kikapcsolva"));
+        if (state.origin && state.dest) plan(true);
       });
     });
   }
@@ -1265,6 +1445,7 @@
 
   function boot() {
     loadPlaces();
+    loadNavOpts();
     loadMapLibre()
       .then(() => {
         initMap();
