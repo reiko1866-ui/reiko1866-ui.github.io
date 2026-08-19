@@ -94,6 +94,7 @@
     lastCam: 0,
     lastOff: 0,
     lastGpsWarn: 0,
+    gpsHits: 0,
     offHits: 0,
     puck: null,
     pin: null,
@@ -392,9 +393,37 @@
       const kind = classify(step);
       if (kind.skip) continue;
       const until = at - state.traveled;
-      if (until > -25) return { step, index: i, until: Math.max(0, until), kind };
+      if (until > -45) return { step, index: i, until: Math.max(0, until), kind };
     }
     return null;
+  }
+
+  function nextAfter(index) {
+    let acc = 0;
+    for (let i = 0; i < state.steps.length; i++) {
+      const step = state.steps[i];
+      const at = acc;
+      acc += Number(step.distance || 0);
+      if (i <= index) continue;
+      const kind = classify(step);
+      if (kind.skip) continue;
+      const until = at - state.traveled;
+      if (until > -45) return { step, index: i, until: Math.max(0, until), kind };
+    }
+    return null;
+  }
+
+  function fmtTurnDist(m) {
+    if (m < 40) return "Most";
+    return fmtDist(m);
+  }
+
+  function warnMeters(kind) {
+    if (!kind) return 180;
+    if (kind.cat === "arrive") return 80;
+    const highway = kind.highway || Number(state.speed || 0) > 22;
+    const v = Math.max(Number(state.speed) || 0, highway ? 25 : 11);
+    return Math.max(160, Math.min(450, v * 11));
   }
 
   function spokenDist(meters) {
@@ -465,8 +494,13 @@
     } catch (_e) {}
   }
 
-  function speakGuidance(kind, phase) {
-    if (!state.voice || !kind || phase !== "now") return;
+  function armVoice() {
+    const nv = navVoice();
+    if (nv) nv.start();
+  }
+
+  function speakGuidance(kind) {
+    if (!state.voice || !kind || kind.skip) return;
     hushSpeech();
     const nv = navVoice();
     if (nv) nv.playCat(kind.cat);
@@ -602,7 +636,7 @@
       zoom,
       pitch: 58,
       bearing: state.heading,
-      padding: { top: state.navigating ? 80 : 20, bottom: state.navigating ? 120 : 40, left: 0, right: 0 },
+      padding: { top: state.navigating ? 130 : 20, bottom: state.navigating ? 130 : 40, left: 0, right: 0 },
       duration: force ? 700 : 450,
       essential: true
     });
@@ -624,21 +658,37 @@
     $("dist").textContent = fmtDist(r.m);
     if (!cur) return;
     const kind = cur.kind;
+    const then = nextAfter(cur.index);
+    const warn = warnMeters(kind);
     $("banner").hidden = false;
+    $("banner").classList.toggle("is-now", cur.until <= Math.min(90, warn));
     $("turnIcon").textContent = kind.icon;
-    $("turnDist").textContent = fmtDist(cur.until);
+    $("turnDist").textContent = fmtTurnDist(cur.until);
     $("turnText").textContent = kind.label;
     $("turnStreet").textContent = kind.street || "";
-    const phase = desiredPhase(cur.until, kind);
-    if (phase === "now" && !already(cur.index, "now")) {
-      markSpoken(cur.index, "now");
-      speakGuidance(kind, "now");
+    const thenRow = $("thenRow");
+    if (then && then.kind && then.kind.cat !== "arrive") {
+      thenRow.hidden = false;
+      $("thenIcon").textContent = then.kind.icon;
+      $("thenText").textContent =
+        "Majd: " + then.kind.label + (then.kind.street ? ", " + then.kind.street : "");
+    } else {
+      thenRow.hidden = true;
     }
-    if ((kind.cat === "arrive" && cur.until < 35 && !state.arrived) || (r.m < 30 && !state.arrived)) {
+    const nv = navVoice();
+    if (nv) {
+      nv.warmCat(kind.cat);
+      if (then) nv.warmCat(then.kind.cat);
+    }
+    if (cur.until <= warn && !already(cur.index, "now")) {
+      markSpoken(cur.index, "now");
+      speakGuidance(kind);
+    }
+    if ((kind.cat === "arrive" && cur.until < 40 && !state.arrived) || (r.m < 35 && !state.arrived)) {
       state.arrived = true;
       if (!already(cur.index, "now")) {
         markSpoken(cur.index, "now");
-        speakGuidance(kind.cat === "arrive" ? kind : classify({ maneuver: { type: "arrive" }, name: "" }), "now");
+        speakGuidance(kind.cat === "arrive" ? kind : classify({ maneuver: { type: "arrive" }, name: "" }));
       }
       stopNav({ keepAudio: true });
     }
@@ -830,6 +880,7 @@
     $("follow").classList.add("is-on");
     $("follow").setAttribute("aria-pressed", "true");
     state.spoken = {};
+    armVoice();
     hushSpeech();
     setStatus("Navigáció");
     updateNav();
@@ -859,7 +910,8 @@
     if (!state.navigating || !state.origin || !state.dest || state.planning) return;
     if (!state.coords.length) return plan(true);
     const snap = nearest(state.coords, state.origin);
-    if (snap.dist < 70) {
+    const limit = Number(state.speed || 0) > 22 ? 90 : 55;
+    if (snap.dist < limit) {
       state.offHits = 0;
       return;
     }
@@ -875,18 +927,32 @@
   }
 
   function onPos(pos) {
+    const acc = Number(pos.coords.accuracy);
     setOrigin(
       { lat: pos.coords.latitude, lng: pos.coords.longitude },
       pos.coords.heading,
       pos.coords.speed
     );
+    if (state.navigating && acc > 50) {
+      state.gpsHits += 1;
+      if (state.gpsHits >= 3 && Date.now() - state.lastGpsWarn > 40000) {
+        state.lastGpsWarn = Date.now();
+        const nv = navVoice();
+        if (state.voice && nv && !nv.isBusy()) nv.playCat("gps");
+        setStatus("Gyenge GPS", true);
+      }
+    } else {
+      state.gpsHits = 0;
+    }
     if (state.pendingPlan && state.dest && !state.route && !state.planning) {
       state.pendingPlan = false;
       plan(false);
     }
     maybeReroute();
-    if (!$("status").classList.contains("is-err")) {
-      setStatus(state.navigating ? "Navigáció" : state.arrived ? "Megérkeztél" : "GPS kész");
+    if (state.navigating) {
+      if (state.gpsHits === 0) setStatus("Navigáció");
+    } else if (!state.arrived) {
+      setStatus("GPS kész");
     }
   }
 
@@ -928,6 +994,7 @@
   }
 
   async function choose(place) {
+    armVoice();
     $("results").hidden = true;
     closeSearch();
     showHome();
@@ -1053,7 +1120,10 @@
       $("follow").setAttribute("aria-pressed", state.follow ? "true" : "false");
       if (state.follow) updateCamera(true);
     });
-    $("searchBtn").addEventListener("click", toggleSearch);
+    $("searchBtn").addEventListener("click", () => {
+      armVoice();
+      toggleSearch();
+    });
     const voiceStart = $("voiceStart");
     const voiceFind = $("voiceFind");
     const voiceBase = $("voiceBase");
@@ -1184,9 +1254,9 @@
   function initGps() {
     if (!navigator.geolocation) setStatus("Nincs GPS ebben a böngészőben.", true);
     else {
-      const opts = { enableHighAccuracy: true, maximumAge: 1000, timeout: 12000 };
+      const opts = { enableHighAccuracy: true, maximumAge: 500, timeout: 10000 };
       navigator.geolocation.getCurrentPosition(onPos, (e) => setStatus(e.message || "GPS hiba", true), opts);
-      navigator.geolocation.watchPosition(onPos, () => {}, opts);
+      navigator.geolocation.watchPosition(onPos, () => setStatus("GPS jel gyenge", true), opts);
     }
     if ("serviceWorker" in navigator && location.hostname === "reiko1866-ui.github.io") {
       navigator.serviceWorker.register("./sw.js").catch(() => {});
