@@ -1,4 +1,4 @@
-const CACHE = "nav-v20";
+const CACHE = "nav-v21";
 const CORE = [
   "./",
   "./index.html",
@@ -7,8 +7,6 @@ const CORE = [
   "./voice/audio-manager.js",
   "./voice/pack.json",
   "./voice/catalog.json",
-  "./voice/clips/left.mp3",
-  "./voice/clips/right.mp3",
   "./manifest.webmanifest",
   "./icons/icon-192.png",
   "./icons/icon-512.png",
@@ -34,7 +32,9 @@ self.addEventListener("fetch", (event) => {
   if (req.method !== "GET") return;
   const url = new URL(req.url);
   if (url.origin !== self.location.origin) return;
-  if (/\.ogg$/i.test(url.pathname) || /hungary_jf/i.test(url.pathname)) return;
+  if (/\.(mp3|ogg|wav|m4a)$/i.test(url.pathname) || /hungary_jf/i.test(url.pathname) || /voice\/clips/i.test(url.pathname)) {
+    return;
+  }
   event.respondWith(
     fetch(req)
       .then((res) => {

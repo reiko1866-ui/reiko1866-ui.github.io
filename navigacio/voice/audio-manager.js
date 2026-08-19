@@ -1,5 +1,5 @@
 /**
- * Hangnavigáció — csak a GitHubra feltöltött csomag.
+ * Hangnavigáció — csak a GitHubra feltöltött csomag, ugyanarról az oldalról (mp3).
  * Nincs telefon-TTS. Egy gomb / egy kanyar = egy klip.
  */
 (function (global) {
@@ -62,19 +62,15 @@
     }
   }
 
-  function canPlayOgg() {
-    try {
-      const a = document.createElement("audio");
-      return !!a.canPlayType && a.canPlayType('audio/ogg; codecs="vorbis"') !== "";
-    } catch (_e) {
-      return false;
-    }
-  }
-
   function hushSpeech() {
     try {
       if (global.speechSynthesis) global.speechSynthesis.cancel();
     } catch (_e) {}
+  }
+
+  function isAbort(err) {
+    const name = err && err.name;
+    return name === "AbortError" || name === "NotAllowedError";
   }
 
   class AudioManager {
@@ -83,7 +79,6 @@
      */
     constructor(opts) {
       this.onLog = (opts && opts.onLog) || function () {};
-      this.ogg = canPlayOgg();
       this.started = false;
       /** @type {Record<string, string[]>} */
       this.catalog = {};
@@ -91,13 +86,16 @@
       this.playId = 0;
       this.player = document.getElementById("navVoiceEl") || new Audio();
       this.player.setAttribute("playsinline", "true");
+      this.player.setAttribute("webkit-playsinline", "true");
       this.player.preload = "auto";
-      this.player.addEventListener("playing", () => this.log("Szól: " + (this.player.src || "").split("/").pop()));
-      this.player.addEventListener("ended", () => this.log("Kész."));
-      this.player.addEventListener("error", () => {
-        const err = this.player.error;
-        this.log("Lejátszás hiba" + (err ? " (" + err.code + ")" : ""), true);
+      this.player.muted = false;
+      this.player.volume = 1;
+      this.player.addEventListener("playing", () => {
+        this.player.muted = false;
+        this.player.volume = 1;
+        this.log("Szól: " + (this.player.src || "").split("/").pop());
       });
+      this.player.addEventListener("ended", () => this.log("Kész."));
     }
 
     log(msg, err) {
@@ -117,7 +115,9 @@
       if (!matches.length) return "";
       if (matches.length === 1) return matches[0];
       let name = matches[Math.floor(Math.random() * matches.length)];
-      if (name === this.lastName) name = matches[Math.floor(Math.random() * matches.length)];
+      if (name === this.lastName && matches.length > 1) {
+        name = matches[(matches.indexOf(name) + 1) % matches.length];
+      }
       this.lastName = name;
       return name;
     }
@@ -125,10 +125,14 @@
     hrefsForName(oggName) {
       if (!oggName) return [];
       const mp3Name = oggName.replace(/\.ogg$/i, ".mp3");
-      if (this.ogg) {
-        return unique([OGG_CDN + oggName, rel("../hungary_jf/" + oggName), "/hungary_jf/" + oggName]);
-      }
-      return unique([rel("./voice/clips/" + mp3Name), APP_CDN + "voice/clips/" + mp3Name]);
+      return unique([
+        rel("./voice/clips/" + mp3Name),
+        "/navigacio/voice/clips/" + mp3Name,
+        APP_CDN + "voice/clips/" + mp3Name,
+        OGG_CDN + oggName,
+        rel("../hungary_jf/" + oggName),
+        "/hungary_jf/" + oggName
+      ]);
     }
 
     playNow(hrefs) {
@@ -145,16 +149,28 @@
           this.log("A feltöltött hang nem játszható.", true);
           return;
         }
+        const href = urls[i];
+        const onErr = (ev) => {
+          this.player.removeEventListener("error", onErr);
+          if (id !== this.playId) return;
+          const aborted = ev && ev.type === "abort";
+          if (aborted) return;
+          this.log("Próbálom a következő fájlt…");
+          tryAt(i + 1);
+        };
         try {
-          this.player.pause();
+          this.player.muted = false;
           this.player.volume = 1;
-          this.player.src = urls[i];
+          this.player.pause();
+          this.player.removeEventListener("error", onErr);
+          this.player.addEventListener("error", onErr, { once: true });
+          this.player.src = href;
           const p = this.player.play();
-          this.log("Lejátszás: " + decodeURIComponent(urls[i].split("/").pop() || urls[i]));
+          this.log("Lejátszás: " + decodeURIComponent(href.split("/").pop() || href));
           if (p && p.catch) {
-            p.catch(() => {
-              if (id !== this.playId) return;
-              tryAt(i + 1);
+            p.catch((err) => {
+              if (id !== this.playId || isAbort(err)) return;
+              onErr();
             });
           }
         } catch (_e) {
@@ -184,24 +200,27 @@
 
     unlock() {
       hushSpeech();
-      const silence =
-        "data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA";
-      const done = () => {
-        try {
-          this.player.pause();
-        } catch (_e) {}
-        this.player.muted = false;
-        this.player.volume = 1;
-      };
+      const href = rel("./voice/clips/left.mp3");
+      const id = this.playId;
       this.player.muted = true;
       this.player.volume = 0;
       try {
-        this.player.src = silence;
+        this.player.src = href;
         const p = this.player.play();
+        const done = () => {
+          if (this.playId !== id) return;
+          try {
+            this.player.pause();
+            this.player.currentTime = 0;
+          } catch (_e) {}
+          this.player.muted = false;
+          this.player.volume = 1;
+        };
         if (p && p.then) p.then(done).catch(done);
         else done();
       } catch (_e) {
-        done();
+        this.player.muted = false;
+        this.player.volume = 1;
       }
     }
 
@@ -209,8 +228,9 @@
       this.started = true;
       hushSpeech();
       this.unlock();
-      this.log("Hang kész. Csak a feltöltött csomag szól.");
-      this.findSounds();
+      this.findSounds().then(() => {
+        this.log("Hang kész. Nyomj egy irányt: egy klip fog szólni.");
+      });
       return true;
     }
 
@@ -224,6 +244,7 @@
         this.start();
         return;
       }
+      this.started = true;
       this.playCat(phrase.cat);
     }
 
@@ -236,8 +257,6 @@
       hushSpeech();
       try {
         this.player.pause();
-        this.player.removeAttribute("src");
-        this.player.load();
       } catch (_e) {}
     }
 
@@ -246,7 +265,7 @@
     }
 
     async findSounds() {
-      this.log("Hangok betöltése a GitHub-csomagból…");
+      this.log("Hangok betöltése…");
       const urls = unique([rel("./voice/catalog.json"), APP_CDN + "voice/catalog.json"]);
       for (let i = 0; i < urls.length; i++) {
         try {
@@ -261,7 +280,7 @@
               (files.left || []).length +
               " balra, " +
               (files.right || []).length +
-              " jobbra. Csak ez a csomag szól, a telefon hangja nem."
+              " jobbra. A hangok az oldalról mennek, nem a telefon hangja."
           );
           return files;
         } catch (_e) {}
