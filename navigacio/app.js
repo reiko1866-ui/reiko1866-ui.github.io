@@ -89,10 +89,11 @@
     coords: [],
     steps: [],
     traveled: 0,
-    lastSpoken: -1,
+    spoken: {},
     arrived: false,
     lastCam: 0,
     lastOff: 0,
+    lastGpsWarn: 0,
     offHits: 0,
     puck: null,
     pin: null,
@@ -194,42 +195,254 @@
     };
   }
 
-  function maneuver(step) {
-    const type = String(step?.maneuver?.type || "");
-    const mod = String(step?.maneuver?.modifier || "");
-    const map = {
-      "turn|right": ["↱", "Fordulj jobbra"],
-      "turn|left": ["↰", "Fordulj balra"],
-      "turn|slight right": ["↱", "Tarts jobbra"],
-      "turn|slight left": ["↰", "Tarts balra"],
-      "turn|sharp right": ["↱", "Élesen jobbra"],
-      "turn|sharp left": ["↰", "Élesen balra"],
-      "turn|uturn": ["↩", "Fordulj vissza"],
-      "depart|": ["↑", "Indulás"],
-      "arrive|": ["●", "Megérkeztél"],
-      "roundabout|": ["↻", "Körforgalom"],
-      "rotary|": ["↻", "Körforgalom"],
-      "exit roundabout|": ["↑", "Hajts ki"],
-      "on ramp|": ["↗", "Hajts fel"],
-      "off ramp|": ["↘", "Hajts le"],
-      "merge|": ["↗", "Csatlakozz"],
-      "fork|right": ["↱", "Jobb elágazás"],
-      "fork|left": ["↰", "Bal elágazás"]
-    };
-    const hit = map[type + "|" + mod] || map[type + "|"] || ["↑", "Haladj tovább"];
-    return { icon: hit[0], text: hit[1], street: String(step?.name || "").trim() };
+  function exitOrdinal(n) {
+    return ["", "első", "második", "harmadik", "negyedik", "ötödik", "hatodik", "hetedik", "nyolcadik"][n] || n + ".";
   }
 
-  function currentStep() {
+  function cap(s) {
+    const t = String(s || "");
+    return t ? t.charAt(0).toUpperCase() + t.slice(1) : "";
+  }
+
+  function classify(step) {
+    const type = String((step && step.maneuver && step.maneuver.type) || "").toLowerCase();
+    const mod = String((step && step.maneuver && step.maneuver.modifier) || "").toLowerCase();
+    const exit = Number(step && step.maneuver && step.maneuver.exit) || 0;
+    const street = String((step && step.name) || "").trim();
+    const base = { street: street === "-" ? "" : street, exit, skip: false, highway: false };
+
+    if (type === "arrive") {
+      return Object.assign(base, {
+        cat: "arrive",
+        icon: "●",
+        label: "Megérkeztél",
+        action: "megérkezel",
+        actionNow: "Megérkeztél"
+      });
+    }
+    if (
+      type === "depart" ||
+      type === "continue" ||
+      type === "new name" ||
+      type === "notification" ||
+      type === "exit roundabout" ||
+      type === "exit rotary"
+    ) {
+      return Object.assign(base, {
+        skip: true,
+        cat: "straight",
+        icon: "↑",
+        label: "Haladj tovább",
+        action: "haladj tovább egyenesen",
+        actionNow: "Haladj tovább"
+      });
+    }
+    if (type.includes("uturn") || mod.includes("uturn")) {
+      return Object.assign(base, {
+        cat: "uturn",
+        icon: "↩",
+        label: "Fordulj vissza",
+        action: "fordulj vissza",
+        actionNow: "Fordulj vissza"
+      });
+    }
+    if (type.includes("roundabout") || type.includes("rotary")) {
+      const action = exit
+        ? "hajts be a körforgalomba, és vedd a " + exitOrdinal(exit) + " kijáratot"
+        : "hajts be a körforgalomba";
+      return Object.assign(base, {
+        cat: "roundabout",
+        icon: "↻",
+        label: exit ? "Körforgalom, " + exit + ". kijárat" : "Körforgalom",
+        action,
+        actionNow: cap(action)
+      });
+    }
+    if (type.includes("on ramp") || type === "merge") {
+      const side = mod.includes("left") ? " balra" : mod.includes("right") ? " jobbra" : "";
+      return Object.assign(base, {
+        cat: "motorwayOn",
+        highway: true,
+        icon: "↗",
+        label: "Hajts fel",
+        action: "hajts fel az autópályára" + side,
+        actionNow: "Hajts fel az autópályára"
+      });
+    }
+    if (type.includes("off ramp")) {
+      const left = mod.includes("left");
+      const action = left ? "hajts le balra" : "hajts le jobbra";
+      return Object.assign(base, {
+        cat: "motorwayOff",
+        highway: true,
+        icon: "↘",
+        label: left ? "Hajts le balra" : "Hajts le jobbra",
+        action,
+        actionNow: cap(action)
+      });
+    }
+    if (type === "fork" || type === "end of road") {
+      if (mod.includes("left")) {
+        return Object.assign(base, {
+          cat: "leftKeep",
+          icon: "↰",
+          label: "Tarts balra",
+          action: "tarts balra",
+          actionNow: "Tarts balra"
+        });
+      }
+      return Object.assign(base, {
+        cat: "rightKeep",
+        icon: "↱",
+        label: "Tarts jobbra",
+        action: "tarts jobbra",
+        actionNow: "Tarts jobbra"
+      });
+    }
+    if (mod.includes("sharp") && mod.includes("left")) {
+      return Object.assign(base, {
+        cat: "leftSharp",
+        icon: "↰",
+        label: "Élesen balra",
+        action: "fordulj élesen balra",
+        actionNow: "Fordulj élesen balra"
+      });
+    }
+    if (mod.includes("sharp") && mod.includes("right")) {
+      return Object.assign(base, {
+        cat: "rightSharp",
+        icon: "↱",
+        label: "Élesen jobbra",
+        action: "fordulj élesen jobbra",
+        actionNow: "Fordulj élesen jobbra"
+      });
+    }
+    if ((mod.includes("slight") || mod.includes("bear")) && mod.includes("left")) {
+      return Object.assign(base, {
+        cat: "leftKeep",
+        icon: "↰",
+        label: "Tarts balra",
+        action: "tarts balra",
+        actionNow: "Tarts balra"
+      });
+    }
+    if ((mod.includes("slight") || mod.includes("bear")) && mod.includes("right")) {
+      return Object.assign(base, {
+        cat: "rightKeep",
+        icon: "↱",
+        label: "Tarts jobbra",
+        action: "tarts jobbra",
+        actionNow: "Tarts jobbra"
+      });
+    }
+    if (mod.includes("left")) {
+      return Object.assign(base, {
+        cat: "left",
+        icon: "↰",
+        label: "Fordulj balra",
+        action: "fordulj balra",
+        actionNow: "Fordulj balra"
+      });
+    }
+    if (mod.includes("right")) {
+      return Object.assign(base, {
+        cat: "right",
+        icon: "↱",
+        label: "Fordulj jobbra",
+        action: "fordulj jobbra",
+        actionNow: "Fordulj jobbra"
+      });
+    }
+    if (type === "turn" || type === "straight") {
+      return Object.assign(base, {
+        skip: true,
+        cat: "straight",
+        icon: "↑",
+        label: "Haladj tovább",
+        action: "haladj tovább egyenesen",
+        actionNow: "Haladj tovább"
+      });
+    }
+    return Object.assign(base, {
+      skip: true,
+      cat: "straight",
+      icon: "↑",
+      label: "Haladj tovább",
+      action: "haladj tovább egyenesen",
+      actionNow: "Haladj tovább"
+    });
+  }
+
+  function nextActionable() {
     let acc = 0;
     for (let i = 0; i < state.steps.length; i++) {
-      acc += Number(state.steps[i].distance || 0);
-      if (acc > state.traveled + 8) {
-        return { step: state.steps[i], index: i, until: acc - state.traveled };
-      }
+      const step = state.steps[i];
+      const at = acc;
+      acc += Number(step.distance || 0);
+      const kind = classify(step);
+      if (kind.skip) continue;
+      const until = at - state.traveled;
+      if (until > -25) return { step, index: i, until: Math.max(0, until), kind };
     }
-    const last = state.steps[state.steps.length - 1];
-    return last ? { step: last, index: state.steps.length - 1, until: 0 } : null;
+    return null;
+  }
+
+  function spokenDist(meters) {
+    const m = Math.max(0, Math.round(meters));
+    if (m >= 1750) return "két kilométer";
+    if (m >= 1250) return "másfél kilométer";
+    if (m >= 850) return "egy kilométer";
+    if (m >= 650) return "nyolcszáz méter";
+    if (m >= 550) return "hatszáz méter";
+    if (m >= 450) return "ötszáz méter";
+    if (m >= 350) return "négyszáz méter";
+    if (m >= 250) return "háromszáz méter";
+    if (m >= 150) return "kétszáz méter";
+    if (m >= 80) return "száz méter";
+    return "ötven méter";
+  }
+
+  function promptText(kind, until, phase) {
+    if (!kind) return "";
+    if (kind.cat === "arrive") {
+      return phase === "now" ? "Megérkeztél." : spokenDist(until) + " múlva megérkezel.";
+    }
+    let text = phase === "now" ? kind.actionNow : spokenDist(until) + " múlva " + kind.action;
+    if (phase !== "now" && kind.street && kind.cat !== "roundabout" && kind.cat !== "motorwayOn") {
+      text += ", " + kind.street;
+    }
+    if (!/[.!?]$/.test(text)) text += ".";
+    return cap(text);
+  }
+
+  function desiredPhase(until, kind) {
+    if (!kind || kind.skip) return null;
+    if (kind.cat === "arrive") {
+      if (until < 45) return "now";
+      if (until < 180) return "near";
+      return null;
+    }
+    const highway = kind.highway || Number(state.speed || 0) > 22;
+    const v = Math.max(Number(state.speed) || 0, highway ? 22 : 8);
+    const nowMax = Math.max(55, Math.min(140, v * 5));
+    const nearMax = Math.max(250, Math.min(520, v * 18));
+    const soonMax = Math.max(800, Math.min(2000, v * 55));
+    if (until <= nowMax) return "now";
+    if (until <= nearMax) return "near";
+    if (until <= soonMax) return "soon";
+    return null;
+  }
+
+  function phaseRank(phase) {
+    return { soon: 1, near: 2, now: 3 }[phase] || 0;
+  }
+
+  function already(index, phase) {
+    return phaseRank(state.spoken[index]) >= phaseRank(phase);
+  }
+
+  function markSpoken(index, phase) {
+    if (phaseRank(phase) >= phaseRank(state.spoken[index])) state.spoken[index] = phase;
   }
 
   function navVoice() {
@@ -238,12 +451,6 @@
 
   function speak(text) {
     if (!state.voice || !text) return;
-    const nv = navVoice();
-    if (nv && nv.hasPack()) {
-      if (/Megérkezt/i.test(text)) return nv.playPhrase("finish");
-      if (/Új útvonal|Újratervez|Letért/i.test(text)) return nv.playPhrase("recomputing");
-      if (/Hang be/i.test(text)) return nv.playPhrase("start");
-    }
     if (!window.speechSynthesis) return;
     window.speechSynthesis.cancel();
     const u = new SpeechSynthesisUtterance(text);
@@ -255,17 +462,15 @@
     window.speechSynthesis.speak(u);
   }
 
-  function sayTurn(copy, until) {
-    if (!state.voice) return;
+  function speakGuidance(kind, until, phase) {
+    if (!state.voice || !kind) return;
+    const tts = promptText(kind, until, phase);
     const nv = navVoice();
     if (nv && nv.hasPack()) {
-      nv.announceTurn(copy, until);
+      nv.announce(kind.cat, { phase, tts });
       return;
     }
-    if (/Megérkezt/i.test(copy.text)) return speak("Megérkeztél.");
-    const dist = until >= 1000 ? Math.round(until / 100) / 10 + " kilométer" : Math.max(20, Math.round(until / 10) * 10) + " méter";
-    const street = copy.street ? ", " + copy.street : "";
-    speak(dist + ", " + copy.text.toLowerCase() + street + ".");
+    if (tts) speak(tts);
   }
 
   function makeEl(cls) {
@@ -413,26 +618,30 @@
 
   function updateNav() {
     if (!state.navigating) return;
-    const cur = currentStep();
+    const cur = nextActionable();
     const r = remaining();
     $("eta").textContent = fmtClock(r.s);
     $("remain").textContent = fmtDur(r.s);
     $("dist").textContent = fmtDist(r.m);
     if (!cur) return;
-    const copy = maneuver(cur.step);
+    const kind = cur.kind;
     $("banner").hidden = false;
-    $("turnIcon").textContent = copy.icon;
+    $("turnIcon").textContent = kind.icon;
     $("turnDist").textContent = fmtDist(cur.until);
-    $("turnText").textContent = copy.text;
-    $("turnStreet").textContent = copy.street;
-    if (cur.index !== state.lastSpoken && cur.until < 220) {
-      state.lastSpoken = cur.index;
-      sayTurn(copy, cur.until);
+    $("turnText").textContent = kind.label;
+    $("turnStreet").textContent = kind.street || "";
+    let phase = desiredPhase(cur.until, kind);
+    if (phase && !already(cur.index, phase)) {
+      markSpoken(cur.index, phase);
+      speakGuidance(kind, cur.until, phase);
     }
-    if (r.m < 30 && !state.arrived) {
+    if ((kind.cat === "arrive" && cur.until < 35 && !state.arrived) || (r.m < 30 && !state.arrived)) {
       state.arrived = true;
-      speak("Megérkeztél.");
-      stopNav();
+      if (!already(cur.index, "now")) {
+        markSpoken(cur.index, "now");
+        speakGuidance(kind.cat === "arrive" ? kind : classify({ maneuver: { type: "arrive" }, name: "" }), 0, "now");
+      }
+      stopNav({ keepAudio: true });
     }
   }
 
@@ -461,19 +670,30 @@
     let distance = 0;
     const typeMap = {
       1: ["depart", ""],
+      4: ["arrive", ""],
+      5: ["arrive", "right"],
+      6: ["arrive", "left"],
+      7: ["new name", ""],
       8: ["continue", ""],
       9: ["turn", "slight right"],
       10: ["turn", "right"],
       11: ["turn", "sharp right"],
       12: ["turn", "uturn"],
+      13: ["turn", "uturn"],
+      14: ["turn", "sharp left"],
       15: ["turn", "left"],
       16: ["turn", "slight left"],
-      19: ["on ramp", ""],
+      17: ["on ramp", ""],
+      18: ["on ramp", "right"],
+      19: ["on ramp", "left"],
       20: ["off ramp", "right"],
       21: ["off ramp", "left"],
+      22: ["continue", ""],
+      23: ["fork", "right"],
+      24: ["fork", "left"],
+      25: ["merge", ""],
       26: ["roundabout", ""],
-      27: ["exit roundabout", ""],
-      4: ["arrive", ""]
+      27: ["exit roundabout", ""]
     };
     function decode(str) {
       const inv = 1e-6;
@@ -516,7 +736,11 @@
           distance: (Number(m.length) || 0) * 1000,
           duration: Number(m.time) || 0,
           name: (m.street_names && m.street_names[0]) || "",
-          maneuver: { type: pair[0], modifier: pair[1] }
+          maneuver: {
+            type: pair[0],
+            modifier: pair[1],
+            exit: Number(m.roundabout_exit_count) || undefined
+          }
         });
       });
     });
@@ -568,13 +792,17 @@
       (route.legs || []).forEach((leg) => (leg.steps || []).forEach((s) => state.steps.push(s)));
       if (reroute && state.coords.length) state.traveled = nearest(state.coords, state.origin).traveled;
       else state.traveled = 0;
-      state.lastSpoken = -1;
+      state.spoken = {};
       state.arrived = false;
       addLayers();
       drawRoute();
       if (reroute) {
         setStatus("Új útvonal.");
-        speak("Új útvonal.");
+        if (state.navigating) {
+          const nxt = nextActionable();
+          if (nxt && desiredPhase(nxt.until, nxt.kind) === "soon") markSpoken(nxt.index, "soon");
+          updateNav();
+        }
       } else {
         startNav();
       }
@@ -600,28 +828,32 @@
     state.follow = true;
     $("follow").classList.add("is-on");
     $("follow").setAttribute("aria-pressed", "true");
-    const cur = currentStep();
-    if (cur) {
-      const copy = maneuver(cur.step);
-      sayTurn(copy, cur.until);
-      state.lastSpoken = cur.index;
-    }
+    state.spoken = {};
     setStatus("Navigáció");
     updateNav();
+    const cur = nextActionable();
+    if (cur && !state.spoken[cur.index]) {
+      markSpoken(cur.index, "soon");
+      speakGuidance(cur.kind, cur.until, "soon");
+    }
     updateCamera(true);
     if (navigator.wakeLock) navigator.wakeLock.request("screen").catch(() => {});
   }
 
-  function stopNav() {
+  function stopNav(opts) {
     state.navigating = false;
     state.pendingPlan = false;
     $("app").classList.remove("is-nav");
     $("trip").hidden = true;
     $("banner").hidden = true;
-    if (window.speechSynthesis) window.speechSynthesis.cancel();
-    const nv = navVoice();
-    if (nv) nv.stop();
-    setStatus("Megállítva");
+    if (!(opts && opts.keepAudio)) {
+      if (window.speechSynthesis) window.speechSynthesis.cancel();
+      const nv = navVoice();
+      if (nv) nv.stop();
+      setStatus("Megállítva");
+    } else {
+      setStatus("Megérkeztél");
+    }
     spyNav();
     if (state.map) state.map.resize();
   }
@@ -639,7 +871,11 @@
     if (Date.now() - state.lastOff < 6000) return;
     state.lastOff = Date.now();
     state.offHits = 0;
-    speak("Letértél. Újratervezek.");
+    const nv = navVoice();
+    if (state.voice) {
+      if (nv && nv.hasPack()) nv.playCat("recompute", "Újratervezés.");
+      else speak("Újratervezés.");
+    }
     plan(true);
   }
 
@@ -649,12 +885,19 @@
       pos.coords.heading,
       pos.coords.speed
     );
+    if (state.navigating && Number(pos.coords.accuracy) > 90 && Date.now() - state.lastGpsWarn > 45000) {
+      state.lastGpsWarn = Date.now();
+      const nv = navVoice();
+      if (state.voice && nv && nv.hasPack()) nv.playCat("gps", "A GPS-vétel gyenge.");
+    }
     if (state.pendingPlan && state.dest && !state.route && !state.planning) {
       state.pendingPlan = false;
       plan(false);
     }
     maybeReroute();
-    if (!$("status").classList.contains("is-err")) setStatus(state.navigating ? "Navigáció" : "GPS kész");
+    if (!$("status").classList.contains("is-err")) {
+      setStatus(state.navigating ? "Navigáció" : state.arrived ? "Megérkeztél" : "GPS kész");
+    }
   }
 
   async function geocode(q) {
