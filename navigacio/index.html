@@ -131,19 +131,32 @@
       <label class="check"><input type="checkbox" id="voiceCheck" checked> Hang</label>
       <label class="check"><input type="checkbox" id="dark"> Sötét térkép</label>
       <div id="voiceTest">
-        <p class="hint">A csomag kevert poénos hang. A gombok a szöveg szerint sorsolnak: balra / jobbra külön listából, nem a fájlnévből.</p>
+        <p class="hint">Távot a telefon magyar hangja mondja (mint a Google Maps: ötszáz méter múlva…). A kanyarnál a feltöltött hang szól, a fájlnév nem számít.</p>
         <input id="voiceBase" type="text" spellcheck="false" placeholder="automatikus" hidden>
         <button type="button" id="voiceFind">Hangok keresése</button>
         <button type="button" id="voiceStart">Hang indítása</button>
         <div class="row">
-          <button type="button" data-voice="left-100">Balra 100m</button>
-          <button type="button" data-voice="right-500">Jobbra 500m</button>
+          <button type="button" data-voice="left-100">100 m, balra</button>
+          <button type="button" data-voice="right-500">500 m, jobbra</button>
         </div>
         <div class="row">
-          <button type="button" data-voice="exit-left-100">Majd balra le 100m</button>
+          <button type="button" data-voice="now-left">Most balra</button>
+          <button type="button" data-voice="now-right">Most jobbra</button>
+        </div>
+        <div class="row">
+          <button type="button" data-voice="keep-left">Tarts balra</button>
+          <button type="button" data-voice="keep-right">Tarts jobbra</button>
+        </div>
+        <div class="row">
+          <button type="button" data-voice="roundabout">Körforgalom</button>
+          <button type="button" data-voice="uTurn">Visszafordulás</button>
+        </div>
+        <div class="row">
+          <button type="button" data-voice="motorway-on">Autópályára</button>
+          <button type="button" data-voice="motorway-off">Lehajtó</button>
+        </div>
+        <div class="row">
           <button type="button" data-voice="recomputing">Újratervezés</button>
-        </div>
-        <div class="row">
           <button type="button" data-voice="finish">Megérkeztél</button>
         </div>
         <p id="voiceLog">Nyomd meg: Hang indítása</p>

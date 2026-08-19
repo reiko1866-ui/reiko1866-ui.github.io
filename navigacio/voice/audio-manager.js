@@ -1,6 +1,7 @@
 /**
  * Hangnavigáció — a feltöltött csomag vegyes poénok, a fájlnév NEM az irány.
- * catalog.json a Whisper-átirat alapján sorolja: left/right/straight/uturn/...
+ * catalog.json a Whisper-átirat alapján sorolja a kanyarokat.
+ * Távot a telefon magyar hangja mondja (Google Maps mód); a kanyarnál a clip szól.
  */
 (function (global) {
   "use strict";
@@ -12,36 +13,44 @@
   const APP_CDN = "https://cdn.jsdelivr.net/gh/" + REPO + "@" + ENC + "/navigacio/";
 
   const PHRASES = {
-    start: { cat: "", tts: "Hang kész." },
-    finish: { cat: "arrive", tts: "Megérkeztél." },
-    recomputing: { cat: "recompute", tts: "Újratervezés." },
-    "left-100": { cat: "left", tts: "Fordulj balra." },
-    "right-500": { cat: "right", tts: "Fordulj jobbra." },
-    "right-100": { cat: "right", tts: "Fordulj jobbra." },
-    "left-500": { cat: "left", tts: "Fordulj balra." },
-    "exit-left-100": { cat: "left", tts: "Hajts le balra." },
-    "exit-right-100": { cat: "right", tts: "Hajts le jobbra." },
-    straight: { cat: "straight", tts: "Haladj tovább." },
-    uTurn: { cat: "uturn", tts: "Fordulj vissza." }
+    start: { cat: "", tts: "Hang kész.", phase: "soon" },
+    finish: { cat: "arrive", tts: "Megérkeztél.", phase: "now" },
+    recomputing: { cat: "recompute", tts: "Újratervezés.", phase: "now" },
+    "left-100": { cat: "left", tts: "Száz méter múlva fordulj balra.", phase: "near" },
+    "right-500": { cat: "right", tts: "Ötszáz méter múlva fordulj jobbra.", phase: "soon" },
+    "now-left": { cat: "left", tts: "Fordulj balra.", phase: "now" },
+    "now-right": { cat: "right", tts: "Fordulj jobbra.", phase: "now" },
+    "right-100": { cat: "right", tts: "Száz méter múlva fordulj jobbra.", phase: "near" },
+    "left-500": { cat: "left", tts: "Ötszáz méter múlva fordulj balra.", phase: "soon" },
+    "exit-left-100": { cat: "motorwayOff", tts: "Száz méter múlva hajts le balra.", phase: "near" },
+    "exit-right-100": { cat: "motorwayOff", tts: "Száz méter múlva hajts le jobbra.", phase: "near" },
+    straight: { cat: "straight", tts: "Haladj tovább egyenesen.", phase: "now" },
+    uTurn: { cat: "uturn", tts: "Fordulj vissza.", phase: "now" },
+    "keep-left": { cat: "leftKeep", tts: "Tarts balra.", phase: "now" },
+    "keep-right": { cat: "rightKeep", tts: "Tarts jobbra.", phase: "now" },
+    "sharp-left": { cat: "leftSharp", tts: "Fordulj élesen balra.", phase: "now" },
+    "sharp-right": { cat: "rightSharp", tts: "Fordulj élesen jobbra.", phase: "now" },
+    roundabout: { cat: "roundabout", tts: "Hajts be a körforgalomba.", phase: "now" },
+    "motorway-on": { cat: "motorwayOn", tts: "Hajts fel az autópályára.", phase: "now" },
+    "motorway-off": { cat: "motorwayOff", tts: "Hajts le az autópályáról.", phase: "now" },
+    gps: { cat: "gps", tts: "A GPS-vétel gyenge.", phase: "now" }
   };
 
-  const MANEUVER_CAT = {
-    "Fordulj jobbra": "right",
-    "Fordulj balra": "left",
-    "Tarts jobbra": "right",
-    "Tarts balra": "left",
-    "Élesen jobbra": "right",
-    "Élesen balra": "left",
-    "Fordulj vissza": "uturn",
-    "Hajts ki": "right",
-    "Hajts fel": "motorway",
-    "Hajts le": "motorway",
-    Csatlakozz: "motorway",
-    "Jobb elágazás": "right",
-    "Bal elágazás": "left",
-    "Haladj tovább": "straight",
-    Körforgalom: "roundabout",
-    "Megérkeztél": "arrive"
+  const FALLBACK = {
+    leftSharp: ["left"],
+    leftKeep: ["left"],
+    rightSharp: ["right"],
+    rightKeep: ["right"],
+    motorwayOff: ["right"],
+    motorwayOn: ["straight"],
+    roundabout: ["straight"],
+    uturn: ["left"],
+    arrive: [],
+    recompute: [],
+    gps: [],
+    straight: [],
+    left: [],
+    right: []
   };
 
   function unique(list) {
@@ -124,10 +133,13 @@
       if (this.ogg) {
         return unique([OGG_CDN + oggName, rel("../hungary_jf/" + oggName), "/hungary_jf/" + oggName]);
       }
-      return unique([
-        rel("./voice/clips/" + mp3Name),
-        APP_CDN + "voice/clips/" + mp3Name
-      ]);
+      return unique([rel("./voice/clips/" + mp3Name), APP_CDN + "voice/clips/" + mp3Name]);
+    }
+
+    hushSpeech() {
+      try {
+        if (global.speechSynthesis) global.speechSynthesis.cancel();
+      } catch (_e) {}
     }
 
     playNow(hrefs, tts) {
@@ -138,6 +150,7 @@
       }
       const href = urls[0];
       try {
+        this.hushSpeech();
         this.player.pause();
         this.player.src = href;
         const p = this.player.play();
@@ -159,16 +172,27 @@
     }
 
     playCat(cat, tts) {
-      if (!cat) {
-        this.fallback(tts || "");
-        return false;
+      const order = [cat].concat(FALLBACK[cat] || []);
+      for (let i = 0; i < order.length; i++) {
+        const name = this.pickName(order[i]);
+        if (!name) continue;
+        return this.playNow(this.hrefsForName(name), tts);
       }
-      const name = this.pickName(cat);
-      if (!name) {
-        this.fallback(tts || "");
-        return false;
-      }
-      return this.playNow(this.hrefsForName(name), tts);
+      this.fallback(tts || "");
+      return false;
+    }
+
+    /**
+     * soon/near: csak TTS (táv + utasítás). now: a kategória clipje.
+     * @param {string} cat
+     * @param {{ phase?: string, tts?: string }} [opts]
+     */
+    announce(cat, opts) {
+      const phase = (opts && opts.phase) || "now";
+      const tts = (opts && opts.tts) || "";
+      if (phase === "now" || phase === "clip") return this.playCat(cat, tts);
+      this.fallback(tts);
+      return false;
     }
 
     start() {
@@ -184,24 +208,13 @@
         this.log("Nincs ilyen utasítás: " + key, true);
         return;
       }
-      this.playCat(phrase.cat, phrase.tts);
+      this.announce(phrase.cat, { phase: phrase.phase, tts: phrase.tts });
     }
 
-    announceTurn(copy, until) {
-      const text = String(copy && copy.text ? copy.text : "");
-      if (/Megérkezt/i.test(text)) return this.playPhrase("finish");
-      const cat = MANEUVER_CAT[text] || "";
-      const distText =
-        (until >= 1000
-          ? Math.round(until / 100) / 10 + " kilométer, "
-          : Math.max(20, Math.round(until / 10) * 10) + " méter, ") +
-        text.toLowerCase() +
-        ".";
-      if (!cat || !this.filesFor(cat).length) {
-        this.fallback(distText);
-        return;
-      }
-      this.playCat(cat, distText);
+    announceTurn(copy, until, phase) {
+      const cat = copy && copy.cat ? copy.cat : "";
+      const tts = copy && copy.tts ? copy.tts : "";
+      return this.announce(cat, { phase: phase || "now", tts: tts || "" });
     }
 
     stop() {
@@ -217,7 +230,7 @@
     }
 
     async findSounds() {
-      this.log("Hangok rendezése tartalom szerint…");
+      this.log("Hangok rendezése navigációs utasítás szerint…");
       const urls = unique([rel("./voice/catalog.json"), APP_CDN + "voice/catalog.json"]);
       for (let i = 0; i < urls.length; i++) {
         try {
@@ -227,20 +240,20 @@
           const files = data && data.files ? data.files : data;
           if (!files || !files.left) continue;
           this.catalog = files;
-          const n = (files.left || []).length;
-          const r = (files.right || []).length;
           this.log(
             "Kész: " +
-              n +
+              (files.left || []).length +
               " balra, " +
-              r +
+              (files.right || []).length +
               " jobbra, " +
-              (files.straight || []).length +
-              " egyenes, " +
+              (files.leftKeep || []).length +
+              " tarts balra, " +
               (files.roundabout || []).length +
               " körforgalom, " +
               (files.recompute || []).length +
-              " újratervezés. A többi poén nem megy kanyarra."
+              " újratervezés, " +
+              (files.arrive || []).length +
+              " megérkezés. Távot a telefon mondja, kanyarnál a csomag szól."
           );
           return files;
         } catch (_e) {}
@@ -258,6 +271,9 @@
     init(opts) {
       api.instance = new AudioManager(opts);
       return api.instance.findSounds().then(() => api.instance);
+    },
+    playCat(cat, tts) {
+      return api.instance ? api.instance.playCat(cat, tts) : false;
     }
   };
 
