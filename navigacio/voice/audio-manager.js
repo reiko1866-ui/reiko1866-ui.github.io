@@ -32,6 +32,7 @@
     roundabout: { cat: "roundabout" },
     "motorway-on": { cat: "motorwayOn" },
     "motorway-off": { cat: "motorwayOff" },
+    ferry: { cat: "ferryOn" },
     gps: { cat: "gps" }
   };
 
@@ -42,6 +43,8 @@
     rightKeep: ["right"],
     motorwayOff: ["right"],
     motorwayOn: ["straight"],
+    ferryOn: ["motorwayOn", "straight"],
+    ferryOff: ["motorwayOff", "right"],
     roundabout: ["straight"],
     uturn: ["left"]
   };
@@ -276,11 +279,17 @@
           if (!files || !files.left) continue;
           this.catalog = files;
           this.log(
-            "Kész: " +
+            "Kész, tartalom szerint: " +
               (files.left || []).length +
               " balra, " +
               (files.right || []).length +
-              " jobbra. A hangok az oldalról mennek, nem a telefon hangja."
+              " jobbra, " +
+              (files.roundabout || []).length +
+              " körforgalom, " +
+              (files.uturn || []).length +
+              " visszafordulás, " +
+              (files.motorwayOn || []).length +
+              " felhajtó. A fájlnév nem számít."
           );
           return files;
         } catch (_e) {}
