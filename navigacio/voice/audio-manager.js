@@ -87,6 +87,8 @@
       this.catalog = {};
       this.lastName = "";
       this.playId = 0;
+      /** @type {Record<string, { name: string, href: string }>} */
+      this.warm = {};
       this.player = document.getElementById("navVoiceEl") || new Audio();
       this.player.setAttribute("playsinline", "true");
       this.player.setAttribute("webkit-playsinline", "true");
@@ -184,12 +186,29 @@
       return true;
     }
 
+    warmCat(cat) {
+      if (!cat || this.warm[cat]) return;
+      const name = this.pickName(cat);
+      if (!name) return;
+      const href = this.hrefsForName(name)[0];
+      if (!href) return;
+      try {
+        const pre = new Audio();
+        pre.preload = "auto";
+        pre.src = href;
+      } catch (_e) {}
+      this.warm[cat] = { name, href };
+    }
+
     playCat(cat) {
       hushSpeech();
       if (!cat) return false;
       const order = [cat].concat(FALLBACK[cat] || []);
       for (let i = 0; i < order.length; i++) {
-        const name = this.pickName(order[i]);
+        const key = order[i];
+        const held = this.warm[key];
+        const name = held && held.name ? held.name : this.pickName(key);
+        if (held) delete this.warm[key];
         if (!name) continue;
         return this.playNow(this.hrefsForName(name));
       }
@@ -228,11 +247,12 @@
     }
 
     start() {
-      this.started = true;
       hushSpeech();
+      if (this.started) return true;
+      this.started = true;
       this.unlock();
       this.findSounds().then(() => {
-        this.log("Hang kész. Nyomj egy irányt: egy klip fog szólni.");
+        this.log("Hang kész. Kanyarnál a csomag szól.");
       });
       return true;
     }
@@ -265,6 +285,14 @@
 
     hasPack() {
       return this.filesFor("left").length > 0 || this.filesFor("right").length > 0;
+    }
+
+    isBusy() {
+      try {
+        return !!(this.player && !this.player.paused && !this.player.ended);
+      } catch (_e) {
+        return false;
+      }
     }
 
     async findSounds() {
