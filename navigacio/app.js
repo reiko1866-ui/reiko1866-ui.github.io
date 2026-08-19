@@ -424,7 +424,7 @@
     }
     const highway = kind.highway || Number(state.speed || 0) > 22;
     const v = Math.max(Number(state.speed) || 0, highway ? 22 : 8);
-    const nowMax = Math.max(55, Math.min(140, v * 5));
+    const nowMax = Math.max(120, Math.min(280, v * 8));
     const nearMax = Math.max(250, Math.min(520, v * 18));
     const soonMax = Math.max(800, Math.min(2000, v * 55));
     if (until <= nowMax) return "now";
