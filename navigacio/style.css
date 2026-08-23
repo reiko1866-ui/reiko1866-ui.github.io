@@ -422,7 +422,8 @@ button {
 #speed[hidden],
 #limitSign[hidden],
 #placeChip[hidden],
-#roadThen[hidden] {
+#roadThen[hidden],
+#hazardThen[hidden] {
   display: none !important;
 }
 
@@ -472,7 +473,8 @@ button {
   background: rgba(30, 41, 59, 0.88);
 }
 
-#roadThen {
+#roadThen,
+#hazardThen {
   display: flex;
   align-items: center;
   gap: 0.4rem;
@@ -481,6 +483,10 @@ button {
   font-size: 0.8rem;
   font-weight: 650;
   opacity: 0.95;
+}
+
+#hazardThen {
+  color: #fecaca;
 }
 
 #kmh {
