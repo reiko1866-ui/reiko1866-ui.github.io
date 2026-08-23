@@ -377,11 +377,29 @@ button {
   top: calc(8.8rem + var(--safe-top));
 }
 
-#speed {
+#app.is-nav:has(#roadThen:not([hidden])) #infoCard {
+  top: calc(9.6rem + var(--safe-top));
+}
+
+#app.is-nav:has(#thenRow:not([hidden])):has(#roadThen:not([hidden])) #infoCard {
+  top: calc(10.6rem + var(--safe-top));
+}
+
+#speedBox {
   position: absolute;
   left: var(--pad);
   bottom: calc(var(--pad) + var(--safe-bottom));
   z-index: 18;
+  display: flex;
+  align-items: flex-end;
+  gap: 0.45rem;
+}
+
+#app.is-nav #speedBox {
+  bottom: calc(5.6rem + var(--safe-bottom));
+}
+
+#speed {
   width: 4.4rem;
   height: 4.4rem;
   display: flex;
@@ -395,8 +413,74 @@ button {
   box-shadow: var(--shadow);
 }
 
-#app.is-nav #speed {
-  bottom: calc(5.6rem + var(--safe-bottom));
+#speed.is-over {
+  border-color: #ff4d4f;
+  background: #7f1d1d;
+  box-shadow: 0 0 0 3px rgba(255, 77, 79, 0.35);
+}
+
+#speed[hidden],
+#limitSign[hidden],
+#placeChip[hidden],
+#roadThen[hidden] {
+  display: none !important;
+}
+
+#limitSign {
+  width: 3.35rem;
+  height: 3.35rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: #fff;
+  color: #111;
+  border: 0.38rem solid #e11d48;
+  box-shadow: var(--shadow);
+}
+
+#limitVal {
+  font-size: 1.15rem;
+  line-height: 1;
+  font-weight: 800;
+}
+
+#placeChip {
+  position: absolute;
+  left: var(--pad);
+  bottom: calc(5.15rem + var(--safe-bottom));
+  z-index: 18;
+  max-width: 12rem;
+  padding: 0.28rem 0.65rem;
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.82);
+  color: #fff;
+  font-size: 0.78rem;
+  font-weight: 700;
+  box-shadow: var(--shadow);
+}
+
+#app.is-nav #placeChip {
+  bottom: calc(10.15rem + var(--safe-bottom));
+}
+
+#placeChip.is-town {
+  background: rgba(22, 101, 52, 0.88);
+}
+
+#placeChip.is-rural {
+  background: rgba(30, 41, 59, 0.88);
+}
+
+#roadThen {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.22rem 0.2rem 0.05rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.2);
+  font-size: 0.8rem;
+  font-weight: 650;
+  opacity: 0.95;
 }
 
 #kmh {
