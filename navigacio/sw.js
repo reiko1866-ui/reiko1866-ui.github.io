@@ -1,4 +1,4 @@
-const CACHE = "nav-v27";
+const CACHE = "nav-v28";
 const CORE = [
   "./",
   "./index.html",
@@ -32,7 +32,7 @@ self.addEventListener("fetch", (event) => {
   if (req.method !== "GET") return;
   const url = new URL(req.url);
   if (url.origin !== self.location.origin) return;
-  if (/\.(mp3|ogg|wav|m4a)$/i.test(url.pathname) || /hungary_jf/i.test(url.pathname) || /voice\/clips/i.test(url.pathname)) {
+  if (/\.(mp3|ogg|wav|m4a|pmtiles)$/i.test(url.pathname) || /hungary_jf/i.test(url.pathname) || /voice\/clips/i.test(url.pathname) || /\/map\//i.test(url.pathname)) {
     return;
   }
   event.respondWith(
