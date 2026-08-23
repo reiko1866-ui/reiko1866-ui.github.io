@@ -16,26 +16,7 @@
   ];
   const STYLES = {
     light: "https://tiles.openfreemap.org/styles/liberty",
-    dark: {
-      version: 8,
-      name: "Carto Dark Matter",
-      sources: {
-        carto: {
-          type: "raster",
-          tiles: [
-            "https://a.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}@2x.png",
-            "https://b.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}@2x.png",
-            "https://c.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}@2x.png"
-          ],
-          tileSize: 256,
-          attribution: "&copy; OpenStreetMap contributors &copy; CARTO"
-        }
-      },
-      layers: [
-        { id: "bg", type: "background", paint: { "background-color": "#0F172A" } },
-        { id: "carto", type: "raster", source: "carto" }
-      ]
-    }
+    dark: "https://tiles.openfreemap.org/styles/dark"
   };
 
   const $ = (id) => document.getElementById(id);
@@ -190,7 +171,8 @@
     lastSpeedWarn: 0,
     warnCtx: null,
     hazards: [],
-    spokenHazard: ""
+    spokenHazard: "",
+    mapOffline: false
   };
 
   function setStatus(msg, err) {
@@ -1732,7 +1714,7 @@
       });
       if (list.length) return list;
     } catch (_e) {}
-    const url = NOMINATIM + "?format=jsonv2&limit=5&countrycodes=hu&q=" + encodeURIComponent(q);
+    const url = NOMINATIM + "?format=jsonv2&limit=5&q=" + encodeURIComponent(q);
     const res = await fetch(url, { headers: { Accept: "application/json" } });
     if (!res.ok) throw new Error("A keresés sikertelen.");
     const data = await res.json();
@@ -1825,13 +1807,101 @@
     choose({ lat: p.lat, lon: p.lng, display_name: p.label || kind });
   }
 
+  function europePmtilesUrl() {
+    try {
+      return new URL("./map/europe.pmtiles", document.baseURI).href;
+    } catch (_e) {
+      return "./map/europe.pmtiles";
+    }
+  }
+
+  function registerPmtiles() {
+    if (window.__pmtilesReady || !window.pmtiles || !window.maplibregl) return;
+    const protocol = new window.pmtiles.Protocol();
+    maplibregl.addProtocol("pmtiles", protocol.tile);
+    window.__pmtilesReady = true;
+  }
+
+  async function loadEuropeStyle(dark) {
+    registerPmtiles();
+    const flavor = dark ? "dark" : "light";
+    let layers = null;
+    try {
+      const mod = await import("https://esm.sh/@protomaps/basemaps@5.4.0");
+      layers = mod.layers("protomaps", mod.namedFlavor(flavor), { lang: "hu" });
+    } catch (_e) {
+      layers = [
+        { id: "bg", type: "background", paint: { "background-color": dark ? "#0F172A" : "#f2efe9" } },
+        {
+          id: "earth",
+          type: "fill",
+          source: "protomaps",
+          "source-layer": "earth",
+          paint: { "fill-color": dark ? "#1E293B" : "#e8e0d0" }
+        },
+        {
+          id: "water",
+          type: "fill",
+          source: "protomaps",
+          "source-layer": "water",
+          paint: { "fill-color": dark ? "#0c4a6e" : "#80b8d8" }
+        },
+        {
+          id: "roads",
+          type: "line",
+          source: "protomaps",
+          "source-layer": "roads",
+          paint: { "line-color": dark ? "#94a3b8" : "#666", "line-width": 1.15 }
+        },
+        {
+          id: "places",
+          type: "symbol",
+          source: "protomaps",
+          "source-layer": "places",
+          layout: {
+            "text-field": ["coalesce", ["get", "name:hu"], ["get", "name"], ["get", "name:en"]],
+            "text-size": 13
+          },
+          paint: {
+            "text-color": dark ? "#E2E8F0" : "#111",
+            "text-halo-color": dark ? "#0F172A" : "#fff",
+            "text-halo-width": 1.4
+          }
+        }
+      ];
+    }
+    return {
+      version: 8,
+      name: "Európa",
+      glyphs: "https://protomaps.github.io/basemaps-assets/fonts/{fontstack}/{range}.pbf",
+      sprite: "https://protomaps.github.io/basemaps-assets/sprites/v4/" + flavor,
+      sources: {
+        protomaps: {
+          type: "vector",
+          url: "pmtiles://" + europePmtilesUrl(),
+          attribution: "© OpenStreetMap © Protomaps"
+        }
+      },
+      layers: layers
+    };
+  }
+
   function applyTheme(dark) {
     document.documentElement.classList.toggle("dark", dark);
     localStorage.setItem(THEME_KEY, dark ? "dark" : "light");
-    if (state.map) {
-      state.map.setStyle(dark ? STYLES.dark : STYLES.light);
+    if (!state.map) return;
+    const done = function () {
       state.map.once("style.load", addLayers);
+    };
+    if (state.mapOffline) {
+      loadEuropeStyle(dark).then(function (st) {
+        state.map.setStyle(st);
+        done();
+      });
+      return;
     }
+    state.map.setStyle(dark ? STYLES.dark : STYLES.light);
+    done();
   }
 
   function initMap() {
@@ -1839,19 +1909,33 @@
       setStatus("A térképkönyvtár nem töltődött be. Frissítsd az oldalt.", true);
       return;
     }
+    registerPmtiles();
     const dark = localStorage.getItem(THEME_KEY) !== "light";
     document.documentElement.classList.toggle("dark", dark);
     if ($("dark")) $("dark").checked = dark;
     if ($("voiceCheck")) $("voiceCheck").checked = state.voice;
     state.map = new maplibregl.Map({
       container: "map",
-      style: STYLES.dark,
+      style: dark ? STYLES.dark : STYLES.light,
       center: BUDAPEST,
       zoom: 13.5,
       pitch: 50,
       maxPitch: 75,
       attributionControl: true
     });
+    let ready = false;
+    state.map.once("load", function () {
+      ready = true;
+    });
+    window.setTimeout(function () {
+      if (ready || state.mapOffline) return;
+      state.mapOffline = true;
+      loadEuropeStyle(dark).then(function (st) {
+        state.map.setStyle(st);
+        state.map.once("style.load", addLayers);
+        setStatus("Letöltött Európa-térkép");
+      });
+    }, 8000);
     state.map.on("error", (e) => {
       const msg = e && e.error && (e.error.message || e.error.statusText);
       if (msg) setStatus("Térkép: " + msg, true);
@@ -2000,6 +2084,23 @@
     });
   }
 
+  function loadScript(src) {
+    return new Promise(function (resolve, reject) {
+      const s = document.createElement("script");
+      s.src = src;
+      s.onload = resolve;
+      s.onerror = reject;
+      document.head.appendChild(s);
+    });
+  }
+
+  function loadPmtiles() {
+    if (window.pmtiles) return Promise.resolve();
+    return loadScript("https://unpkg.com/pmtiles@3.2.1/dist/pmtiles.js").catch(function () {
+      return loadScript("https://cdn.jsdelivr.net/npm/pmtiles@3.2.1/dist/pmtiles.js");
+    });
+  }
+
   function loadMapLibre() {
     const cssHref = "https://cdn.jsdelivr.net/npm/maplibre-gl@5.5.0/dist/maplibre-gl.css";
     const jsHrefs = [
@@ -2013,21 +2114,25 @@
       css.setAttribute("data-maplibre", "1");
       document.head.appendChild(css);
     }
-    if (window.maplibregl) return Promise.resolve();
-    return new Promise((resolve, reject) => {
-      let i = 0;
-      function next() {
-        if (window.maplibregl) return resolve();
-        if (i >= jsHrefs.length) return reject(new Error("A térképkönyvtár nem elérhető."));
-        const s = document.createElement("script");
-        s.src = jsHrefs[i++];
-        s.onload = function () {
-          window.maplibregl ? resolve() : next();
-        };
-        s.onerror = next;
-        document.head.appendChild(s);
-      }
-      next();
+    const ready = window.maplibregl
+      ? Promise.resolve()
+      : new Promise((resolve, reject) => {
+          let i = 0;
+          function next() {
+            if (window.maplibregl) return resolve();
+            if (i >= jsHrefs.length) return reject(new Error("A térképkönyvtár nem elérhető."));
+            const s = document.createElement("script");
+            s.src = jsHrefs[i++];
+            s.onload = function () {
+              window.maplibregl ? resolve() : next();
+            };
+            s.onerror = next;
+            document.head.appendChild(s);
+          }
+          next();
+        });
+    return ready.then(loadPmtiles).then(function () {
+      registerPmtiles();
     });
   }
 
