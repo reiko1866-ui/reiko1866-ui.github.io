@@ -64,11 +64,22 @@
           <span id="thenIcon" aria-hidden="true">↑</span>
           <span id="thenText"></span>
         </div>
+        <div id="roadThen" hidden>
+          <span id="roadThenText"></span>
+        </div>
       </div>
 
-      <div id="speed" hidden aria-live="off">
-        <strong id="kmh">0</strong>
-        <span>km/h</span>
+      <div id="speedBox">
+        <div id="speed" hidden aria-live="off">
+          <strong id="kmh">0</strong>
+          <span>km/h</span>
+        </div>
+        <div id="limitSign" hidden title="Sebességhatár">
+          <strong id="limitVal">—</strong>
+        </div>
+      </div>
+      <div id="placeChip" hidden>
+        <span id="placeText"></span>
       </div>
 
       <footer id="trip" hidden>
@@ -87,6 +98,7 @@
         <li>Felül a kanyartábla: táv, utasítás, utca, alatta a következő kanyar.</li>
         <li>A kanyarnál a feltöltött hangcsomag szól, letéréskor újratervez.</li>
         <li>3D követő kamera, neonkék útvonal.</li>
+        <li>Sebességhatár tábla és településhatár (előre jelzi a 50 / külterület váltást).</li>
         <li>Otthon és munka egy gombbal a menüből.</li>
       </ul>
     </section>
