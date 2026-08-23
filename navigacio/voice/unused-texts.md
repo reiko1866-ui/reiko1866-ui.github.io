@@ -1,7 +1,19 @@
 # Nem használt szövegek
 
-A pack **698** fájlból **392** nem szólal meg. Ezek Whisper-átiratai (base, magyar).
-A fájlnév **nem** a tartalom. Az átirat közelítő: a poénos, zenés klipek gyakran zavarosak.
+A pack **698** fájlból **366** nem szólal meg. **332** megy lejátszásra (ebből 26 poénos, de vezethető klip került be).
+Whisper-átirat (base, magyar). A fájlnév **nem** a tartalom.
+
+## Most berakva vezetésre
+
+Vicces, de még irányt ad (vagy cél / GPS / gyorshajtás):
+
+- Főút: „egyszerűen csak követni kell”, „nagyon kedves, ez a főút”
+- Új út: „csinálok neked egy új, nagyon szép utat — maradj rajta”
+- Jobbra: „jobbra, jobbra, jobbra”, „mi vagy történhet?”
+- Körforgalom: „körforgalom!”, „ez inkább idegbeteg”, „ez nem dráma”
+- Autópálya fel/le, komp, GPS gyenge, „fordulj vissza hol lehet”
+- Cél: „na, hova jöttünk?”, plusz piros autó / mentőmellény / Dugo (csak megérkezéskor)
+- Gyorshajtás: pack-poén, utána TTS „Túlléped a …-at”
 
 Kétféle kihagyott szöveg van:
 

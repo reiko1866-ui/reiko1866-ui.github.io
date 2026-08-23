@@ -728,7 +728,14 @@
       if (!(nv && nv.isBusy())) {
         state.lastSpeedWarn = Date.now();
         playWarnBeep(3);
-        speakRoad("Túlléped a " + limit + "-at");
+        const line = "Túlléped a " + limit + "-at";
+        if (nv && nv.playCat("speed")) {
+          afterPack(function () {
+            speakRoad(line);
+          });
+        } else {
+          speakRoad(line);
+        }
       }
     }
     maybeSpeakHazard();
