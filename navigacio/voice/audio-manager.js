@@ -33,7 +33,8 @@
     "motorway-on": { cat: "motorwayOn" },
     "motorway-off": { cat: "motorwayOff" },
     ferry: { cat: "ferryOn" },
-    gps: { cat: "gps" }
+    gps: { cat: "gps" },
+    speed: { cat: "speed" }
   };
 
   const FALLBACK = {
