@@ -185,7 +185,10 @@
     lastPlaceAt: 0,
     lastUrban: null,
     lastLimitShown: 0,
-    roadBusy: false
+    roadBusy: false,
+    spokenRoad: "",
+    lastSpeedWarn: 0,
+    warnCtx: null
   };
 
   function setStatus(msg, err) {
@@ -609,6 +612,106 @@
   function armVoice() {
     const nv = navVoice();
     if (nv) nv.start();
+    try {
+      if (!state.warnCtx) state.warnCtx = new (window.AudioContext || window.webkitAudioContext)();
+      if (state.warnCtx && state.warnCtx.state === "suspended") state.warnCtx.resume();
+    } catch (_e) {}
+  }
+
+  function playWarnBeep(count) {
+    try {
+      if (!state.warnCtx) state.warnCtx = new (window.AudioContext || window.webkitAudioContext)();
+      const ctx = state.warnCtx;
+      if (ctx.state === "suspended") ctx.resume();
+      const n = Math.max(1, Math.min(3, count || 1));
+      for (let i = 0; i < n; i++) {
+        const osc = ctx.createOscillator();
+        const g = ctx.createGain();
+        osc.type = "sine";
+        osc.frequency.value = i % 2 ? 880 : 1244;
+        const t0 = ctx.currentTime + i * 0.17;
+        g.gain.setValueAtTime(0.0001, t0);
+        g.gain.exponentialRampToValueAtTime(0.2, t0 + 0.02);
+        g.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.13);
+        osc.connect(g);
+        g.connect(ctx.destination);
+        osc.start(t0);
+        osc.stop(t0 + 0.14);
+      }
+    } catch (_e) {}
+  }
+
+  function huVoice() {
+    try {
+      const list = (window.speechSynthesis && window.speechSynthesis.getVoices()) || [];
+      return (
+        list.filter(function (v) { return /^hu/i.test(v.lang || ""); })[0] ||
+        list.filter(function (v) { return /hungarian|magyar/i.test(v.name || ""); })[0] ||
+        null
+      );
+    } catch (_e) {
+      return null;
+    }
+  }
+
+  function speakRoad(text) {
+    if (!state.voice || !state.navigating || !text) return;
+    const nv = navVoice();
+    if (nv && nv.isBusy()) return;
+    const voice = huVoice();
+    if (!voice || !window.speechSynthesis) return;
+    try {
+      window.speechSynthesis.cancel();
+      const u = new SpeechSynthesisUtterance(text);
+      u.lang = voice.lang || "hu-HU";
+      u.voice = voice;
+      u.rate = 1.06;
+      u.volume = 1;
+      window.speechSynthesis.speak(u);
+    } catch (_e) {}
+  }
+
+  function warnRoad(text, beeps, key) {
+    if (key && state.spokenRoad === key) return;
+    if (key) state.spokenRoad = key;
+    const nv = navVoice();
+    if (nv && nv.isBusy()) {
+      if (key) state.spokenRoad = "";
+      return;
+    }
+    playWarnBeep(beeps);
+    speakRoad(text);
+  }
+
+  function maybeSpeakRoad() {
+    if (!state.navigating || !state.voice) return;
+    const kmh = Math.round((state.speed || 0) * 3.6);
+    const limit = Number(state.road && state.road.limit) || 0;
+    const urban = state.road && state.road.urban;
+    const nxt = state.limits.length ? nextBoundary(state.traveled) : null;
+    if (nxt && nxt.dist < 420 && nxt.dist > 50) {
+      let text = "";
+      let beeps = 1;
+      if (nxt.urban === true && urban !== true) {
+        text = "Település" + (nxt.limit ? ", " + nxt.limit : "");
+        beeps = 2;
+      } else if (nxt.urban === false && urban !== false) {
+        text = "Település vége" + (nxt.limit ? ", " + nxt.limit : "");
+        beeps = 2;
+      } else if (nxt.limit && nxt.limit !== limit) {
+        text = "Sebességhatár " + nxt.limit;
+        beeps = 1;
+      }
+      if (text) warnRoad(text, beeps, "soon:" + nxt.urban + ":" + nxt.limit);
+    }
+    if (limit && kmh > limit + 5 && Date.now() - state.lastSpeedWarn > 22000) {
+      const nv = navVoice();
+      if (!(nv && nv.isBusy())) {
+        state.lastSpeedWarn = Date.now();
+        playWarnBeep(3);
+        speakRoad("Túlléped a " + limit + "-at");
+      }
+    }
   }
 
   function speakGuidance(kind) {
@@ -928,6 +1031,7 @@
       if (limit) bits.push(limit + " km/h");
       if (bits.length) setStatus(bits.join(" · "));
     }
+    maybeSpeakRoad();
   }
 
   async function loadRoadProfile(coords) {
@@ -1021,12 +1125,20 @@
   function updateRoadFromRoute() {
     if (state.limits.length) {
       const road = roadAt(state.traveled);
-      const flipped = road.urban !== state.lastUrban;
-      const limitChanged = road.limit !== state.lastLimitShown;
+      const primed = state.lastUrban === true || state.lastUrban === false || state.lastLimitShown > 0;
+      const flipped = primed && road.urban !== state.lastUrban;
+      const limitChanged = primed && road.limit !== state.lastLimitShown;
       applyRoad(road);
       if (flipped || (limitChanged && road.urban === true && !state.place)) {
         if (road.urban === true && state.origin) refreshPlace(state.origin.lat, state.origin.lng);
         else if (road.urban === false) state.place = "";
+      }
+      if (flipped && road.urban === true) {
+        warnRoad((state.place || "Település") + (road.limit ? ", " + road.limit : ""), 2, "now:in:" + road.limit);
+      } else if (flipped && road.urban === false) {
+        warnRoad("Település vége" + (road.limit ? ", " + road.limit : ""), 2, "now:out:" + road.limit);
+      } else if (!flipped && limitChanged && road.limit) {
+        warnRoad("Sebességhatár " + road.limit, 1, "now:lim:" + road.limit);
       }
       state.lastUrban = road.urban;
       state.lastLimitShown = road.limit;
@@ -1297,6 +1409,8 @@
       if (reroute && state.coords.length) state.traveled = nearest(state.coords, state.origin).traveled;
       else state.traveled = 0;
       state.spoken = {};
+      state.spokenRoad = "";
+      state.lastSpeedWarn = 0;
       state.arrived = false;
       addLayers();
       drawRoute();
