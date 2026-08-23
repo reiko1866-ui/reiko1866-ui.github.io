@@ -1,5 +1,5 @@
 {
-  "notes": "Ezek a feltöltött klipek nem mennek lejátszásra: a Whisper-átirat szerint nem tiszta kanyarutasítás (hosszú poén, zene, ismétlés, vagy nem lehetett kategóriába tenni). A fájlnév NEM a tartalom — a and_then_exit_right_* nagy része emiatt kimaradt, nem azért, mert jobbra kanyar.",
+  "notes": "Ezek a feltöltött klipek nem mennek lejátszásra: a Whisper-átirat szerint nem tiszta kanyarutasítás (hosszú poén, zene, ismétlés, vagy nem lehetett kategóriába tenni). A fájlnév NEM a tartalom — a and_then_exit_right_* nagy része emiatt kimaradt, nem azért, mert jobbra kanyar. A kihagyott szövegek: unused-texts.md (olvasható) és unused-texts.json (fájl→átirat).",
   "pack": 698,
   "used": 306,
   "unused": 392,
