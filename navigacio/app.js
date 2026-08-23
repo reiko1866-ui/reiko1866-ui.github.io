@@ -1125,8 +1125,9 @@
   function updateRoadFromRoute() {
     if (state.limits.length) {
       const road = roadAt(state.traveled);
-      const flipped = road.urban !== state.lastUrban;
-      const limitChanged = road.limit !== state.lastLimitShown;
+      const primed = state.lastUrban === true || state.lastUrban === false || state.lastLimitShown > 0;
+      const flipped = primed && road.urban !== state.lastUrban;
+      const limitChanged = primed && road.limit !== state.lastLimitShown;
       applyRoad(road);
       if (flipped || (limitChanged && road.urban === true && !state.place)) {
         if (road.urban === true && state.origin) refreshPlace(state.origin.lat, state.origin.lng);
