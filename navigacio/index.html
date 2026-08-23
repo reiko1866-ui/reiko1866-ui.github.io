@@ -67,6 +67,9 @@
         <div id="roadThen" hidden>
           <span id="roadThenText"></span>
         </div>
+        <div id="hazardThen" hidden>
+          <span id="hazardThenText"></span>
+        </div>
       </div>
 
       <div id="speedBox">
@@ -98,7 +101,8 @@
         <li>Felül a kanyartábla: táv, utasítás, utca, alatta a következő kanyar.</li>
         <li>A kanyarnál a feltöltött hangcsomag szól, letéréskor újratervez.</li>
         <li>3D követő kamera, neonkék útvonal.</li>
-        <li>Sebességhatár és településhatár: tábla, sípszó, magyar figyelmeztetés (település, 50, túllépés).</li>
+        <li>Előrejelzés, következő kanyar, kijárat, sáv, település, sebesség, traffipax, vasút, fekvőrendőr.</li>
+        <li>A feltöltött csomagból 306 tiszta kanyarklip szól; 392 poén / zene / nem utasítás kimarad.</li>
         <li>Otthon és munka egy gombbal a menüből.</li>
       </ul>
     </section>
@@ -150,7 +154,7 @@
       <label class="check"><input type="checkbox" id="voiceCheck" checked> Hang</label>
       <label class="check"><input type="checkbox" id="dark"> Sötét térkép</label>
       <div id="voiceTest">
-        <p class="hint">A csomag poénos GPS-hang. A gombok a kimondott utasítás szerint sorsolnak (balra, jobbra, körforgalom…), nem a fájlnévből.</p>
+        <p class="hint">A csomag poénos GPS-hang. 306 klip megy (balra, jobbra, körforgalom…). 392 fájl kimarad: a Whisper szerint nem tiszta utasítás, a fájlnév nem számít.</p>
         <input id="voiceBase" type="text" spellcheck="false" placeholder="automatikus" hidden>
         <button type="button" id="voiceFind">Hangok keresése</button>
         <button type="button" id="voiceStart">Hang indítása</button>
