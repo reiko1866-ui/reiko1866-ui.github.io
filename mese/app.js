@@ -1,6 +1,7 @@
 const STORAGE_KEY = "holdmese.apiKey";
 const FORM_KEY = "holdmese.form";
 const MODEL = "gemini-2.5-flash";
+const GEMINI_ENDPOINT = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent`;
 const CATEGORY_LABELS = {
   mese: "Esti mese",
   vers: "Rímes vers / Ének",
@@ -11,16 +12,6 @@ const LENGTH_LABELS = {
   short: "Rövid · 2 perc",
   medium: "Közepes · 5 perc",
 };
-
-const SYSTEM_INSTRUCTION = `Te egy gyengéd, magyar nyelvű esti mesemondó vagy. Olyan szövegeket írsz, amelyeket szülők felolvashatnak gyerekeknek lefekvés előtt.
-
-Szabályok:
-- Mindig magyarul írj, helyes magyar nyelvtannal és természetes ritmussal.
-- A tartalom legyen életkornak megfelelő, meleg, megnyugtató. Ijesztő, durva, erőszakos vagy túl izgalmas elemek tilosak.
-- A gyerek nevét sződd bele természetesen, ha megadták.
-- Formázd a szöveget tiszta bekezdésekkel. A tetején legyen egy rövid, szép cím (# címsor).
-- Ne írj előszót, magyarázatot, metadiszclaimert, utószót a szülőnek — csak a kész, felolvasható tartalmat add.
-- Kerüld a markdown táblázatokat. Dőlt és félkövér jelölés megengedett.`;
 
 const els = {
   form: document.getElementById("story-form"),
@@ -45,6 +36,7 @@ const els = {
 };
 
 let lastPlainText = "";
+let lastCategory = "mese";
 let speaking = false;
 let hungarianVoice = null;
 
@@ -124,6 +116,12 @@ function escapeHtml(text) {
   }[char]));
 }
 
+function inlineFormat(text) {
+  return text
+    .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
+    .replace(/\*(.+?)\*/g, "<em>$1</em>");
+}
+
 function renderMarkdown(raw) {
   const escaped = escapeHtml(raw.trim());
   const blocks = escaped.split(/\n{2,}/);
@@ -148,17 +146,67 @@ function renderMarkdown(raw) {
   }).join("");
 }
 
-function inlineFormat(text) {
-  return text
-    .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
-    .replace(/\*(.+?)\*/g, "<em>$1</em>");
+function parseRiddles(raw) {
+  const titleMatch = raw.match(/^#{1,3}\s+(.+)$/m);
+  const title = titleMatch ? titleMatch[1].trim() : "";
+  const riddles = [];
+  const tagged = [...raw.matchAll(/KERDES:\s*([\s\S]*?)\s*VALASZ:\s*([\s\S]*?)(?=\s*(?:TALALOS\s*\d+|KERDES:)|$)/gi)];
+  tagged.forEach((match) => {
+    const question = match[1].replace(/\s+/g, " ").trim();
+    const answer = match[2].replace(/\s+/g, " ").trim();
+    if (question && answer) riddles.push({ question, answer });
+  });
+  if (riddles.length) return { title, riddles: riddles.slice(0, 3) };
+
+  const fallback = [...raw.matchAll(/(?:^|\n)\s*(?:\d+[.)]|[-*])\s*(.+?)\n+\s*(?:\*\*)?Válasz:?\s*(?:\*\*)?\s*(.+)/gi)];
+  fallback.forEach((match) => {
+    const question = match[1].replace(/\s+/g, " ").trim();
+    const answer = match[2].replace(/\s+/g, " ").trim();
+    if (question && answer) riddles.push({ question, answer });
+  });
+  return { title, riddles: riddles.slice(0, 3) };
 }
 
-function toSpeechText(raw) {
+function renderRiddles(raw) {
+  const parsed = parseRiddles(raw);
+  if (!parsed.riddles.length) {
+    return renderMarkdown(raw).replace(
+      /<p>(?:<strong>)?Válasz:?\s*(?:<\/strong>)?\s*(.+?)<\/p>/gi,
+      '<details class="answer-reveal"><summary>Mutasd a választ</summary><p class="answer">$1</p></details>',
+    );
+  }
+  const heading = parsed.title ? `<h2>${escapeHtml(parsed.title)}</h2>` : "<h2>Találós kérdések</h2>";
+  const cards = parsed.riddles.map((riddle, index) => `
+    <article class="riddle">
+      <p class="riddle-q"><strong>${index + 1}.</strong> ${inlineFormat(escapeHtml(riddle.question))}</p>
+      <details>
+        <summary>Mutasd a választ</summary>
+        <p class="answer">${inlineFormat(escapeHtml(riddle.answer))}</p>
+      </details>
+    </article>
+  `).join("");
+  return heading + cards;
+}
+
+function renderContent(raw, category) {
+  return category === "talalos" ? renderRiddles(raw) : renderMarkdown(raw);
+}
+
+function toSpeechText(raw, category = lastCategory) {
+  if (category === "talalos") {
+    const parsed = parseRiddles(raw);
+    if (parsed.riddles.length) {
+      const title = parsed.title ? `${parsed.title}. ` : "";
+      return title + parsed.riddles.map((riddle, index) => `${index + 1}. találós. ${riddle.question}`).join(" ");
+    }
+  }
   return raw
     .replace(/^#{1,3}\s+/gm, "")
     .replace(/\*\*(.+?)\*\*/g, "$1")
     .replace(/\*(.+?)\*/g, "$1")
+    .replace(/^\s*(?:TALALOS\s*\d+|KERDES:|VALASZ:).*$/gim, (line) => (
+      /^\s*VALASZ:/i.test(line) ? "" : line.replace(/^\s*(?:TALALOS\s*\d+|KERDES:)\s*/i, "")
+    ))
     .replace(/^\s*[-*]\s+/gm, "")
     .replace(/^\s*\d+\.\s+/gm, "")
     .replace(/\n{3,}/g, "\n\n")
@@ -166,44 +214,93 @@ function toSpeechText(raw) {
 }
 
 function ageGuidance(age) {
-  if (age <= 3) return "Nagyon egyszerű, rövid mondatok, ismétlések, ringató ritmus. Mintha egy 2-3 évesnek mesélnél.";
-  if (age <= 6) return "Klasszikus, mesés nyelvezet, könnyen követhető cselekmény, meleg zárás.";
-  if (age <= 9) return "Gazdagabb szókincs, enyhe humor, még mindig megnyugtató, nem ijesztő.";
-  return "Kicsit költőibb, okos humorral, de továbbra is gyengéd, esti hangulatú.";
+  if (age <= 3) return "A gyerek 1-3 éves: nagyon egyszerű, rövid mondatok, ismétlések, ringató ritmus.";
+  if (age <= 6) return "A gyerek óvodás (4-6 év): klasszikus mesés nyelvezet, könnyen követhető cselekmény, meleg zárás.";
+  if (age <= 9) return "A gyerek kisiskolás (7-9 év): gazdagabb szókincs, enyhe humor, még mindig megnyugtató.";
+  return "A gyerek nagyobb (10+ év): kicsit költőibb, okos humorral, de továbbra is gyengéd, esti hangulatú.";
 }
 
-function categoryGuidance(category, length) {
-  const minutes = length === "medium" ? "körülbelül 5 perc felolvasás (kb. 450-650 szó)" : "körülbelül 2 perc felolvasás (kb. 180-280 szó)";
+function categoryInstruction(category, length) {
+  const minutes = length === "medium"
+    ? "körülbelül 5 perc felolvasás (kb. 450-650 szó)"
+    : "körülbelül 2 perc felolvasás (kb. 180-280 szó)";
+
+  if (category === "mese") {
+    return [
+      "Kategória: Esti mese.",
+      "Írj megnyugtató, altató hangulatú, kedves mesét.",
+      "A ritmus legyen lassú, a hangulat meleg, a zárlat békés, hogy a gyerek álomba szenderülhessen.",
+      "Kerüld a ijesztő fordulatokat, üldözést, veszélyt.",
+      `Terjedelem: ${minutes}.`,
+    ].join(" ");
+  }
   if (category === "vers") {
-    return `Írj rímes, énekelhető, magyar gyermekverset vagy altatódalt. Tiszta rímek, dalos ritmus. Terjedelem: ${minutes}.`;
+    return [
+      "Kategória: Rímes vers / Ének.",
+      "Írj dallamos, ritmikus, könnyen énekelhető vagy szavalható rímes magyar gyermekverset.",
+      "Tiszta rímek, dalos lüktetés, ismétlődő refrén, ha illik.",
+      "Olyan legyen, mintha altatódalt vagy játékos mondókát hallanánk.",
+      `Terjedelem: ${minutes}.`,
+    ].join(" ");
   }
   if (category === "talalos") {
-    const count = length === "medium" ? "8-10" : "5-6";
-    return `Írj ${count} játékos, életkornak megfelelő találós kérdést. Minden kérdés után külön sorban add meg a választ így: **Válasz:** ... A hangulat maradjon esti, vidám, nem ijesztő.`;
+    return [
+      "Kategória: Találós kérdések.",
+      "Pontosan 3 darab, a korosztálynak megfelelő, játékos találós kérdést írj.",
+      "A kérdések legyenek vidámak, nem ijesztőek, és kapcsolódjanak a megadott témához, ha van.",
+      "A válaszokat SOHA ne írd a kérdés után olvashatóan. Pontosan ezt a formátumot használd, semmi mást:",
+      "Először egy rövid # cím, utána három blokk:",
+      "TALALOS 1",
+      "KERDES: a találós kérdés teljes szövege",
+      "VALASZ: a megoldás egy rövid mondatban",
+      "TALALOS 2",
+      "KERDES: ...",
+      "VALASZ: ...",
+      "TALALOS 3",
+      "KERDES: ...",
+      "VALASZ: ...",
+    ].join("\n");
   }
-  if (category === "unnep") {
-    return `Írj ünnepi, téli, Télapós vagy karácsonyi hangulatú esti mesét. Csillogás, hó, gyertyafény, kedvesség. Terjedelem: ${minutes}.`;
-  }
-  return `Írj kerek, megnyugtató esti mesét, békés zárlattal, hogy a gyerek álomba szenderülhessen. Terjedelem: ${minutes}.`;
+  return [
+    "Kategória: Ünnepi / Télapó / Karácsony.",
+    "Írj varázslatos, meleg hangulatú mesét a Télapóról vagy a karácsonyi csodákról.",
+    "Hó, gyertyafény, ajándék, kedvesség, családi melegség — ijesztő elem nélkül.",
+    `Terjedelem: ${minutes}.`,
+  ].join(" ");
 }
 
-function buildPrompt(input) {
+function buildSystemInstruction(input) {
   const theme = input.theme || "csillagok, erdei állatok és egy kis holdfény";
   return [
-    `Gyerek neve: ${input.childName}`,
-    `Életkor: ${input.childAge} év`,
-    `Kategória: ${CATEGORY_LABELS[input.category]}`,
-    `Téma / kedvenc hősök: ${theme}`,
-    `Terjedelem: ${LENGTH_LABELS[input.length]}`,
-    "",
-    ageGuidance(input.childAge),
-    categoryGuidance(input.category, input.length),
-    "A gyerek legyen a történet/vers/játék hőse vagy megszólítottja, de ne erőltesd túl.",
+    "Te egy gyengéd, magyar nyelvű esti mesemondó vagy. Olyan szövegeket írsz, amelyeket szülők felolvashatnak gyerekeknek lefekvés előtt.",
+    "Mindig magyarul írj, helyes magyar nyelvtannal és természetes ritmussal.",
+    "A tartalom legyen életkornak megfelelő, meleg, megnyugtató. Ijesztő, durva, erőszakos vagy túl izgalmas elemek tilosak.",
+    `A gyerek neve: ${input.childName}. Sződd bele természetesen, de ne erőltesd túl.`,
+    `Életkor: ${input.childAge} év. ${ageGuidance(input.childAge)}`,
+    `Téma / kedvenc hősök: ${theme}.`,
+    categoryInstruction(input.category, input.length),
+    "Formázd a szöveget tiszta bekezdésekkel. Mese és vers esetén a tetején legyen egy rövid, szép cím (# címsor).",
+    "Ne írj előszót, magyarázatot, metadiszclaimert, utószót a szülőnek — csak a kész, felolvasható tartalmat add.",
+    "Kerüld a markdown táblázatokat. Dőlt és félkövér jelölés megengedett, találósoknál viszont tartsd a megadott KERDES/VALASZ formátumot.",
   ].join("\n");
+}
+
+function buildUserPrompt(input) {
+  if (input.category === "talalos") {
+    return `Készítsd el most a 3 korosztálynak megfelelő találós kérdést ${input.childName} számára, a megadott formátumban.`;
+  }
+  if (input.category === "vers") {
+    return `Írd meg most a dallamos, rímes verset vagy éneket ${input.childName} számára.`;
+  }
+  if (input.category === "unnep") {
+    return `Írd meg most a varázslatos, meleg hangulatú ünnepi mesét ${input.childName} számára.`;
+  }
+  return `Írd meg most a megnyugtató, altató esti mesét ${input.childName} számára.`;
 }
 
 function showResult(input, text) {
   lastPlainText = text;
+  lastCategory = input.category;
   els.resultEmpty.hidden = true;
   els.resultBody.hidden = false;
   els.resultMeta.innerHTML = [
@@ -212,7 +309,7 @@ function showResult(input, text) {
     `<span class="badge">${escapeHtml(CATEGORY_LABELS[input.category])}</span>`,
     `<span class="badge">${escapeHtml(LENGTH_LABELS[input.length])}</span>`,
   ].join("");
-  els.storyOutput.innerHTML = renderMarkdown(text);
+  els.storyOutput.innerHTML = renderContent(text, input.category);
 }
 
 function extractErrorMessage(payload, fallback) {
@@ -259,31 +356,14 @@ function storyText() {
   return lastPlainText || (els.storyOutput.innerText || "").trim();
 }
 
-async function generateWithSdk(apiKey, prompt) {
-  const { GoogleGenAI } = await import("@google/genai");
-  const ai = new GoogleGenAI({ apiKey });
-  const response = await ai.models.generateContent({
-    model: MODEL,
-    contents: prompt,
-    config: {
-      systemInstruction: SYSTEM_INSTRUCTION,
-      temperature: 0.95,
-      maxOutputTokens: 4096,
-    },
-  });
-  const text = (response.text || "").trim();
-  if (!text) throw new Error("A modell üres választ adott.");
-  return text;
-}
-
-async function generateWithFetch(apiKey, prompt) {
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent?key=${encodeURIComponent(apiKey)}`;
+async function generateWithFetch(apiKey, input) {
+  const url = `${GEMINI_ENDPOINT}?key=${encodeURIComponent(apiKey)}`;
   const res = await fetch(url, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
-      system_instruction: { parts: [{ text: SYSTEM_INSTRUCTION }] },
-      contents: [{ role: "user", parts: [{ text: prompt }] }],
+      system_instruction: { parts: [{ text: buildSystemInstruction(input) }] },
+      contents: [{ role: "user", parts: [{ text: buildUserPrompt(input) }] }],
       generationConfig: {
         temperature: 0.95,
         maxOutputTokens: 4096,
@@ -312,16 +392,7 @@ async function generateStory(input) {
     openSettings();
     throw new Error("Először add meg a Gemini API kulcsot a beállításokban.");
   }
-  const prompt = buildPrompt(input);
-  try {
-    return await generateWithSdk(apiKey, prompt);
-  } catch (sdkError) {
-    const message = sdkError instanceof Error ? sdkError.message : String(sdkError);
-    const sdkMissing = /Failed to fetch|Failed to resolve|Cannot find|import|NetworkError|Load failed|ERR_MODULE/i.test(message)
-      || sdkError instanceof TypeError;
-    if (!sdkMissing) throw sdkError instanceof Error ? sdkError : new Error(message);
-    return generateWithFetch(apiKey, prompt);
-  }
+  return generateWithFetch(apiKey, input);
 }
 
 async function handleGenerate() {
@@ -348,10 +419,7 @@ async function handleGenerate() {
 
 function pickHungarianVoice() {
   const voices = window.speechSynthesis?.getVoices?.() || [];
-  hungarianVoice =
-    voices.find((voice) => voice.lang.toLowerCase().startsWith("hu")) ||
-    voices.find((voice) => /hungarian|magyar/i.test(voice.name)) ||
-    null;
+  hungarianVoice = voices.find((voice) => voice.lang === "hu-HU") || null;
 }
 
 function stopSpeech() {
@@ -374,9 +442,9 @@ function toggleSpeech() {
     return;
   }
   pickHungarianVoice();
-  const utterance = new SpeechSynthesisUtterance(toSpeechText(text));
+  const utterance = new SpeechSynthesisUtterance(toSpeechText(text, lastCategory));
   utterance.lang = "hu-HU";
-  utterance.rate = 0.92;
+  utterance.rate = 0.9;
   utterance.pitch = 1.02;
   if (hungarianVoice) utterance.voice = hungarianVoice;
   utterance.onend = () => stopSpeech();

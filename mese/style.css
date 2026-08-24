@@ -411,6 +411,47 @@ input:focus-visible {
 
 .story strong { color: #fff; }
 
+.riddle {
+  margin: 0 0 0.9rem;
+  padding: 0.95rem 1rem 1rem;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.035);
+}
+
+.riddle-q {
+  margin: 0 0 0.65rem;
+  font-size: 1.12rem;
+}
+
+.riddle details summary {
+  list-style: none;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  min-height: 40px;
+  padding: 0.2rem 0.8rem;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: rgba(240, 195, 91, 0.1);
+  color: var(--gold-soft);
+  font-family: var(--font-ui);
+  font-size: 0.9rem;
+  font-weight: 800;
+}
+
+.riddle details summary::-webkit-details-marker { display: none; }
+
+.riddle details[open] summary {
+  background: rgba(196, 181, 253, 0.16);
+  color: var(--lavender);
+}
+
+.riddle .answer {
+  margin: 0.7rem 0 0;
+  color: var(--gold-soft);
+}
+
 .result-actions {
   display: flex;
   flex-wrap: wrap;
