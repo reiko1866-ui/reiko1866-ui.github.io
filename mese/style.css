@@ -282,7 +282,8 @@ fieldset.field {
 
 input[type="text"],
 input[type="number"],
-input[type="password"] {
+input[type="password"],
+select {
   width: 100%;
   min-height: 48px;
   padding: 0.7rem 0.9rem;
@@ -291,6 +292,14 @@ input[type="password"] {
   background: rgba(7, 11, 26, 0.55);
   color: var(--text);
   font: inherit;
+}
+
+select {
+  appearance: none;
+  background-image: linear-gradient(45deg, transparent 50%, var(--gold-soft) 50%), linear-gradient(135deg, var(--gold-soft) 50%, transparent 50%);
+  background-position: calc(100% - 18px) 50%, calc(100% - 12px) 50%;
+  background-size: 6px 6px, 6px 6px;
+  background-repeat: no-repeat;
 }
 
 input::placeholder { color: #8d89ab; }
@@ -536,8 +545,29 @@ input:focus-visible {
   background: linear-gradient(135deg, #5b47c8, #8a5ad6);
 }
 
-.action-btn.speaking {
+.action-btn.speaking,
+.action-btn.loading {
   background: linear-gradient(135deg, #8a5ad6, #f5a3c7);
+}
+
+.spinner-on-btn {
+  width: 16px;
+  height: 16px;
+  border-color: rgba(255, 255, 255, 0.28);
+  border-top-color: #fff;
+  display: inline-block;
+}
+
+.speak-loading {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.speak-idle[hidden],
+.speak-loading[hidden],
+.speak-stop[hidden] {
+  display: none !important;
 }
 
 .action-btn.saved {

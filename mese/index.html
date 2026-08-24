@@ -130,6 +130,10 @@
               <span class="action-icon" aria-hidden="true">🔊</span>
               Hangos felolvasás
             </span>
+            <span class="speak-loading" hidden>
+              <span class="spinner spinner-on-btn" aria-hidden="true"></span>
+              A hang készül…
+            </span>
             <span class="speak-stop" hidden>
               <span class="action-icon" aria-hidden="true">⏹</span>
               Leállítás
@@ -169,7 +173,7 @@
   <dialog class="modal" id="settings-dialog" aria-labelledby="settings-title">
     <form method="dialog" class="modal-card" id="settings-form">
       <h2 id="settings-title">Beállítások</h2>
-      <p class="modal-lead">A Gemini API kulcsot csak a böngésződ tárolja (localStorage). A kérés közvetlenül a Google felé megy.</p>
+      <p class="modal-lead">A kulcsokat csak a böngésződ tárolja (localStorage). A kérések közvetlenül a Geminihez és az ElevenLabshoz mennek.</p>
       <label class="field">
         <span>Gemini API kulcs</span>
         <div class="secret-row">
@@ -178,8 +182,27 @@
         </div>
       </label>
       <p class="help">
-        Kulcsot itt kérhetsz:
+        Meséhez:
         <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">Google AI Studio</a>
+      </p>
+      <label class="field">
+        <span>ElevenLabs API kulcs</span>
+        <div class="secret-row">
+          <input type="password" id="eleven-key" name="elevenKey" placeholder="sk_…" autocomplete="off" spellcheck="false"/>
+          <button type="button" class="text-btn" id="toggle-eleven-key">Mutat</button>
+        </div>
+      </label>
+      <label class="field">
+        <span>Esti hang</span>
+        <select id="eleven-voice" name="elevenVoice">
+          <option value="EXAVITQu4vr4xnSDxMaL">Sarah — puha, mesélős</option>
+          <option value="XB0fDUnXU5powFXDhCwa">Charlotte — meleg, beszélgetős</option>
+          <option value="JBFqnCBsd6RMkjVDRZzb">George — mély mesemondó</option>
+        </select>
+      </label>
+      <p class="help">
+        Élethű magyar felolvasáshoz:
+        <a href="https://elevenlabs.io/app/settings/api-keys" target="_blank" rel="noopener">ElevenLabs API kulcs</a>
       </p>
       <div class="modal-actions">
         <button type="submit" class="action-btn primary" value="save" id="save-settings">Mentés</button>

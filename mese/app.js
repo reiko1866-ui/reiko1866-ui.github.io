@@ -1,9 +1,15 @@
 const STORAGE_KEY = "holdmese.apiKey";
+const ELEVEN_KEY = "holdmese.elevenLabsKey";
+const ELEVEN_VOICE_KEY = "holdmese.elevenVoice";
 const FORM_KEY = "holdmese.form";
 const FAVORITES_KEY = "holdmese.favorites";
 const FAVORITES_MAX = 40;
 const MODEL = "gemini-2.5-flash";
 const GEMINI_ENDPOINT = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent`;
+const ELEVEN_TTS_MODEL = "eleven_flash_v2_5";
+const ELEVEN_DEFAULT_VOICE = "EXAVITQu4vr4xnSDxMaL";
+const ELEVEN_MAX_CHARS = 4500;
+const MISSING_ELEVEN_MESSAGE = "Hiányzik az ElevenLabs API kulcs. Nyisd meg a Beállításokat, add meg a kulcsot a hangos felolvasáshoz.";
 const CATEGORY_LABELS = {
   mese: "Esti mese",
   vers: "Rímes vers / Ének",
@@ -28,6 +34,7 @@ const els = {
   storyOutput: document.getElementById("story-output"),
   speakBtn: document.getElementById("speak-btn"),
   speakIdle: document.querySelector(".speak-idle"),
+  speakLoading: document.querySelector(".speak-loading"),
   speakStop: document.querySelector(".speak-stop"),
   saveBtn: document.getElementById("save-btn"),
   copyBtn: document.getElementById("copy-btn"),
@@ -39,6 +46,9 @@ const els = {
   closeSettings: document.getElementById("close-settings"),
   apiKey: document.getElementById("api-key"),
   toggleKey: document.getElementById("toggle-key"),
+  elevenKey: document.getElementById("eleven-key"),
+  toggleElevenKey: document.getElementById("toggle-eleven-key"),
+  elevenVoice: document.getElementById("eleven-voice"),
   tabCreate: document.getElementById("tab-create"),
   tabFavorites: document.getElementById("tab-favorites"),
   viewCreate: document.getElementById("view-create"),
@@ -52,9 +62,11 @@ let lastPlainText = "";
 let lastInput = null;
 let lastCategory = "mese";
 let lastFavoriteId = "";
-let speaking = false;
+let speakMode = "idle";
 let speechToken = 0;
-let hungarianVoice = null;
+let audioPlayer = null;
+let audioCache = { key: "", url: "" };
+let ttsAbort = null;
 
 function getApiKey() {
   return (localStorage.getItem(STORAGE_KEY) || "").trim();
@@ -64,6 +76,25 @@ function setApiKey(value) {
   const key = value.trim();
   if (key) localStorage.setItem(STORAGE_KEY, key);
   else localStorage.removeItem(STORAGE_KEY);
+}
+
+function getElevenKey() {
+  return (localStorage.getItem(ELEVEN_KEY) || "").trim();
+}
+
+function setElevenKey(value) {
+  const key = value.trim();
+  if (key) localStorage.setItem(ELEVEN_KEY, key);
+  else localStorage.removeItem(ELEVEN_KEY);
+}
+
+function getElevenVoice() {
+  return localStorage.getItem(ELEVEN_VOICE_KEY) || ELEVEN_DEFAULT_VOICE;
+}
+
+function setElevenVoice(value) {
+  const voice = String(value || ELEVEN_DEFAULT_VOICE);
+  localStorage.setItem(ELEVEN_VOICE_KEY, voice);
 }
 
 function readForm() {
@@ -368,6 +399,7 @@ function showResult(input, text, favoriteId = "") {
   ].filter((html) => !html.includes("></span>")).join("");
   els.storyOutput.innerHTML = renderContent(text, input.category);
   refreshSaveButton();
+  clearAudioCache();
 }
 
 function extractErrorMessage(payload, fallback) {
@@ -492,56 +524,170 @@ async function handleGenerate() {
   }
 }
 
-function pickHungarianVoice() {
-  const voices = window.speechSynthesis?.getVoices?.() || [];
-  hungarianVoice = voices.find((voice) => voice.lang === "hu-HU") || null;
+function cacheKeyFor(text) {
+  return `${getElevenVoice()}::${text}`;
 }
 
-function setSpeakingState(isSpeaking) {
-  speaking = isSpeaking;
-  els.speakBtn.classList.toggle("speaking", isSpeaking);
-  els.speakBtn.setAttribute("aria-pressed", String(isSpeaking));
-  els.speakIdle.hidden = isSpeaking;
-  els.speakStop.hidden = !isSpeaking;
+function clearAudioCache() {
+  stopSpeech();
+  if (audioCache.url) URL.revokeObjectURL(audioCache.url);
+  audioCache = { key: "", url: "" };
+}
+
+function setSpeakMode(mode) {
+  speakMode = mode;
+  els.speakBtn.classList.toggle("speaking", mode === "playing");
+  els.speakBtn.classList.toggle("loading", mode === "loading");
+  els.speakBtn.setAttribute("aria-pressed", String(mode !== "idle"));
+  els.speakIdle.hidden = mode !== "idle";
+  els.speakLoading.hidden = mode !== "loading";
+  els.speakStop.hidden = mode !== "playing";
 }
 
 function stopSpeech() {
   speechToken += 1;
-  if (window.speechSynthesis) {
-    window.speechSynthesis.pause();
-    window.speechSynthesis.cancel();
+  if (ttsAbort) {
+    ttsAbort.abort();
+    ttsAbort = null;
   }
-  setSpeakingState(false);
+  if (audioPlayer) {
+    audioPlayer.pause();
+    audioPlayer.removeAttribute("src");
+    audioPlayer.load();
+    audioPlayer = null;
+  }
+  setSpeakMode("idle");
 }
 
-function toggleSpeech() {
-  if (!window.speechSynthesis) {
-    showToast("Ez a böngésző nem tud felolvasni.");
-    return;
+function chunkNarration(text) {
+  const clean = text.trim();
+  if (clean.length <= ELEVEN_MAX_CHARS) return [clean];
+  const parts = [];
+  let remaining = clean;
+  while (remaining.length > ELEVEN_MAX_CHARS) {
+    const slice = remaining.slice(0, ELEVEN_MAX_CHARS);
+    const breakAt = Math.max(slice.lastIndexOf("\n\n"), slice.lastIndexOf(". "), slice.lastIndexOf("! "), slice.lastIndexOf("? "));
+    const end = breakAt > ELEVEN_MAX_CHARS * 0.4 ? breakAt + 1 : ELEVEN_MAX_CHARS;
+    parts.push(remaining.slice(0, end).trim());
+    remaining = remaining.slice(end).trim();
   }
-  if (speaking) {
+  if (remaining) parts.push(remaining);
+  return parts;
+}
+
+function elevenError(status, payload) {
+  const detail = extractErrorMessage(payload, "");
+  if (status === 401 || status === 403) return "Az ElevenLabs API kulcs érvénytelen. Ellenőrizd a beállításokban.";
+  if (status === 429 || /quota|credits|limit/i.test(detail)) {
+    return "Az ElevenLabs kvóta betelt, vagy túl sok a kérés. Próbáld később.";
+  }
+  return detail || `Az ElevenLabs API hibát jelzett (${status}).`;
+}
+
+async function fetchElevenChunk(text, signal) {
+  const voiceId = encodeURIComponent(getElevenVoice());
+  const url = `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}?output_format=mp3_44100_128`;
+  let res;
+  try {
+    res = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "audio/mpeg",
+        "xi-api-key": getElevenKey(),
+      },
+      body: JSON.stringify({
+        text,
+        model_id: ELEVEN_TTS_MODEL,
+        language_code: "hu",
+        voice_settings: {
+          stability: 0.62,
+          similarity_boost: 0.8,
+          style: 0.15,
+          speed: 0.88,
+        },
+      }),
+      signal,
+    });
+  } catch (error) {
+    if (error?.name === "AbortError") throw error;
+    throw new Error("Nem sikerült kapcsolódni az ElevenLabs API-hoz. Ellenőrizd az internetet.");
+  }
+  if (!res.ok) {
+    const payload = await res.json().catch(() => ({}));
+    throw new Error(elevenError(res.status, payload));
+  }
+  return res.arrayBuffer();
+}
+
+async function fetchElevenAudio(text, signal) {
+  const chunks = chunkNarration(text);
+  const buffers = [];
+  for (let i = 0; i < chunks.length; i += 1) {
+    if (signal.aborted) throw new DOMException("Aborted", "AbortError");
+    buffers.push(await fetchElevenChunk(chunks[i], signal));
+  }
+  return new Blob(buffers, { type: "audio/mpeg" });
+}
+
+function playAudioUrl(url, token) {
+  if (speechToken !== token) return;
+  audioPlayer = new Audio(url);
+  audioPlayer.addEventListener("ended", () => {
+    if (speechToken === token) setSpeakMode("idle");
+  });
+  audioPlayer.addEventListener("error", () => {
+    if (speechToken !== token) return;
+    setSpeakMode("idle");
+    showToast("A hang lejátszása nem sikerült.");
+  });
+  setSpeakMode("playing");
+  audioPlayer.play().catch(() => {
+    if (speechToken !== token) return;
+    setSpeakMode("idle");
+    showToast("A böngésző nem engedte a lejátszást. Kattints újra a felolvasásra.");
+  });
+}
+
+async function toggleSpeech() {
+  if (speakMode !== "idle") {
     stopSpeech();
     return;
   }
-  const text = storyText();
+  const text = toSpeechText(storyText(), lastCategory);
   if (!text) return;
-  pickHungarianVoice();
+  if (!getElevenKey()) {
+    setHint(MISSING_ELEVEN_MESSAGE, "error", { settingsLink: true });
+    showToast("ElevenLabs kulcs kell a felolvasáshoz.");
+    openSettings();
+    els.elevenKey?.focus();
+    return;
+  }
   const token = speechToken + 1;
   speechToken = token;
-  const utterance = new SpeechSynthesisUtterance(toSpeechText(text, lastCategory));
-  utterance.lang = "hu-HU";
-  utterance.rate = 0.9;
-  utterance.pitch = 1.02;
-  if (hungarianVoice) utterance.voice = hungarianVoice;
-  utterance.onend = () => {
-    if (speechToken === token) setSpeakingState(false);
-  };
-  utterance.onerror = (event) => {
-    if (event.error === "interrupted" || event.error === "canceled") return;
-    if (speechToken === token) setSpeakingState(false);
-  };
-  setSpeakingState(true);
-  window.speechSynthesis.speak(utterance);
+  const key = cacheKeyFor(text);
+  if (audioCache.key === key && audioCache.url) {
+    playAudioUrl(audioCache.url, token);
+    return;
+  }
+  ttsAbort = new AbortController();
+  setSpeakMode("loading");
+  try {
+    const blob = await fetchElevenAudio(text, ttsAbort.signal);
+    if (speechToken !== token) return;
+    if (audioCache.url) URL.revokeObjectURL(audioCache.url);
+    const url = URL.createObjectURL(blob);
+    audioCache = { key, url };
+    playAudioUrl(url, token);
+  } catch (error) {
+    if (error?.name === "AbortError" || speechToken !== token) return;
+    setSpeakMode("idle");
+    const message = error instanceof Error ? error.message : "A hang előállítása nem sikerült.";
+    setHint(message, "error", { settingsLink: /ElevenLabs API kulcs/i.test(message) });
+    showToast(message);
+  } finally {
+    ttsAbort = null;
+  }
 }
 
 async function copyStory() {
@@ -689,12 +835,14 @@ function syncViewFromHash() {
 
 function openSettings() {
   els.apiKey.value = getApiKey();
+  els.elevenKey.value = getElevenKey();
+  els.elevenVoice.value = getElevenVoice();
   els.settingsDialog.showModal();
-  els.apiKey.focus();
+  (getApiKey() ? els.elevenKey : els.apiKey).focus();
 }
 
 function refreshKeyHint() {
-  if (getApiKey()) setHint("Az API kulcs el van mentve ezen az eszközön.", "ok");
+  if (getApiKey()) setHint("Az API kulcsok ezen az eszközön vannak elmentve.", "ok");
   else setHint("A generáláshoz Gemini API kulcs kell.", "", { settingsLink: true });
 }
 
@@ -722,6 +870,9 @@ window.addEventListener("hashchange", syncViewFromHash);
 els.settingsForm.addEventListener("submit", (event) => {
   event.preventDefault();
   setApiKey(els.apiKey.value);
+  setElevenKey(els.elevenKey.value);
+  setElevenVoice(els.elevenVoice.value);
+  clearAudioCache();
   els.settingsDialog.close();
   refreshKeyHint();
   showToast("Beállítások elmentve.");
@@ -731,11 +882,11 @@ els.toggleKey.addEventListener("click", () => {
   els.apiKey.type = hidden ? "text" : "password";
   els.toggleKey.textContent = hidden ? "Rejt" : "Mutat";
 });
-
-if (window.speechSynthesis) {
-  pickHungarianVoice();
-  window.speechSynthesis.addEventListener("voiceschanged", pickHungarianVoice);
-}
+els.toggleElevenKey.addEventListener("click", () => {
+  const hidden = els.elevenKey.type === "password";
+  els.elevenKey.type = hidden ? "text" : "password";
+  els.toggleElevenKey.textContent = hidden ? "Rejt" : "Mutat";
+});
 
 restoreForm();
 refreshKeyHint();
