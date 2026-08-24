@@ -344,6 +344,7 @@ input:focus-visible {
   margin: 0.7rem 0 0;
   color: var(--muted);
   font-size: 0.88rem;
+  overflow-wrap: anywhere;
 }
 
 .form-hint.error { color: var(--danger); }

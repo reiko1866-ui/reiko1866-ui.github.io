@@ -219,6 +219,46 @@ function extractErrorMessage(payload, fallback) {
   return payload?.error?.message || payload?.message || fallback;
 }
 
+function friendlyError(error) {
+  const raw = error instanceof Error ? error.message : String(error);
+  const payload = extractJsonObject(raw);
+  const parsed = payload ? extractErrorMessage(payload, raw) : raw;
+  if (/api key not valid|invalid api key|api_key_invalid|API_KEY_INVALID/i.test(parsed + raw)) {
+    return "A Gemini API kulcs érvénytelen. Ellenőrizd a beállításokban.";
+  }
+  if (/quota|resource exhausted|rate limit/i.test(parsed)) {
+    return "A Gemini API kvótája betelt, vagy túl sok a kérés. Próbáld később.";
+  }
+  if (/failed to fetch|networkerror|load failed/i.test(parsed)) {
+    return "Nem sikerült kapcsolódni a Gemini API-hoz. Ellenőrizd az internetet.";
+  }
+  return parsed;
+}
+
+function extractJsonObject(raw) {
+  const start = raw.indexOf("{");
+  if (start < 0) return null;
+  let depth = 0;
+  for (let i = start; i < raw.length; i += 1) {
+    if (raw[i] === "{") depth += 1;
+    else if (raw[i] === "}") {
+      depth -= 1;
+      if (depth === 0) {
+        try {
+          return JSON.parse(raw.slice(start, i + 1));
+        } catch {
+          return null;
+        }
+      }
+    }
+  }
+  return null;
+}
+
+function storyText() {
+  return lastPlainText || (els.storyOutput.innerText || "").trim();
+}
+
 async function generateWithSdk(apiKey, prompt) {
   const { GoogleGenAI } = await import("@google/genai");
   const ai = new GoogleGenAI({ apiKey });
@@ -300,7 +340,7 @@ async function handleGenerate() {
     showResult(input, text);
     setHint("Kész a mai esti mese.", "ok");
   } catch (error) {
-    setHint(error instanceof Error ? error.message : "Nem sikerült a generálás.", "error");
+    setHint(friendlyError(error), "error");
   } finally {
     setLoading(false);
   }
@@ -327,13 +367,14 @@ function toggleSpeech() {
     showToast("Ez a böngésző nem tud felolvasni.");
     return;
   }
-  if (!lastPlainText) return;
+  const text = storyText();
+  if (!text) return;
   if (speaking) {
     stopSpeech();
     return;
   }
   pickHungarianVoice();
-  const utterance = new SpeechSynthesisUtterance(toSpeechText(lastPlainText));
+  const utterance = new SpeechSynthesisUtterance(toSpeechText(text));
   utterance.lang = "hu-HU";
   utterance.rate = 0.92;
   utterance.pitch = 1.02;
@@ -347,9 +388,10 @@ function toggleSpeech() {
 }
 
 async function copyStory() {
-  if (!lastPlainText) return;
+  const text = storyText();
+  if (!text) return;
   try {
-    await navigator.clipboard.writeText(lastPlainText);
+    await navigator.clipboard.writeText(text);
     showToast("A szöveg a vágólapra került.");
   } catch {
     showToast("A másolás nem sikerült.");
