@@ -36,7 +36,15 @@
     </button>
   </header>
 
-  <main class="layout">
+  <nav class="app-tabs" aria-label="Nézetek">
+    <button type="button" class="tab is-active" id="tab-create">Új mese</button>
+    <button type="button" class="tab" id="tab-favorites">
+      Kedvenc mesék
+      <span class="tab-count" id="fav-count" hidden>0</span>
+    </button>
+  </nav>
+
+  <main class="layout" id="view-create">
     <form class="card form-card" id="story-form" autocomplete="on">
       <div class="card-kicker">Személyre szabás</div>
       <h2>Kinek mesélünk ma este?</h2>
@@ -117,9 +125,19 @@
         <div class="result-meta" id="result-meta"></div>
         <article class="story" id="story-output"></article>
         <div class="result-actions">
-          <button type="button" class="action-btn primary" id="speak-btn">
-            <span class="action-icon" aria-hidden="true">🔊</span>
-            Hangos felolvasás
+          <button type="button" class="action-btn primary" id="speak-btn" aria-pressed="false">
+            <span class="speak-idle">
+              <span class="action-icon" aria-hidden="true">🔊</span>
+              Hangos felolvasás
+            </span>
+            <span class="speak-stop" hidden>
+              <span class="action-icon" aria-hidden="true">⏹</span>
+              Leállítás
+            </span>
+          </button>
+          <button type="button" class="action-btn" id="save-btn">
+            <span class="action-icon" aria-hidden="true">⭐</span>
+            Mentés a Kedvencek közé
           </button>
           <button type="button" class="action-btn" id="copy-btn">
             <span class="action-icon" aria-hidden="true">📋</span>
@@ -133,6 +151,18 @@
       </div>
     </section>
   </main>
+
+  <section class="favorites-page" id="view-favorites" hidden>
+    <div class="card favorites-card">
+      <div class="card-kicker">Könyvtár</div>
+      <h2>Kedvenc mesék</h2>
+      <div class="favorites-empty" id="favorites-empty">
+        <div class="empty-art" aria-hidden="true">⭐</div>
+        <p>Még nincs elmentett mese. Generálj egyet, majd nyomd meg a <strong>Mentés a Kedvencek közé</strong> gombot.</p>
+      </div>
+      <div class="favorites-list" id="favorites-list"></div>
+    </div>
+  </section>
 
   <p class="toast" id="toast" role="status" hidden></p>
 

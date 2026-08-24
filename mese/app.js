@@ -1,5 +1,7 @@
 const STORAGE_KEY = "holdmese.apiKey";
 const FORM_KEY = "holdmese.form";
+const FAVORITES_KEY = "holdmese.favorites";
+const FAVORITES_MAX = 40;
 const MODEL = "gemini-2.5-flash";
 const GEMINI_ENDPOINT = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent`;
 const CATEGORY_LABELS = {
@@ -12,6 +14,7 @@ const LENGTH_LABELS = {
   short: "Rövid · 2 perc",
   medium: "Közepes · 5 perc",
 };
+const MISSING_KEY_MESSAGE = "Hiányzik a Gemini API kulcs. Nyisd meg a Beállításokat, add meg a kulcsot, majd próbáld újra.";
 
 const els = {
   form: document.getElementById("story-form"),
@@ -24,6 +27,9 @@ const els = {
   resultMeta: document.getElementById("result-meta"),
   storyOutput: document.getElementById("story-output"),
   speakBtn: document.getElementById("speak-btn"),
+  speakIdle: document.querySelector(".speak-idle"),
+  speakStop: document.querySelector(".speak-stop"),
+  saveBtn: document.getElementById("save-btn"),
   copyBtn: document.getElementById("copy-btn"),
   regenBtn: document.getElementById("regen-btn"),
   toast: document.getElementById("toast"),
@@ -33,10 +39,19 @@ const els = {
   closeSettings: document.getElementById("close-settings"),
   apiKey: document.getElementById("api-key"),
   toggleKey: document.getElementById("toggle-key"),
+  tabCreate: document.getElementById("tab-create"),
+  tabFavorites: document.getElementById("tab-favorites"),
+  viewCreate: document.getElementById("view-create"),
+  viewFavorites: document.getElementById("view-favorites"),
+  favoritesEmpty: document.getElementById("favorites-empty"),
+  favoritesList: document.getElementById("favorites-list"),
+  favCount: document.getElementById("fav-count"),
 };
 
 let lastPlainText = "";
+let lastInput = null;
 let lastCategory = "mese";
+let lastFavoriteId = "";
 let speaking = false;
 let hungarianVoice = null;
 
@@ -85,9 +100,15 @@ function restoreForm() {
   }
 }
 
-function setHint(message, type = "") {
-  els.hint.textContent = message || "";
+function setHint(message, type = "", options = {}) {
   els.hint.className = `form-hint${type ? ` ${type}` : ""}`;
+  const text = message || "";
+  if (options.settingsLink && text) {
+    els.hint.innerHTML = `${escapeHtml(text)} <button type="button" class="hint-link" id="hint-open-settings">Beállítások megnyitása</button>`;
+    document.getElementById("hint-open-settings")?.addEventListener("click", openSettings);
+    return;
+  }
+  els.hint.textContent = text;
 }
 
 function showToast(message) {
@@ -107,7 +128,7 @@ function setLoading(isLoading) {
 }
 
 function escapeHtml(text) {
-  return text.replace(/[&<>"']/g, (char) => ({
+  return String(text).replace(/[&<>"']/g, (char) => ({
     "&": "&amp;",
     "<": "&lt;",
     ">": "&gt;",
@@ -122,11 +143,20 @@ function inlineFormat(text) {
     .replace(/\*(.+?)\*/g, "<em>$1</em>");
 }
 
+function paragraphHtml(lines) {
+  return lines
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .map((line) => `<p>${inlineFormat(line)}</p>`)
+    .join("");
+}
+
 function renderMarkdown(raw) {
   const escaped = escapeHtml(raw.trim());
   const blocks = escaped.split(/\n{2,}/);
   return blocks.map((block) => {
-    const lines = block.split("\n");
+    const lines = block.split("\n").map((line) => line.trim()).filter(Boolean);
+    if (!lines.length) return "";
     if (lines.every((line) => /^\s*[-*]\s+/.test(line))) {
       const items = lines.map((line) => `<li>${inlineFormat(line.replace(/^\s*[-*]\s+/, ""))}</li>`).join("");
       return `<ul>${items}</ul>`;
@@ -135,14 +165,27 @@ function renderMarkdown(raw) {
       const items = lines.map((line) => `<li>${inlineFormat(line.replace(/^\s*\d+\.\s+/, ""))}</li>`).join("");
       return `<ol>${items}</ol>`;
     }
-    const first = lines[0];
-    const heading = first.match(/^(#{1,3})\s+(.+)$/);
+    const heading = lines[0].match(/^(#{1,3})\s+(.+)$/);
     if (heading) {
       const level = heading[1].length;
-      const rest = lines.slice(1).join("<br>");
-      return `<h${level}>${inlineFormat(heading[2])}</h${level}>${rest ? `<p>${inlineFormat(rest)}</p>` : ""}`;
+      return `<h${level}>${inlineFormat(heading[2])}</h${level}>${paragraphHtml(lines.slice(1))}`;
     }
-    return `<p>${inlineFormat(lines.join("<br>"))}</p>`;
+    return paragraphHtml(lines);
+  }).join("");
+}
+
+function renderVerse(raw) {
+  const escaped = escapeHtml(raw.trim());
+  const stanzas = escaped.split(/\n{2,}/);
+  return stanzas.map((stanza) => {
+    const lines = stanza.split("\n").map((line) => line.trimEnd());
+    const heading = lines[0].match(/^(#{1,3})\s+(.+)$/);
+    if (heading) {
+      const level = heading[1].length;
+      const rest = lines.slice(1).filter(Boolean).map((line) => inlineFormat(line)).join("<br>");
+      return `<h${level}>${inlineFormat(heading[2])}</h${level}>${rest ? `<p class="verse">${rest}</p>` : ""}`;
+    }
+    return `<p class="verse">${lines.filter(Boolean).map((line) => inlineFormat(line)).join("<br>")}</p>`;
   }).join("");
 }
 
@@ -189,7 +232,9 @@ function renderRiddles(raw) {
 }
 
 function renderContent(raw, category) {
-  return category === "talalos" ? renderRiddles(raw) : renderMarkdown(raw);
+  if (category === "talalos") return renderRiddles(raw);
+  if (category === "vers") return renderVerse(raw);
+  return renderMarkdown(raw);
 }
 
 function toSpeechText(raw, category = lastCategory) {
@@ -213,6 +258,13 @@ function toSpeechText(raw, category = lastCategory) {
     .trim();
 }
 
+function extractTitle(text) {
+  const heading = text.match(/^#{1,3}\s+(.+)$/m);
+  if (heading) return heading[1].trim();
+  const firstLine = text.trim().split("\n").find(Boolean) || "Névtelen mese";
+  return firstLine.replace(/^[#*\s]+/, "").slice(0, 80);
+}
+
 function ageGuidance(age) {
   if (age <= 3) return "A gyerek 1-3 éves: nagyon egyszerű, rövid mondatok, ismétlések, ringató ritmus.";
   if (age <= 6) return "A gyerek óvodás (4-6 év): klasszikus mesés nyelvezet, könnyen követhető cselekmény, meleg zárás.";
@@ -231,6 +283,7 @@ function categoryInstruction(category, length) {
       "Írj megnyugtató, altató hangulatú, kedves mesét.",
       "A ritmus legyen lassú, a hangulat meleg, a zárlat békés, hogy a gyerek álomba szenderülhessen.",
       "Kerüld a ijesztő fordulatokat, üldözést, veszélyt.",
+      "Minden bekezdést üres sorral válassz el, hogy szép sorközökkel lehessen felolvasni.",
       `Terjedelem: ${minutes}.`,
     ].join(" ");
   }
@@ -239,7 +292,7 @@ function categoryInstruction(category, length) {
       "Kategória: Rímes vers / Ének.",
       "Írj dallamos, ritmikus, könnyen énekelhető vagy szavalható rímes magyar gyermekverset.",
       "Tiszta rímek, dalos lüktetés, ismétlődő refrén, ha illik.",
-      "Olyan legyen, mintha altatódalt vagy játékos mondókát hallanánk.",
+      "A versszakokat üres sorral válaszd el.",
       `Terjedelem: ${minutes}.`,
     ].join(" ");
   }
@@ -265,6 +318,7 @@ function categoryInstruction(category, length) {
     "Kategória: Ünnepi / Télapó / Karácsony.",
     "Írj varázslatos, meleg hangulatú mesét a Télapóról vagy a karácsonyi csodákról.",
     "Hó, gyertyafény, ajándék, kedvesség, családi melegség — ijesztő elem nélkül.",
+    "Minden bekezdést üres sorral válassz el.",
     `Terjedelem: ${minutes}.`,
   ].join(" ");
 }
@@ -298,18 +352,21 @@ function buildUserPrompt(input) {
   return `Írd meg most a megnyugtató, altató esti mesét ${input.childName} számára.`;
 }
 
-function showResult(input, text) {
+function showResult(input, text, favoriteId = "") {
   lastPlainText = text;
+  lastInput = { ...input };
   lastCategory = input.category;
+  lastFavoriteId = favoriteId;
   els.resultEmpty.hidden = true;
   els.resultBody.hidden = false;
   els.resultMeta.innerHTML = [
     `<span class="badge">${escapeHtml(input.childName)}</span>`,
     `<span class="badge">${input.childAge} év</span>`,
-    `<span class="badge">${escapeHtml(CATEGORY_LABELS[input.category])}</span>`,
-    `<span class="badge">${escapeHtml(LENGTH_LABELS[input.length])}</span>`,
-  ].join("");
+    `<span class="badge">${escapeHtml(CATEGORY_LABELS[input.category] || input.category)}</span>`,
+    `<span class="badge">${escapeHtml(LENGTH_LABELS[input.length] || input.length || "")}</span>`,
+  ].filter((html) => !html.includes("></span>")).join("");
   els.storyOutput.innerHTML = renderContent(text, input.category);
+  refreshSaveButton();
 }
 
 function extractErrorMessage(payload, fallback) {
@@ -318,16 +375,21 @@ function extractErrorMessage(payload, fallback) {
 
 function friendlyError(error) {
   const raw = error instanceof Error ? error.message : String(error);
+  if (raw === "MISSING_API_KEY") return MISSING_KEY_MESSAGE;
   const payload = extractJsonObject(raw);
   const parsed = payload ? extractErrorMessage(payload, raw) : raw;
-  if (/api key not valid|invalid api key|api_key_invalid|API_KEY_INVALID/i.test(parsed + raw)) {
-    return "A Gemini API kulcs érvénytelen. Ellenőrizd a beállításokban.";
+  const haystack = `${parsed} ${raw}`;
+  if (/api key not valid|invalid api key|api_key_invalid|API_KEY_INVALID|PERMISSION_DENIED/i.test(haystack)) {
+    return "A Gemini API kulcs érvénytelen vagy nincs jogosultsága. Nyisd meg a Beállításokat, és ellenőrizd a kulcsot.";
   }
-  if (/quota|resource exhausted|rate limit/i.test(parsed)) {
-    return "A Gemini API kvótája betelt, vagy túl sok a kérés. Próbáld később.";
+  if (/quota|resource exhausted|rate limit|429/i.test(haystack)) {
+    return "Túl sok a kérés, vagy a Gemini API kvótája betelt. Várj egy kicsit, majd próbáld újra.";
   }
-  if (/failed to fetch|networkerror|load failed/i.test(parsed)) {
-    return "Nem sikerült kapcsolódni a Gemini API-hoz. Ellenőrizd az internetet.";
+  if (/NETWORK|failed to fetch|networkerror|load failed|Failed to fetch/i.test(haystack)) {
+    return "Hálózati hiba: nem sikerült kapcsolódni a Gemini API-hoz. Ellenőrizd az internetet, majd próbáld újra.";
+  }
+  if (/SAFETY|blocked/i.test(haystack)) {
+    return "A modellt biztonsági szűrője nem engedte a kérést. Próbálj másik témát.";
   }
   return parsed;
 }
@@ -358,20 +420,27 @@ function storyText() {
 
 async function generateWithFetch(apiKey, input) {
   const url = `${GEMINI_ENDPOINT}?key=${encodeURIComponent(apiKey)}`;
-  const res = await fetch(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      system_instruction: { parts: [{ text: buildSystemInstruction(input) }] },
-      contents: [{ role: "user", parts: [{ text: buildUserPrompt(input) }] }],
-      generationConfig: {
-        temperature: 0.95,
-        maxOutputTokens: 4096,
-      },
-    }),
-  });
+  let res;
+  try {
+    res = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        system_instruction: { parts: [{ text: buildSystemInstruction(input) }] },
+        contents: [{ role: "user", parts: [{ text: buildUserPrompt(input) }] }],
+        generationConfig: {
+          temperature: 0.95,
+          maxOutputTokens: 4096,
+        },
+      }),
+    });
+  } catch {
+    throw new Error("NETWORK");
+  }
   const payload = await res.json().catch(() => ({}));
   if (!res.ok) {
+    if (res.status === 401 || res.status === 403) throw new Error("API_KEY_INVALID");
+    if (res.status === 429) throw new Error("rate limit");
     throw new Error(extractErrorMessage(payload, `A Gemini API hibát jelzett (${res.status}).`));
   }
   const text = (payload.candidates || [])
@@ -389,8 +458,7 @@ async function generateWithFetch(apiKey, input) {
 async function generateStory(input) {
   const apiKey = getApiKey();
   if (!apiKey) {
-    openSettings();
-    throw new Error("Először add meg a Gemini API kulcsot a beállításokban.");
+    throw new Error("MISSING_API_KEY");
   }
   return generateWithFetch(apiKey, input);
 }
@@ -403,6 +471,11 @@ async function handleGenerate() {
     els.form.childName.focus();
     return;
   }
+  if (!getApiKey()) {
+    setHint(MISSING_KEY_MESSAGE, "error", { settingsLink: true });
+    openSettings();
+    return;
+  }
   stopSpeech();
   setLoading(true);
   setHint("A holdfény sző…", "");
@@ -411,7 +484,8 @@ async function handleGenerate() {
     showResult(input, text);
     setHint("Kész a mai esti mese.", "ok");
   } catch (error) {
-    setHint(friendlyError(error), "error");
+    const needsSettings = /API kulcs|Beállítások/i.test(friendlyError(error));
+    setHint(friendlyError(error), "error", { settingsLink: needsSettings });
   } finally {
     setLoading(false);
   }
@@ -422,12 +496,20 @@ function pickHungarianVoice() {
   hungarianVoice = voices.find((voice) => voice.lang === "hu-HU") || null;
 }
 
+function setSpeakingState(isSpeaking) {
+  speaking = isSpeaking;
+  els.speakBtn.classList.toggle("speaking", isSpeaking);
+  els.speakBtn.setAttribute("aria-pressed", String(isSpeaking));
+  els.speakIdle.hidden = isSpeaking;
+  els.speakStop.hidden = !isSpeaking;
+}
+
 function stopSpeech() {
-  if (!window.speechSynthesis) return;
-  window.speechSynthesis.cancel();
-  speaking = false;
-  els.speakBtn.classList.remove("speaking");
-  els.speakBtn.innerHTML = `<span class="action-icon" aria-hidden="true">🔊</span> Hangos felolvasás`;
+  if (window.speechSynthesis) {
+    window.speechSynthesis.pause();
+    window.speechSynthesis.cancel();
+  }
+  setSpeakingState(false);
 }
 
 function toggleSpeech() {
@@ -435,23 +517,22 @@ function toggleSpeech() {
     showToast("Ez a böngésző nem tud felolvasni.");
     return;
   }
-  const text = storyText();
-  if (!text) return;
   if (speaking) {
     stopSpeech();
     return;
   }
+  const text = storyText();
+  if (!text) return;
   pickHungarianVoice();
   const utterance = new SpeechSynthesisUtterance(toSpeechText(text, lastCategory));
   utterance.lang = "hu-HU";
   utterance.rate = 0.9;
   utterance.pitch = 1.02;
   if (hungarianVoice) utterance.voice = hungarianVoice;
-  utterance.onend = () => stopSpeech();
-  utterance.onerror = () => stopSpeech();
-  speaking = true;
-  els.speakBtn.classList.add("speaking");
-  els.speakBtn.innerHTML = `<span class="action-icon" aria-hidden="true">⏹</span> Felolvasás leállítása`;
+  utterance.onend = () => setSpeakingState(false);
+  utterance.onerror = () => setSpeakingState(false);
+  window.speechSynthesis.cancel();
+  setSpeakingState(true);
   window.speechSynthesis.speak(utterance);
 }
 
@@ -466,6 +547,138 @@ async function copyStory() {
   }
 }
 
+function loadFavorites() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(FAVORITES_KEY) || "[]");
+    return Array.isArray(saved) ? saved : [];
+  } catch {
+    return [];
+  }
+}
+
+function storeFavorites(items) {
+  localStorage.setItem(FAVORITES_KEY, JSON.stringify(items.slice(0, FAVORITES_MAX)));
+}
+
+function isCurrentSaved() {
+  if (lastFavoriteId) return loadFavorites().some((item) => item.id === lastFavoriteId);
+  if (!lastPlainText) return false;
+  return loadFavorites().some((item) => item.text === lastPlainText);
+}
+
+function refreshSaveButton() {
+  const saved = isCurrentSaved();
+  els.saveBtn.classList.toggle("saved", saved);
+  els.saveBtn.innerHTML = saved
+    ? `<span class="action-icon" aria-hidden="true">⭐</span> Mentve a Kedvencek közé`
+    : `<span class="action-icon" aria-hidden="true">⭐</span> Mentés a Kedvencek közé`;
+}
+
+function saveCurrentFavorite() {
+  const text = storyText();
+  const input = lastInput || readForm();
+  if (!text) {
+    showToast("Először generálj egy mesét.");
+    return;
+  }
+  lastPlainText = text;
+  lastInput = input;
+  const favorites = loadFavorites();
+  const existing = favorites.find((item) => item.id === lastFavoriteId || item.text === lastPlainText);
+  if (existing) {
+    lastFavoriteId = existing.id;
+    refreshSaveButton();
+    showToast("Ez a mese már a Kedvencek között van.");
+    return;
+  }
+  const item = {
+    id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
+    createdAt: new Date().toISOString(),
+    title: extractTitle(lastPlainText),
+    text: lastPlainText,
+    ...lastInput,
+  };
+  storeFavorites([item, ...favorites]);
+  lastFavoriteId = item.id;
+  refreshSaveButton();
+  renderFavorites();
+  showToast("Elmentve a Kedvencek közé.");
+}
+
+function deleteFavorite(id) {
+  const next = loadFavorites().filter((item) => item.id !== id);
+  storeFavorites(next);
+  if (lastFavoriteId === id) lastFavoriteId = "";
+  refreshSaveButton();
+  renderFavorites();
+  showToast("Törölve a Kedvencek közül.");
+}
+
+function openFavorite(id) {
+  const item = loadFavorites().find((entry) => entry.id === id);
+  if (!item) return;
+  showView("create");
+  showResult({
+    childName: item.childName || "",
+    childAge: item.childAge || "",
+    category: item.category || "mese",
+    theme: item.theme || "",
+    length: item.length || "short",
+  }, item.text, item.id);
+  setHint("Kedvenc mese megnyitva.", "ok");
+  els.resultBody.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+function formatFavoriteDate(iso) {
+  try {
+    return new Intl.DateTimeFormat("hu-HU", { dateStyle: "medium", timeStyle: "short" }).format(new Date(iso));
+  } catch {
+    return "";
+  }
+}
+
+function renderFavorites() {
+  const favorites = loadFavorites();
+  els.favCount.hidden = favorites.length === 0;
+  els.favCount.textContent = String(favorites.length);
+  els.favoritesEmpty.hidden = favorites.length > 0;
+  els.favoritesList.innerHTML = favorites.map((item) => {
+    const preview = item.text.replace(/^#{1,3}\s+.+\n*/, "").replace(/\s+/g, " ").trim().slice(0, 180);
+    return `
+      <article class="favorite-item" data-id="${escapeHtml(item.id)}">
+        <h3>${escapeHtml(item.title || "Névtelen mese")}</h3>
+        <div class="result-meta">
+          <span class="badge">${escapeHtml(item.childName || "")}</span>
+          <span class="badge">${escapeHtml(CATEGORY_LABELS[item.category] || "")}</span>
+          <span class="badge">${escapeHtml(formatFavoriteDate(item.createdAt))}</span>
+        </div>
+        <p class="favorite-preview">${escapeHtml(preview)}${preview.length >= 180 ? "…" : ""}</p>
+        <div class="favorite-actions">
+          <button type="button" class="action-btn primary" data-open="${escapeHtml(item.id)}">Megnyitás</button>
+          <button type="button" class="action-btn" data-delete="${escapeHtml(item.id)}">Törlés</button>
+        </div>
+      </article>
+    `;
+  }).join("");
+}
+
+function showView(name) {
+  const favorites = name === "favorites";
+  els.viewCreate.hidden = favorites;
+  els.viewFavorites.hidden = !favorites;
+  els.tabCreate.classList.toggle("is-active", !favorites);
+  els.tabFavorites.classList.toggle("is-active", favorites);
+  if (location.hash !== (favorites ? "#kedvencek" : "") && (favorites || location.hash === "#kedvencek")) {
+    if (favorites) location.hash = "kedvencek";
+    else if (location.hash === "#kedvencek") history.replaceState(null, "", `${location.pathname}${location.search}`);
+  }
+  if (favorites) renderFavorites();
+}
+
+function syncViewFromHash() {
+  showView(location.hash === "#kedvencek" ? "favorites" : "create");
+}
+
 function openSettings() {
   els.apiKey.value = getApiKey();
   els.settingsDialog.showModal();
@@ -474,7 +687,7 @@ function openSettings() {
 
 function refreshKeyHint() {
   if (getApiKey()) setHint("Az API kulcs el van mentve ezen az eszközön.", "ok");
-  else setHint("A generáláshoz Gemini API kulcs kell. Nyisd meg a beállításokat.", "");
+  else setHint("A generáláshoz Gemini API kulcs kell.", "", { settingsLink: true });
 }
 
 els.form.addEventListener("submit", (event) => {
@@ -485,9 +698,19 @@ els.form.addEventListener("change", persistForm);
 els.form.addEventListener("input", persistForm);
 els.regenBtn.addEventListener("click", handleGenerate);
 els.speakBtn.addEventListener("click", toggleSpeech);
+els.saveBtn.addEventListener("click", saveCurrentFavorite);
 els.copyBtn.addEventListener("click", copyStory);
 els.openSettings.addEventListener("click", openSettings);
 els.closeSettings.addEventListener("click", () => els.settingsDialog.close());
+els.tabCreate.addEventListener("click", () => showView("create"));
+els.tabFavorites.addEventListener("click", () => showView("favorites"));
+els.favoritesList.addEventListener("click", (event) => {
+  const openId = event.target.closest("[data-open]")?.getAttribute("data-open");
+  const deleteId = event.target.closest("[data-delete]")?.getAttribute("data-delete");
+  if (openId) openFavorite(openId);
+  if (deleteId) deleteFavorite(deleteId);
+});
+window.addEventListener("hashchange", syncViewFromHash);
 els.settingsForm.addEventListener("submit", (event) => {
   event.preventDefault();
   setApiKey(els.apiKey.value);
@@ -508,3 +731,5 @@ if (window.speechSynthesis) {
 
 restoreForm();
 refreshKeyHint();
+renderFavorites();
+syncViewFromHash();
