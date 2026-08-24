@@ -6,7 +6,8 @@ const FAVORITES_KEY = "holdmese.favorites";
 const FAVORITES_MAX = 40;
 const MODEL = "gemini-2.5-flash";
 const GEMINI_ENDPOINT = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent`;
-const ELEVEN_TTS_MODEL = "eleven_flash_v2_5";
+const ELEVEN_TTS_MODEL = "eleven_v3";
+const ELEVEN_TTS_FALLBACK = "eleven_flash_v2_5";
 const ELEVEN_DEFAULT_VOICE = "EXAVITQu4vr4xnSDxMaL";
 const ELEVEN_MAX_CHARS = 4500;
 const MISSING_ELEVEN_MESSAGE = "Hiányzik az ElevenLabs API kulcs. Nyisd meg a Beállításokat, add meg a kulcsot a hangos felolvasáshoz.";
@@ -65,8 +66,9 @@ let lastFavoriteId = "";
 let speakMode = "idle";
 let speechToken = 0;
 let audioPlayer = null;
-let audioCache = { key: "", url: "" };
+let audioCache = { key: "", urls: [] };
 let ttsAbort = null;
+let elevenModel = ELEVEN_TTS_MODEL;
 
 function getApiKey() {
   return (localStorage.getItem(STORAGE_KEY) || "").trim();
@@ -530,8 +532,8 @@ function cacheKeyFor(text) {
 
 function clearAudioCache() {
   stopSpeech();
-  if (audioCache.url) URL.revokeObjectURL(audioCache.url);
-  audioCache = { key: "", url: "" };
+  (audioCache.urls || []).forEach((url) => URL.revokeObjectURL(url));
+  audioCache = { key: "", urls: [] };
 }
 
 function setSpeakMode(mode) {
@@ -584,7 +586,25 @@ function elevenError(status, payload) {
   return detail || `Az ElevenLabs API hibát jelzett (${status}).`;
 }
 
-async function fetchElevenChunk(text, signal) {
+function elevenRequestBody(text, model, context) {
+  const body = {
+    text,
+    model_id: model,
+    apply_text_normalization: "auto",
+    voice_settings: {
+      stability: 0.52,
+      similarity_boost: 0.82,
+      speed: 0.9,
+      use_speaker_boost: true,
+    },
+  };
+  if (model === ELEVEN_TTS_FALLBACK) body.language_code = "hu";
+  if (context.previousText) body.previous_text = context.previousText;
+  if (context.nextText) body.next_text = context.nextText;
+  return body;
+}
+
+async function postElevenSpeech(text, model, signal, context) {
   const voiceId = encodeURIComponent(getElevenVoice());
   const url = `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}?output_format=mp3_44100_128`;
   let res;
@@ -596,22 +616,21 @@ async function fetchElevenChunk(text, signal) {
         Accept: "audio/mpeg",
         "xi-api-key": getElevenKey(),
       },
-      body: JSON.stringify({
-        text,
-        model_id: ELEVEN_TTS_MODEL,
-        language_code: "hu",
-        voice_settings: {
-          stability: 0.62,
-          similarity_boost: 0.8,
-          style: 0.15,
-          speed: 0.88,
-        },
-      }),
+      body: JSON.stringify(elevenRequestBody(text, model, context)),
       signal,
     });
   } catch (error) {
     if (error?.name === "AbortError") throw error;
     throw new Error("Nem sikerült kapcsolódni az ElevenLabs API-hoz. Ellenőrizd az internetet.");
+  }
+  return res;
+}
+
+async function fetchElevenChunk(text, signal, context = {}) {
+  let res = await postElevenSpeech(text, elevenModel, signal, context);
+  if (!res.ok && elevenModel === ELEVEN_TTS_MODEL && res.status >= 400 && res.status < 500 && res.status !== 401 && res.status !== 403 && res.status !== 429) {
+    elevenModel = ELEVEN_TTS_FALLBACK;
+    res = await postElevenSpeech(text, elevenModel, signal, context);
   }
   if (!res.ok) {
     const payload = await res.json().catch(() => ({}));
@@ -620,33 +639,57 @@ async function fetchElevenChunk(text, signal) {
   return res.arrayBuffer();
 }
 
-async function fetchElevenAudio(text, signal) {
-  const chunks = chunkNarration(text);
-  const buffers = [];
-  for (let i = 0; i < chunks.length; i += 1) {
-    if (signal.aborted) throw new DOMException("Aborted", "AbortError");
-    buffers.push(await fetchElevenChunk(chunks[i], signal));
-  }
-  return new Blob(buffers, { type: "audio/mpeg" });
+function playOne(url, token) {
+  return new Promise((resolve) => {
+    if (speechToken !== token) {
+      resolve();
+      return;
+    }
+    audioPlayer = new Audio(url);
+    const finish = () => resolve();
+    audioPlayer.addEventListener("ended", finish, { once: true });
+    audioPlayer.addEventListener("error", () => {
+      showToast("A hang lejátszása nem sikerült.");
+      finish();
+    }, { once: true });
+    setSpeakMode("playing");
+    audioPlayer.play().catch(() => {
+      showToast("A böngésző nem engedte a lejátszást. Kattints újra a felolvasásra.");
+      finish();
+    });
+  });
 }
 
-function playAudioUrl(url, token) {
-  if (speechToken !== token) return;
-  audioPlayer = new Audio(url);
-  audioPlayer.addEventListener("ended", () => {
-    if (speechToken === token) setSpeakMode("idle");
-  });
-  audioPlayer.addEventListener("error", () => {
+async function playQueue(urls, token, expectedCount) {
+  let index = 0;
+  while (index < expectedCount) {
     if (speechToken !== token) return;
-    setSpeakMode("idle");
-    showToast("A hang lejátszása nem sikerült.");
-  });
-  setSpeakMode("playing");
-  audioPlayer.play().catch(() => {
+    while (index >= urls.length) {
+      await new Promise((resolve) => setTimeout(resolve, 60));
+      if (speechToken !== token) return;
+    }
+    await playOne(urls[index], token);
+    index += 1;
+  }
+  if (speechToken === token) setSpeakMode("idle");
+}
+
+async function narrateWithEleven(text, token, signal) {
+  const chunks = chunkNarration(text);
+  const urls = [];
+  let playback = null;
+  for (let i = 0; i < chunks.length; i += 1) {
+    const buffer = await fetchElevenChunk(chunks[i], signal, {
+      previousText: chunks[i - 1] || "",
+      nextText: chunks[i + 1] || "",
+    });
     if (speechToken !== token) return;
-    setSpeakMode("idle");
-    showToast("A böngésző nem engedte a lejátszást. Kattints újra a felolvasásra.");
-  });
+    urls.push(URL.createObjectURL(new Blob([buffer], { type: "audio/mpeg" })));
+    if (!playback) playback = playQueue(urls, token, chunks.length);
+  }
+  (audioCache.urls || []).forEach((url) => URL.revokeObjectURL(url));
+  audioCache = { key: cacheKeyFor(text), urls };
+  await playback;
 }
 
 async function toggleSpeech() {
@@ -666,22 +709,17 @@ async function toggleSpeech() {
   const token = speechToken + 1;
   speechToken = token;
   const key = cacheKeyFor(text);
-  if (audioCache.key === key && audioCache.url) {
-    playAudioUrl(audioCache.url, token);
+  if (audioCache.key === key && audioCache.urls?.length) {
+    await playQueue(audioCache.urls.slice(), token, audioCache.urls.length);
     return;
   }
   ttsAbort = new AbortController();
   setSpeakMode("loading");
   try {
-    const blob = await fetchElevenAudio(text, ttsAbort.signal);
-    if (speechToken !== token) return;
-    if (audioCache.url) URL.revokeObjectURL(audioCache.url);
-    const url = URL.createObjectURL(blob);
-    audioCache = { key, url };
-    playAudioUrl(url, token);
+    await narrateWithEleven(text, token, ttsAbort.signal);
   } catch (error) {
     if (error?.name === "AbortError" || speechToken !== token) return;
-    setSpeakMode("idle");
+    stopSpeech();
     const message = error instanceof Error ? error.message : "A hang előállítása nem sikerült.";
     setHint(message, "error", { settingsLink: /ElevenLabs API kulcs/i.test(message) });
     showToast(message);
