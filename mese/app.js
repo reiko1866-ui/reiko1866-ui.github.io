@@ -53,6 +53,7 @@ let lastInput = null;
 let lastCategory = "mese";
 let lastFavoriteId = "";
 let speaking = false;
+let speechToken = 0;
 let hungarianVoice = null;
 
 function getApiKey() {
@@ -505,6 +506,7 @@ function setSpeakingState(isSpeaking) {
 }
 
 function stopSpeech() {
+  speechToken += 1;
   if (window.speechSynthesis) {
     window.speechSynthesis.pause();
     window.speechSynthesis.cancel();
@@ -524,14 +526,20 @@ function toggleSpeech() {
   const text = storyText();
   if (!text) return;
   pickHungarianVoice();
+  const token = speechToken + 1;
+  speechToken = token;
   const utterance = new SpeechSynthesisUtterance(toSpeechText(text, lastCategory));
   utterance.lang = "hu-HU";
   utterance.rate = 0.9;
   utterance.pitch = 1.02;
   if (hungarianVoice) utterance.voice = hungarianVoice;
-  utterance.onend = () => setSpeakingState(false);
-  utterance.onerror = () => setSpeakingState(false);
-  window.speechSynthesis.cancel();
+  utterance.onend = () => {
+    if (speechToken === token) setSpeakingState(false);
+  };
+  utterance.onerror = (event) => {
+    if (event.error === "interrupted" || event.error === "canceled") return;
+    if (speechToken === token) setSpeakingState(false);
+  };
   setSpeakingState(true);
   window.speechSynthesis.speak(utterance);
 }
