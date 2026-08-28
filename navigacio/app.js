@@ -946,22 +946,11 @@
     if (!state.navigating || !state.voice) return;
     const kmh = Math.round((state.speed || 0) * 3.6);
     const limit = Number(state.road && state.road.limit) || 0;
-    const urban = state.road && state.road.urban;
     const nxt = state.limits.length ? nextBoundary(state.traveled) : null;
     if (nxt && nxt.dist < 420 && nxt.dist > 50) {
-      let text = "";
-      let beeps = 1;
-      if (nxt.urban === true && urban !== true) {
-        text = "Település" + (nxt.limit ? ", " + nxt.limit : "");
-        beeps = 2;
-      } else if (nxt.urban === false && urban !== false) {
-        text = "Település vége" + (nxt.limit ? ", " + nxt.limit : "");
-        beeps = 2;
-      } else if (nxt.limit && nxt.limit !== limit) {
-        text = "Sebességhatár " + nxt.limit;
-        beeps = 1;
+      if (nxt.limit && nxt.limit !== limit) {
+        warnRoad("Sebességhatár " + nxt.limit, 1, "soon:" + nxt.limit);
       }
-      if (text) warnRoad(text, beeps, "soon:" + nxt.urban + ":" + nxt.limit);
     }
     if (limit && kmh > limit + 5 && Date.now() - state.lastSpeedWarn > 22000) {
       const nv = navVoice();
@@ -1285,12 +1274,23 @@
     state.lastCam = now;
     const kmh = (state.speed || 0) * 3.6;
     const zoom = kmh > 110 ? 15 : kmh > 70 ? 15.7 : kmh > 40 ? 16.3 : 17.1;
+    const banner = $("banner");
+    const trip = $("trip");
+    const fabs = $("fabBar");
+    let top = 20;
+    let bottom = 40;
+    let right = 0;
+    if (state.navigating) {
+      top = banner && !banner.hidden ? Math.round(banner.getBoundingClientRect().height + 12) : 150;
+      bottom = trip && !trip.hidden ? Math.round(trip.getBoundingClientRect().height + 12) : 130;
+      if (fabs) right = Math.max(0, Math.round(window.innerWidth - fabs.getBoundingClientRect().left + 8));
+    }
     state.map.easeTo({
       center: [state.origin.lng, state.origin.lat],
       zoom,
       pitch: 58,
       bearing: state.heading,
-      padding: { top: state.navigating ? 150 : 20, bottom: state.navigating ? 130 : 40, left: 0, right: 0 },
+      padding: { top, bottom, left: 8, right },
       duration: force ? 380 : 200,
       essential: true
     });
@@ -1441,17 +1441,9 @@
     const roadThen = $("roadThen");
     const roadThenText = $("roadThenText");
     if (roadThen && roadThenText) {
-      if (nxt && nxt.dist < 1600) {
-        const what =
-          nxt.urban === true && urban !== true
-            ? "település" + (nxt.limit ? ", " + nxt.limit : "")
-            : nxt.urban === false && urban !== false
-              ? "település vége" + (nxt.limit ? ", " + nxt.limit : "")
-              : nxt.limit
-                ? String(nxt.limit) + " km/h"
-                : "";
-        roadThen.hidden = !what;
-        roadThenText.textContent = what ? fmtDist(nxt.dist) + " múlva " + what : "";
+      if (nxt && nxt.dist < 1600 && nxt.limit && nxt.limit !== limit) {
+        roadThen.hidden = false;
+        roadThenText.textContent = fmtDist(nxt.dist) + " múlva " + nxt.limit + " km/h";
       } else {
         roadThen.hidden = true;
       }
@@ -1578,11 +1570,7 @@
         if (road.urban === true && state.origin) refreshPlace(state.origin.lat, state.origin.lng);
         else if (road.urban === false) state.place = "";
       }
-      if (flipped && road.urban === true) {
-        warnRoad((state.place || "Település") + (road.limit ? ", " + road.limit : ""), 2, "now:in:" + road.limit);
-      } else if (flipped && road.urban === false) {
-        warnRoad("Település vége" + (road.limit ? ", " + road.limit : ""), 2, "now:out:" + road.limit);
-      } else if (!flipped && limitChanged && road.limit) {
+      if (limitChanged && road.limit) {
         warnRoad("Sebességhatár " + road.limit, 1, "now:lim:" + road.limit);
       }
       state.lastUrban = road.urban;
@@ -1955,7 +1943,40 @@
     updateNav();
     updateRoadFromRoute();
     updateCamera(true);
-    if (navigator.wakeLock) navigator.wakeLock.request("screen").catch(() => {});
+    armWake();
+  }
+
+  let wakeLock = null;
+  let wakeTimer = 0;
+
+  function dropWake() {
+    if (wakeTimer) {
+      clearInterval(wakeTimer);
+      wakeTimer = 0;
+    }
+    if (wakeLock) {
+      try {
+        wakeLock.release();
+      } catch (_e) {}
+      wakeLock = null;
+    }
+  }
+
+  function holdWake() {
+    if (!state.navigating || !navigator.wakeLock) return;
+    navigator.wakeLock.request("screen").then(function (lock) {
+      wakeLock = lock;
+      lock.addEventListener("release", function () {
+        wakeLock = null;
+        if (state.navigating) holdWake();
+      });
+    }).catch(function () {});
+  }
+
+  function armWake() {
+    holdWake();
+    if (wakeTimer) clearInterval(wakeTimer);
+    wakeTimer = setInterval(holdWake, 20000);
   }
 
   function stopNav(opts) {
@@ -1986,6 +2007,7 @@
     spyNav();
     if (state.map) state.map.resize();
     syncBack(opts && opts.fromPop);
+    dropWake();
   }
 
   function maybeReroute() {
@@ -2535,6 +2557,13 @@
 
     window.addEventListener("scroll", spyNav, { passive: true });
     window.addEventListener("popstate", onPopState);
+    window.addEventListener("resize", function () {
+      if (state.map) state.map.resize();
+      if (state.navigating && state.follow) updateCamera(true);
+    });
+    document.addEventListener("visibilitychange", function () {
+      if (document.visibilityState === "visible" && state.navigating) holdWake();
+    });
     spyNav();
     $("homeGo").addEventListener("click", () => goPlace("home"));
     $("workGo").addEventListener("click", () => goPlace("work"));
