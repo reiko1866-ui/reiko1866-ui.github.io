@@ -1004,11 +1004,15 @@
     let n = 0;
     function tick() {
       const nv = navVoice();
-      if (!nv || !nv.isBusy() || n > 24) return fn();
-      n += 1;
-      setTimeout(tick, 200);
+      if (nv && nv.isBusy() && n < 120) {
+        n += 1;
+        setTimeout(tick, 250);
+        return;
+      }
+      if (nv && nv.isBusy()) return;
+      fn();
     }
-    setTimeout(tick, 350);
+    setTimeout(tick, 400);
   }
 
   function speakTurnExtras(kind, then) {
