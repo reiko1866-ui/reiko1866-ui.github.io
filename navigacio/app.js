@@ -1751,7 +1751,7 @@
       c[1],
       c[0],
       title,
-      [street, p.district, p.locality, p.city || p.county, p.state, p.country],
+      [street, /kerület/i.test(String(p.district || "")) ? p.district : "", p.city || p.county, p.country],
       p.osm_value || p.type
     );
   }
@@ -1765,7 +1765,7 @@
       item.lat,
       item.lon,
       title,
-      [street, a.suburb || a.neighbourhood, city, a.state, a.country],
+      [street, a.suburb || a.neighbourhood, city, a.country],
       item.addresstype || item.type
     );
   }
