@@ -145,6 +145,28 @@ button {
   transform: rotate(-45deg);
 }
 
+.car-pin {
+  position: relative;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: #fbbf24;
+  border: 3px solid #0f172a;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.45);
+}
+
+.car-pin::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 8px;
+  height: 8px;
+  margin: -4px 0 0 -4px;
+  border-radius: 1px;
+  background: #0f172a;
+}
+
 /* Keresés */
 #infoCard {
   position: absolute;
@@ -295,11 +317,12 @@ button {
   background: var(--chip);
 }
 
-.result-title {
-  font-size: 1rem;
-  font-weight: 800;
-  line-height: 1.25;
-  color: var(--text);
+#results button.is-shortcut .result-title {
+  color: var(--blue);
+}
+
+html.dark #results button.is-shortcut .result-title {
+  color: #93c5fd;
 }
 
 .result-sub {
