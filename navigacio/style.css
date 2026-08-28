@@ -394,6 +394,57 @@ button {
   text-align: center;
 }
 
+#lanes {
+  display: flex;
+  justify-content: center;
+  align-items: stretch;
+  gap: 0.28rem;
+  padding: 0.12rem 0 0.2rem;
+}
+
+.lane {
+  width: 1.72rem;
+  height: 2.4rem;
+  display: grid;
+  place-items: center;
+  border-radius: 0.38rem;
+  background: rgba(0, 0, 0, 0.28);
+}
+
+.lane.is-go {
+  background: #fff;
+}
+
+.lane svg {
+  width: 1.12rem;
+  height: 1.72rem;
+  fill: none;
+  stroke: rgba(255, 255, 255, 0.42);
+  stroke-width: 2.3;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.lane.is-go svg {
+  stroke: #0f172a;
+}
+
+#app.is-nav:has(#lanes:not([hidden])) #infoCard {
+  top: calc(10.2rem + var(--safe-top));
+}
+
+#app.is-nav:has(#thenRow:not([hidden])):has(#lanes:not([hidden])) #infoCard {
+  top: calc(11.4rem + var(--safe-top));
+}
+
+#app.is-nav:has(#roadThen:not([hidden])):has(#lanes:not([hidden])) #infoCard {
+  top: calc(12.2rem + var(--safe-top));
+}
+
+#app.is-nav:has(#thenRow:not([hidden])):has(#roadThen:not([hidden])):has(#lanes:not([hidden])) #infoCard {
+  top: calc(13.2rem + var(--safe-top));
+}
+
 #app.is-nav #infoCard {
   top: calc(7.4rem + var(--safe-top));
 }

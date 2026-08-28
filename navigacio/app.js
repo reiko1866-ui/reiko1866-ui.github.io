@@ -305,33 +305,115 @@
     return t ? t.charAt(0).toUpperCase() + t.slice(1) : "";
   }
 
+  function nextLanesAhead(maxM) {
+    if (!state.origin || !state.coords.length) return null;
+    let best = null;
+    let bestD = Infinity;
+    for (let i = 0; i < state.steps.length; i++) {
+      const ints = state.steps[i].intersections || [];
+      for (let j = 0; j < ints.length; j++) {
+        const lanes = ints[j] && ints[j].lanes;
+        if (!lanes || lanes.length < 2 || lanes.length > 8) continue;
+        const loc = ints[j].location;
+        if (!loc || loc.length < 2) continue;
+        const snap = nearestFull(state.coords, { lng: loc[0], lat: loc[1] });
+        const d = snap.traveled - state.traveled;
+        if (d < -15 || d > maxM) continue;
+        if (d < bestD) {
+          bestD = d;
+          best = lanes;
+        }
+      }
+    }
+    return best;
+  }
+
+  function laneGlyph(inds) {
+    const x = (inds || []).map(function (s) { return String(s || "").toLowerCase(); });
+    const has = function (p) { return x.some(function (s) { return s.indexOf(p) >= 0; }); };
+    const left = has("left") && !has("uturn");
+    const right = has("right");
+    const straight = x.some(function (s) { return s === "straight" || s === "none" || s === ""; });
+    const slightL = has("slight") && has("left");
+    const slightR = has("slight") && has("right");
+    const sharpL = has("sharp") && has("left");
+    const sharpR = has("sharp") && has("right");
+    if (has("uturn")) return "uturn";
+    if (straight && left && !right) return "forkL";
+    if (straight && right && !left) return "forkR";
+    if (sharpL) return "sharpL";
+    if (sharpR) return "sharpR";
+    if (slightL) return "slightL";
+    if (slightR) return "slightR";
+    if (left && !right) return "left";
+    if (right && !left) return "right";
+    return "straight";
+  }
+
+  function laneSvg(kind) {
+    const head = "M12 7l-4.2 5.2M12 7l4.2 5.2";
+    const paths = {
+      straight: "M12 26V7 " + head,
+      slightL: "M14 26L11 16L8 7 M8 7l1.2 6.2M8 7l6 1",
+      slightR: "M10 26L13 16L16 7 M16 7l-1.2 6.2M16 7l-6 1",
+      left: "M16 26V16H8 M8 16l4.2-4.2M8 16l4.2 4.2",
+      right: "M8 26V16h8 M16 16l-4.2-4.2M16 16l-4.2 4.2",
+      sharpL: "M17 25V18H7 M7 18l4.4-4.6M7 18l4.4 4.6",
+      sharpR: "M7 25V18h10 M17 18l-4.4-4.6M17 18l-4.4 4.6",
+      forkL: "M14 26V14L8 7 M8 7l1.4 5.8M8 7l5.6.8 M14 14V8 M14 8l-3.6 4.6M14 8l3.6 4.6",
+      forkR: "M10 26V14L16 7 M16 7l-1.4 5.8M16 7l-5.6.8 M10 14V8 M10 8l-3.6 4.6M10 8l3.6 4.6",
+      uturn: "M16 26V15A5 5 0 0 0 6 15v4 M6 19l-3.4-3.6M6 19l3.6-3.2"
+    };
+    return (
+      '<svg viewBox="0 0 24 32" aria-hidden="true"><path d="' +
+      (paths[kind] || paths.straight) +
+      '"/></svg>'
+    );
+  }
+
   function laneHint(step) {
     const ints = (step && step.intersections) || [];
-    for (let i = ints.length - 1; i >= 0; i--) {
+    for (let i = 0; i < ints.length; i++) {
       const lanes = ints[i] && ints[i].lanes;
       if (!lanes || !lanes.length) continue;
       const valid = [];
       lanes.forEach(function (lane, idx) {
-        if (lane && lane.valid) valid.push({ lane: lane, i: idx });
+        if (lane && lane.valid) valid.push(idx);
       });
-      if (!valid.length) continue;
-      const ind = [];
-      valid.forEach(function (v) {
-        (v.lane.indications || []).forEach(function (x) {
-          if (ind.indexOf(x) < 0) ind.push(x);
-        });
-      });
-      const left = ind.some(function (x) { return String(x).indexOf("left") >= 0; });
-      const right = ind.some(function (x) { return String(x).indexOf("right") >= 0; });
-      if (left && !right) return "bal sáv";
-      if (right && !left) return "jobb sáv";
-      if (valid.length === 1 && lanes.length >= 3) {
-        if (valid[0].i === 0) return "bal sáv";
-        if (valid[0].i === lanes.length - 1) return "jobb sáv";
-        return valid[0].i + 1 + ". sáv";
+      if (!valid.length || valid.length === lanes.length) continue;
+      if (valid.length === 1) {
+        if (valid[0] === 0) return "bal sáv";
+        if (valid[0] === lanes.length - 1) return "jobb sáv";
+        return valid[0] + 1 + ". sáv";
       }
+      return valid.map(function (n) { return n + 1; }).join(". és ") + ". sáv";
     }
     return "";
+  }
+
+  function paintLanes(highway) {
+    const box = $("lanes");
+    if (!box) return;
+    const lanes = nextLanesAhead(highway ? 820 : 520);
+    if (!lanes) {
+      box.hidden = true;
+      box.innerHTML = "";
+      box.removeAttribute("aria-label");
+      return;
+    }
+    const valid = [];
+    lanes.forEach(function (lane, idx) {
+      if (lane && lane.valid) valid.push(idx + 1);
+    });
+    box.innerHTML = "";
+    lanes.forEach(function (lane) {
+      const el = document.createElement("span");
+      el.className = "lane" + (lane && lane.valid ? " is-go" : "");
+      el.innerHTML = laneSvg(laneGlyph((lane && lane.indications) || ["straight"]));
+      box.appendChild(el);
+    });
+    box.setAttribute("aria-label", valid.length ? "Sávok: " + valid.join(". és ") + "." : "Sávok");
+    box.hidden = false;
   }
 
   function classify(step) {
@@ -1301,7 +1383,13 @@
     $("eta").textContent = fmtClock(r.s);
     $("remain").textContent = fmtDur(r.s);
     $("dist").textContent = fmtDist(r.m);
-    if (!cur) return;
+    if (!cur) {
+      if ($("lanes")) {
+        $("lanes").hidden = true;
+        $("lanes").innerHTML = "";
+      }
+      return;
+    }
     const kind = cur.kind;
     const then = nextAfter(cur.index);
     const warn = warnMeters(kind);
@@ -1310,7 +1398,8 @@
     $("turnIcon").textContent = kind.icon;
     $("turnDist").textContent = fmtTurnDist(cur.until);
     $("turnText").textContent = kind.label;
-    $("turnStreet").textContent = [kind.street, kind.lane].filter(Boolean).join(" · ");
+    $("turnStreet").textContent = kind.street || "";
+    paintLanes(kind.highway);
     const thenRow = $("thenRow");
     if (then && then.kind && then.kind.cat !== "arrive") {
       thenRow.hidden = false;
@@ -1631,6 +1720,10 @@
     $("app").classList.remove("is-nav");
     $("trip").hidden = true;
     $("banner").hidden = true;
+    if ($("lanes")) {
+      $("lanes").hidden = true;
+      $("lanes").innerHTML = "";
+    }
     if ($("roadThen")) $("roadThen").hidden = true;
     if ($("hazardThen")) $("hazardThen").hidden = true;
     if (!(opts && opts.keepAudio)) {
