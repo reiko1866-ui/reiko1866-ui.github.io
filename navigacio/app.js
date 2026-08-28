@@ -971,7 +971,6 @@
     if (!tags) return "";
     if (tags.highway === "speed_camera" || tags.enforcement === "maxspeed") return "Traffipax";
     if (tags.railway === "level_crossing") return "Vasúti átjáró";
-    if (/bump|hump|table/.test(String(tags.traffic_calming || ""))) return "Fekvőrendőr";
     if (tags.hazard === "school_zone") return "Iskola";
     return "";
   }
@@ -1022,7 +1021,6 @@
       'node["highway"="speed_camera"](' + box + ");" +
       'node["enforcement"="maxspeed"](' + box + ");" +
       'node["railway"="level_crossing"](' + box + ");" +
-      'node["traffic_calming"~"^(bump|hump|table)$"](' + box + ");" +
       'node["hazard"="school_zone"](' + box + ");" +
       ");out;";
     const hosts = [
