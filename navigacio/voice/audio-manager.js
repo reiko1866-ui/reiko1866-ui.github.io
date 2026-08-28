@@ -1,6 +1,5 @@
 /**
- * Hangnavigáció — csak a GitHubra feltöltött csomag, ugyanarról az oldalról (mp3).
- * Nincs telefon-TTS. Egy gomb / egy kanyar = egy klip.
+ * Hangnavigáció — a feltöltött csomag. Kanyar, aztán poén. Soha nem két hang egyszerre.
  */
 (function (global) {
   "use strict";
@@ -320,7 +319,7 @@
           this.log(
             "Kész, " +
               n +
-              "+ klip a csomagból. Kanyarnál egy hang. A fájlnév nem számít."
+              "+ klip. Kanyarnál a csomag, utána a poén. Egyszerre egy hang."
           );
           return files;
         } catch (_e) {}
