@@ -176,6 +176,8 @@
     drove: false,
     stillSince: 0,
     parkPos: null,
+    lastFix: null,
+    fixRejects: 0,
     gpsAcc: 0,
     warnCtx: null,
     hazards: [],
@@ -344,15 +346,43 @@
     return d;
   }
 
+  function angDelta(from, to) {
+    return ((to - from + 540) % 360) - 180;
+  }
+
+  function mixHeading(from, to, k) {
+    if (!Number.isFinite(from)) return to;
+    if (!Number.isFinite(to)) return from;
+    return (from + angDelta(from, to) * k + 360) % 360;
+  }
+
+  function alongLine(coords, traveled) {
+    let acc = 0;
+    const n = coords.length;
+    if (n < 1) return null;
+    if (n === 1 || traveled <= 0) return { lng: coords[0][0], lat: coords[0][1] };
+    for (let i = 1; i < n; i++) {
+      const a = { lng: coords[i - 1][0], lat: coords[i - 1][1] };
+      const b = { lng: coords[i][0], lat: coords[i][1] };
+      const seg = haversine(a, b);
+      if (acc + seg >= traveled) {
+        const t = seg ? (traveled - acc) / seg : 1;
+        return { lng: a.lng + t * (b.lng - a.lng), lat: a.lat + t * (b.lat - a.lat) };
+      }
+      acc += seg;
+    }
+    return { lng: coords[n - 1][0], lat: coords[n - 1][1] };
+  }
+
   function nearest(coords, point) {
-    let best = { dist: Infinity, traveled: 0, bearing: state.heading, index: 1 };
+    let best = { dist: Infinity, traveled: 0, bearing: state.heading, index: 1, score: Infinity };
     const n = coords.length;
     if (n < 2) return best;
     let from = 1;
     let to = n;
     if (n > 90 && state.snapI > 0) {
-      from = Math.max(1, state.snapI - 50);
-      to = Math.min(n, state.snapI + 90);
+      from = Math.max(1, state.snapI - 36);
+      to = Math.min(n, state.snapI + (state.navigating ? 160 : 90));
     }
     function scan(start, end, acc0) {
       let acc = acc0;
@@ -360,12 +390,24 @@
         const a = { lng: coords[i - 1][0], lat: coords[i - 1][1] };
         const b = { lng: coords[i][0], lat: coords[i][1] };
         const seg = haversine(a, b) || 1;
-        const abx = b.lng - a.lng;
+        const clat = Math.cos(toRad((a.lat + b.lat) * 0.5)) || 1;
+        const abx = (b.lng - a.lng) * clat;
         const aby = b.lat - a.lat;
-        const t = Math.max(0, Math.min(1, ((point.lng - a.lng) * abx + (point.lat - a.lat) * aby) / (abx * abx + aby * aby || 1)));
-        const proj = { lng: a.lng + t * abx, lat: a.lat + t * aby };
+        const apx = (point.lng - a.lng) * clat;
+        const apy = point.lat - a.lat;
+        const t = Math.max(0, Math.min(1, (apx * abx + apy * aby) / (abx * abx + aby * aby || 1)));
+        const proj = { lng: a.lng + t * (b.lng - a.lng), lat: a.lat + t * (b.lat - a.lat) };
         const d = haversine(point, proj);
-        if (d < best.dist) best = { dist: d, traveled: acc + t * seg, bearing: bearing(a, b), index: i };
+        const traveled = acc + t * seg;
+        const br = bearing(a, b);
+        let score = d;
+        if (state.navigating) {
+          if (traveled < state.traveled - 18) score += 22;
+          if (Number.isFinite(state.heading) && Math.abs(angDelta(state.heading, br)) > 75) score += 14;
+        }
+        if (score < best.score) {
+          best = { dist: d, traveled: traveled, bearing: br, index: i, score: score };
+        }
         acc += seg;
       }
       return acc;
@@ -381,7 +423,7 @@
     }
     scan(from, to, prefix);
     if (best.dist > 70 && (from > 1 || to < n)) {
-      best = { dist: Infinity, traveled: 0, bearing: state.heading, index: 1 };
+      best = { dist: Infinity, traveled: 0, bearing: state.heading, index: 1, score: Infinity };
       scan(1, n, 0);
     }
     state.snapI = best.index;
@@ -744,8 +786,10 @@
   }
 
   function fmtTurnDist(m) {
-    if (m < 40) return "Most";
-    return fmtDist(m);
+    if (m < 22) return "Most";
+    if (m < 80) return Math.round(m / 5) * 5 + " m";
+    if (m < 1000) return Math.round(m / 10) * 10 + " m";
+    return (m / 1000).toFixed(m < 10000 ? 1 : 0).replace(".", ",") + " km";
   }
 
   function warnMeters(kind) {
@@ -1055,33 +1099,87 @@
     return el;
   }
 
+  function snapLimit() {
+    const acc = state.gpsAcc || 0;
+    const fast = (state.speed || 0) > 22;
+    return Math.max(fast ? 78 : 42, acc > 28 ? Math.min(90, acc + 22) : 42);
+  }
+
+  function offRouteLimit() {
+    return Math.max(snapLimit() + 8, (state.speed || 0) > 22 ? 80 : 45);
+  }
+
+  function plausibleJump(prev, next, acc) {
+    if (!prev || !prev.ll) return true;
+    const dt = (next.t - prev.t) / 1000;
+    if (!(dt > 0.12)) return true;
+    const d = haversine(prev.ll, next.ll);
+    const vmax = Math.max(prev.speed || 0, next.speed || 0, 8) + 12;
+    const budget = vmax * dt + Math.max(acc || 0, 12) + 18;
+    if (d > 420 && dt < 2.2) return false;
+    return d <= budget * 2.4;
+  }
+
   function setOrigin(lngLat, heading, speed) {
-    state.origin = lngLat;
+    const now = Date.now();
+    const acc = state.gpsAcc || 0;
+    const raw = { lng: lngLat.lng, lat: lngLat.lat };
+    if (!plausibleJump(state.lastFix, { ll: raw, t: now, speed: speed || 0 }, acc)) {
+      state.fixRejects = (state.fixRejects || 0) + 1;
+      if (state.fixRejects < 3) return;
+    }
+    state.fixRejects = 0;
+    state.lastFix = { ll: raw, t: now, speed: speed || 0 };
+
     if (Number.isFinite(heading)) state.heading = heading;
     if (Number.isFinite(speed) && speed >= 0) state.speed = speed;
+
+    let display = raw;
+    if (state.coords.length) {
+      const snap = nearest(state.coords, raw);
+      state.lastSnap = snap;
+      const onRoad = snap.dist < snapLimit();
+      if (onRoad) {
+        const prevT = state.traveled || 0;
+        let nextT = snap.traveled;
+        if (nextT + 8 < prevT && snap.dist < 35) nextT = prevT;
+        const maxFwd = Math.max(40, (state.speed || 0) * 2.5 + 25);
+        if (prevT > 0 && nextT > prevT + maxFwd) nextT = prevT + maxFwd;
+        state.traveled = nextT;
+        const along = alongLine(state.coords, nextT);
+        if (along) display = along;
+        const br = snap.bearing;
+        if (
+          Number.isFinite(br) &&
+          (!Number.isFinite(heading) || (speed != null && speed < 2.2) || Math.abs(angDelta(heading, br)) < 55)
+        ) {
+          state.heading = mixHeading(state.heading, br, (state.speed || 0) < 3 ? 0.55 : 0.32);
+        }
+      } else if (snap.dist < offRouteLimit() && state.traveled > 0) {
+        const along = alongLine(state.coords, state.traveled);
+        if (along) display = along;
+      }
+      state.origin = display;
+      drawRoute();
+      updateNav();
+      updateRoadFromRoute();
+    } else {
+      state.origin = display;
+      locateRoad();
+    }
+
     if (!state.puck) {
       state.puck = new maplibregl.Marker({ element: makeEl("puck"), anchor: "center" })
-        .setLngLat([lngLat.lng, lngLat.lat])
+        .setLngLat([display.lng, display.lat])
         .addTo(state.map);
-    } else state.puck.setLngLat([lngLat.lng, lngLat.lat]);
+    } else state.puck.setLngLat([display.lng, display.lat]);
     const mapBearing = state.map.getBearing();
     state.puck.setRotation(state.heading - mapBearing);
     const kmh = Math.round((state.speed || 0) * 3.6);
     $("speed").hidden = false;
     $("kmh").textContent = String(kmh);
-    if (state.coords.length) {
-      const snap = nearest(state.coords, lngLat);
-      state.lastSnap = snap;
-      state.traveled = snap.traveled;
-      if (snap.dist < 40) state.heading = snap.bearing;
-      drawRoute();
-      updateNav();
-      updateRoadFromRoute();
-    } else {
-      locateRoad();
-    }
     updateCamera();
-    watchPark(lngLat, state.speed);
+    watchPark(raw, state.speed);
     paintCar();
   }
 
@@ -1577,27 +1675,43 @@
   }
 
   async function fetchOsrm(from, to, extraQs) {
-    const path =
-      from.lng +
-      "," +
-      from.lat +
-      ";" +
-      to.lng +
-      "," +
-      to.lat +
-      "?overview=full&geometries=geojson&steps=true" +
-      (extraQs || "");
-    const jobs = OSRM.map(function (base) {
-      return fetchJson(base + "/" + path, null, 6500).then(function (res) {
-        if (!res.ok) throw new Error("HTTP " + res.status);
-        return res.json();
-      }).then(function (data) {
-        if (data.code !== "Ok" || !data.routes || !data.routes[0]) throw new Error("Nincs útvonal");
-        return data.routes[0];
+    const rad = Math.max(25, Math.min(80, Math.round((state.gpsAcc || 35) + 8)));
+    const baseSnap = "&continue_straight=true&radiuses=" + rad + ";" + rad;
+    function pathWith(snapQs) {
+      return (
+        from.lng +
+        "," +
+        from.lat +
+        ";" +
+        to.lng +
+        "," +
+        to.lat +
+        "?overview=full&geometries=geojson&steps=true" +
+        snapQs +
+        (extraQs || "")
+      );
+    }
+    function tryPath(snapQs) {
+      const path = pathWith(snapQs);
+      const jobs = OSRM.map(function (base) {
+        return fetchJson(base + "/" + path, null, 6500).then(function (res) {
+          if (!res.ok) throw new Error("HTTP " + res.status);
+          return res.json();
+        }).then(function (data) {
+          if (data.code !== "Ok" || !data.routes || !data.routes[0]) throw new Error("Nincs útvonal");
+          return data.routes[0];
+        });
       });
-    });
+      return Promise.any(jobs);
+    }
     try {
-      return await Promise.any(jobs);
+      if (state.navigating && Number.isFinite(state.heading) && (state.speed || 0) > 3) {
+        const range = (state.speed || 0) > 8 ? 35 : 60;
+        try {
+          return await tryPath(baseSnap + "&bearings=" + Math.round(state.heading) + "," + range + ";");
+        } catch (_e) {}
+      }
+      return await tryPath(baseSnap);
     } catch (err) {
       const first = err && err.errors && err.errors[0];
       throw first || new Error("Az útvonaltervező nem elérhető.");
@@ -1696,11 +1810,23 @@
     };
   }
 
+  function valhallaLoc(point, withHeading) {
+    const loc = {
+      lon: point.lng,
+      lat: point.lat,
+      radius: Math.max(20, Math.min(70, Math.round(state.gpsAcc || 35)))
+    };
+    if (withHeading && Number.isFinite(state.heading) && (state.speed || 0) > 3) {
+      loc.heading = Math.round(state.heading);
+    }
+    return loc;
+  }
+
   async function fetchValhalla(from, to) {
     const body = {
       locations: [
-        { lon: from.lng, lat: from.lat },
-        { lon: to.lng, lat: to.lat }
+        valhallaLoc(from, true),
+        valhallaLoc(to, false)
       ],
       costing: "auto",
       costing_options: {
@@ -1852,7 +1978,8 @@
     } else {
       setStatus("Megérkeztél");
     }
-    if (state.origin) saveCar(state.origin);
+    if (state.lastFix && state.lastFix.ll) saveCar(state.lastFix.ll);
+    else if (state.origin) saveCar(state.origin);
     state.drove = false;
     state.stillSince = 0;
     paintCar();
@@ -1865,7 +1992,7 @@
     if (!state.navigating || !state.origin || !state.dest || state.planning) return;
     if (!state.coords.length) return plan(true);
     const snap = state.lastSnap || nearest(state.coords, state.origin);
-    const limit = Number(state.speed || 0) > 22 ? 80 : 45;
+    const limit = offRouteLimit();
     if (snap.dist < limit) {
       state.offHits = 0;
       return;
@@ -1882,13 +2009,17 @@
   }
 
   function onPos(pos) {
-    const acc = Number(pos.coords.accuracy);
+    const c = pos.coords;
+    const acc = Number(c.accuracy);
     state.gpsAcc = acc;
-    setOrigin(
-      { lat: pos.coords.latitude, lng: pos.coords.longitude },
-      pos.coords.heading,
-      pos.coords.speed
-    );
+    const raw = { lat: c.latitude, lng: c.longitude };
+    let spd = c.speed;
+    if ((spd == null || isNaN(spd) || spd < 0) && state.lastFix) {
+      const dt = (Date.now() - state.lastFix.t) / 1000;
+      if (dt > 0.4 && dt < 8) spd = haversine(state.lastFix.ll, raw) / dt;
+    }
+    if (spd == null || isNaN(spd) || spd < 0) spd = state.speed || 0;
+    setOrigin(raw, c.heading, spd);
     if (state.navigating && acc > 50) {
       state.gpsHits += 1;
       if (state.gpsHits >= 3 && Date.now() - state.lastGpsWarn > 40000) {
@@ -2491,7 +2622,7 @@
   function initGps() {
     if (!navigator.geolocation) setStatus("Nincs GPS ebben a böngészőben.", true);
     else {
-      const opts = { enableHighAccuracy: true, maximumAge: 250, timeout: 7000 };
+      const opts = { enableHighAccuracy: true, maximumAge: 0, timeout: 12000 };
       navigator.geolocation.getCurrentPosition(onPos, (e) => setStatus(e.message || "GPS hiba", true), opts);
       navigator.geolocation.watchPosition(onPos, () => setStatus("GPS jel gyenge", true), opts);
     }
