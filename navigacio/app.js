@@ -106,7 +106,7 @@
 
   function spyNav() {
     const allNavLinks = document.querySelectorAll(".nav-link, .mobile-link");
-    const pageIds = ["kezdolap", "funkciok", "Ajanlatok", "kapcsolat"];
+    const pageIds = ["kezdolap", "poen", "funkciok", "Ajanlatok", "kapcsolat"];
     let current = pageIds[0];
     pageIds.forEach((id) => {
       const section = $(id);
@@ -861,6 +861,85 @@
 
   function navVoice() {
     return window.NavVoice && window.NavVoice.instance;
+  }
+
+  function shuffle(list) {
+    const out = list.slice();
+    for (let i = out.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      const t = out[i];
+      out[i] = out[j];
+      out[j] = t;
+    }
+    return out;
+  }
+
+  function poenFiles() {
+    const nv = navVoice();
+    return nv && nv.filesFor ? nv.filesFor("start") : [];
+  }
+
+  function setPoenNow(name, played, total) {
+    const el = $("poenNow");
+    if (!el) return;
+    if (!played || !total) {
+      el.textContent = name ? "Szól" : "Koppints: Mind megy";
+      return;
+    }
+    el.textContent = "Szól: " + played + " / " + total;
+  }
+
+  function fillPoen() {
+    const files = poenFiles();
+    const list = $("poenList");
+    const count = $("poenCount");
+    if (count) count.textContent = files.length ? files.length + " poén a csomagban" : "A hangcsomag még töltődik…";
+    if (!list) return;
+    list.innerHTML = "";
+    files.forEach(function (name, i) {
+      const li = document.createElement("li");
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.textContent = "Poén " + (i + 1);
+      btn.addEventListener("click", function () {
+        const nv = navVoice();
+        if (!nv) return setStatus("A hangmodul nem töltődött be.", true);
+        armVoice();
+        nv.playJokes(files, i);
+      });
+      li.appendChild(btn);
+      list.appendChild(li);
+    });
+  }
+
+  function bindPoen() {
+    const nv0 = navVoice();
+    if (nv0) nv0.onJoke = setPoenNow;
+    const play = $("poenPlay");
+    const next = $("poenNext");
+    const stop = $("poenStop");
+    if (play) {
+      play.addEventListener("click", function () {
+        const nv = navVoice();
+        if (!nv) return setStatus("A hangmodul nem töltődött be.", true);
+        armVoice();
+        nv.playJokes(shuffle(poenFiles()), 0);
+      });
+    }
+    if (next) {
+      next.addEventListener("click", function () {
+        const nv = navVoice();
+        if (!nv) return;
+        armVoice();
+        nv.skipJoke();
+      });
+    }
+    if (stop) {
+      stop.addEventListener("click", function () {
+        const nv = navVoice();
+        if (nv) nv.stop();
+      });
+    }
   }
 
   function hushSpeech() {
@@ -2452,6 +2531,7 @@
         else setStatus("A hangmodul nem töltődött be.", true);
       });
     });
+    bindPoen();
     const hamburgerBtn = $("hamburgerBtn");
     const closeBtn = $("closeBtn");
     const drawerOverlay = $("drawerOverlay");
@@ -2577,6 +2657,8 @@
     }).then((mgr) => {
       const el = $("voiceBase");
       if (el && mgr && mgr.base) el.value = mgr.base;
+      if (mgr) mgr.onJoke = setPoenNow;
+      fillPoen();
     }).catch((err) => console.warn("[NavVoice] init", err));
   }
 
