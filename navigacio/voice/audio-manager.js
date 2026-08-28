@@ -102,7 +102,15 @@
         this.player.volume = 1;
         this.log("Szól: " + (this.player.src || "").split("/").pop());
       });
-      this.player.addEventListener("ended", () => this.log("Kész."));
+      this.player.addEventListener("ended", () => {
+        this.log("Kész.");
+        if (this.queueOn) this.playNextJoke();
+        else if (this.onJoke) this.onJoke("", 0, 0);
+      });
+      this.queue = [];
+      this.queueOn = false;
+      this.onJoke = null;
+      this.jokeTotal = 0;
     }
 
     log(msg, err) {
@@ -203,6 +211,7 @@
     }
 
     playCat(cat) {
+      this.clearQueue();
       hushSpeech();
       if (!cat) return false;
       const order = [cat].concat(FALLBACK[cat] || []);
@@ -277,12 +286,57 @@
       return this.playCat(copy && copy.cat);
     }
 
+    clearQueue() {
+      this.queueOn = false;
+      this.queue = [];
+    }
+
+    playJokes(names, startAt) {
+      const list = (names || []).slice();
+      if (!list.length) {
+        this.log("Nincs poén a csomagban.", true);
+        return false;
+      }
+      const i = Math.max(0, Math.min(list.length - 1, startAt || 0));
+      this.queue = list.slice(i);
+      this.queueOn = true;
+      this.jokeTotal = list.length;
+      this.started = true;
+      return this.playNextJoke();
+    }
+
+    playNextJoke() {
+      if (!this.queueOn) return false;
+      if (!this.queue.length) {
+        this.queueOn = false;
+        if (this.onJoke) this.onJoke("", 0, this.jokeTotal);
+        this.log("Poénok vége.");
+        return false;
+      }
+      const name = this.queue.shift();
+      const played = this.jokeTotal - this.queue.length;
+      if (this.onJoke) this.onJoke(name, played, this.jokeTotal);
+      return this.playNow(this.hrefsForName(name));
+    }
+
+    skipJoke() {
+      if (this.queueOn) return this.playNextJoke();
+      const extra = this.filesFor("start");
+      if (!extra.length) return false;
+      this.started = true;
+      const name = this.pickName("start");
+      if (this.onJoke) this.onJoke(name, 1, extra.length);
+      return this.playNow(this.hrefsForName(name));
+    }
+
     stop() {
+      this.clearQueue();
       this.playId += 1;
       hushSpeech();
       try {
         this.player.pause();
       } catch (_e) {}
+      if (this.onJoke) this.onJoke("", 0, 0);
     }
 
     hasPack() {

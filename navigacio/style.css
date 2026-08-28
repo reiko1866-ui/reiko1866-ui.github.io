@@ -840,6 +840,65 @@ html.dark #results button.is-shortcut .result-title {
   color: #ff8a80;
 }
 
+.poen-bar {
+  display: flex;
+  gap: 0.45rem;
+  margin: 0.8rem 0 0.6rem;
+}
+
+.poen-bar button {
+  flex: 1;
+  min-height: 2.8rem;
+  border: 0;
+  border-radius: 12px;
+  background: var(--chip);
+  color: var(--text);
+  font-weight: 800;
+}
+
+#poenPlay {
+  background: var(--blue);
+  color: #fff;
+}
+
+#poenStop {
+  background: var(--red);
+  color: #fff;
+}
+
+#poenNow,
+#poenCount {
+  margin: 0.35rem 0 0;
+  font-weight: 700;
+}
+
+#poenList {
+  list-style: none;
+  margin: 0.9rem 0 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.4rem;
+}
+
+#poenList button {
+  width: 100%;
+  min-height: 2.6rem;
+  border: 0;
+  border-radius: 10px;
+  background: var(--chip);
+  color: var(--text);
+  font-weight: 700;
+}
+
+@media (min-width: 720px) {
+  .poen-bar button,
+  #poenList button {
+    min-height: 3.3rem;
+    font-size: 1.15rem;
+  }
+}
+
 .peek {
   position: absolute;
   left: 50%;
@@ -857,6 +916,7 @@ html.dark #results button.is-shortcut .result-title {
 }
 
 #app.is-nav .peek,
+#app.is-nav #poen,
 #app.is-nav #funkciok,
 #app.is-nav #Ajanlatok,
 #app.is-nav #kapcsolat {
