@@ -946,22 +946,11 @@
     if (!state.navigating || !state.voice) return;
     const kmh = Math.round((state.speed || 0) * 3.6);
     const limit = Number(state.road && state.road.limit) || 0;
-    const urban = state.road && state.road.urban;
     const nxt = state.limits.length ? nextBoundary(state.traveled) : null;
     if (nxt && nxt.dist < 420 && nxt.dist > 50) {
-      let text = "";
-      let beeps = 1;
-      if (nxt.urban === true && urban !== true) {
-        text = "Település" + (nxt.limit ? ", " + nxt.limit : "");
-        beeps = 2;
-      } else if (nxt.urban === false && urban !== false) {
-        text = "Település vége" + (nxt.limit ? ", " + nxt.limit : "");
-        beeps = 2;
-      } else if (nxt.limit && nxt.limit !== limit) {
-        text = "Sebességhatár " + nxt.limit;
-        beeps = 1;
+      if (nxt.limit && nxt.limit !== limit) {
+        warnRoad("Sebességhatár " + nxt.limit, 1, "soon:" + nxt.limit);
       }
-      if (text) warnRoad(text, beeps, "soon:" + nxt.urban + ":" + nxt.limit);
     }
     if (limit && kmh > limit + 5 && Date.now() - state.lastSpeedWarn > 22000) {
       const nv = navVoice();
@@ -1452,17 +1441,9 @@
     const roadThen = $("roadThen");
     const roadThenText = $("roadThenText");
     if (roadThen && roadThenText) {
-      if (nxt && nxt.dist < 1600) {
-        const what =
-          nxt.urban === true && urban !== true
-            ? "település" + (nxt.limit ? ", " + nxt.limit : "")
-            : nxt.urban === false && urban !== false
-              ? "település vége" + (nxt.limit ? ", " + nxt.limit : "")
-              : nxt.limit
-                ? String(nxt.limit) + " km/h"
-                : "";
-        roadThen.hidden = !what;
-        roadThenText.textContent = what ? fmtDist(nxt.dist) + " múlva " + what : "";
+      if (nxt && nxt.dist < 1600 && nxt.limit && nxt.limit !== limit) {
+        roadThen.hidden = false;
+        roadThenText.textContent = fmtDist(nxt.dist) + " múlva " + nxt.limit + " km/h";
       } else {
         roadThen.hidden = true;
       }
@@ -1589,11 +1570,7 @@
         if (road.urban === true && state.origin) refreshPlace(state.origin.lat, state.origin.lng);
         else if (road.urban === false) state.place = "";
       }
-      if (flipped && road.urban === true) {
-        warnRoad((state.place || "Település") + (road.limit ? ", " + road.limit : ""), 2, "now:in:" + road.limit);
-      } else if (flipped && road.urban === false) {
-        warnRoad("Település vége" + (road.limit ? ", " + road.limit : ""), 2, "now:out:" + road.limit);
-      } else if (!flipped && limitChanged && road.limit) {
+      if (limitChanged && road.limit) {
         warnRoad("Sebességhatár " + road.limit, 1, "now:lim:" + road.limit);
       }
       state.lastUrban = road.urban;
