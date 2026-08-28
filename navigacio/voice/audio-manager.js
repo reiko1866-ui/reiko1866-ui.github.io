@@ -12,7 +12,7 @@
   const APP_CDN = "https://cdn.jsdelivr.net/gh/" + REPO + "@" + ENC + "/navigacio/";
 
   const PHRASES = {
-    start: { cat: "" },
+    start: { cat: "start" },
     finish: { cat: "arrive" },
     recomputing: { cat: "recompute" },
     "left-100": { cat: "left" },
@@ -47,7 +47,9 @@
     ferryOn: ["motorwayOn", "straight"],
     ferryOff: ["motorwayOff", "right"],
     roundabout: ["straight"],
-    uturn: ["left"]
+    uturn: ["left"],
+    start: [],
+    speed: []
   };
 
   function unique(list) {
@@ -290,10 +292,12 @@
 
     isBusy() {
       try {
-        return !!(this.player && !this.player.paused && !this.player.ended);
-      } catch (_e) {
-        return false;
-      }
+        if (this.player && !this.player.paused && !this.player.ended) return true;
+      } catch (_e) {}
+      try {
+        if (global.speechSynthesis && global.speechSynthesis.speaking) return true;
+      } catch (_e2) {}
+      return false;
     }
 
     async findSounds() {
@@ -307,18 +311,16 @@
           const files = data && data.files ? data.files : data;
           if (!files || !files.left) continue;
           this.catalog = files;
+          const n =
+            (files.left || []).length +
+            (files.right || []).length +
+            (files.roundabout || []).length +
+            (files.straight || []).length +
+            (files.start || []).length;
           this.log(
-            "Kész, tartalom szerint: " +
-              (files.left || []).length +
-              " balra, " +
-              (files.right || []).length +
-              " jobbra, " +
-              (files.roundabout || []).length +
-              " körforgalom, " +
-              (files.uturn || []).length +
-              " visszafordulás, " +
-              (files.motorwayOn || []).length +
-              " felhajtó. A fájlnév nem számít."
+            "Kész, " +
+              n +
+              "+ klip a csomagból. Kanyarnál egy hang. A fájlnév nem számít."
           );
           return files;
         } catch (_e) {}

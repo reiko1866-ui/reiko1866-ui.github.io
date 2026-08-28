@@ -1,6 +1,6 @@
 # Nem használt szövegek
 
-A pack **698** fájlból **366** nem szólal meg. **332** megy lejátszásra (ebből 26 poénos, de vezethető klip került be).
+A pack **698** klipe mind a `catalog.json`-ban van. A poénos / zavaros tételek a **start** kategóriában mennek (induláskor), a tiszta kanyarok a kanyarnál. Egyszerre egy hang.
 Whisper-átirat (base, magyar). A fájlnév **nem** a tartalom.
 
 ## Most berakva vezetésre
