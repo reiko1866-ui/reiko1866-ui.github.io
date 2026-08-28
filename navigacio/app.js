@@ -1707,8 +1707,18 @@
     return out;
   }
 
+  function keepSub(s) {
+    const x = String(s || "").trim();
+    if (!x) return false;
+    if (/^(hungary|great plain|transdanubia|central hungary|northern hungary|western transdanubia|southern transdanubia|northern great plain|southern great plain|great plain and north)$/i.test(x)) {
+      return false;
+    }
+    return true;
+  }
+
   function placeKind(type) {
     const t = String(type || "").toLowerCase();
+    if (/station|halt|stop_position|railway/.test(t)) return "Állomás";
     if (/city|town|village|hamlet|suburb|municipality|county/.test(t)) return "Település";
     if (/house|building/.test(t)) return "Házszám";
     if (/street|residential|living|primary|secondary|tertiary|unclassified|road|pedestrian/.test(t)) {
@@ -1719,7 +1729,7 @@
 
   function finishPlace(lat, lon, title, extra, type) {
     const kind = placeKind(type);
-    const bits = uniqueBits(extra.filter(function (x) { return x && x !== title; }));
+    const bits = uniqueBits(extra.filter(function (x) { return keepSub(x) && x !== title; }));
     const subtitle = uniqueBits([kind].concat(bits)).join(" · ");
     const display = uniqueBits([title].concat(bits)).join(", ");
     return {
@@ -1741,7 +1751,7 @@
       c[1],
       c[0],
       title,
-      [street, p.district, p.locality, p.city || p.county, p.state, p.country],
+      [street, /kerület/i.test(String(p.district || "")) ? p.district : "", p.city || p.county, p.country],
       p.osm_value || p.type
     );
   }
@@ -1755,7 +1765,7 @@
       item.lat,
       item.lon,
       title,
-      [street, a.suburb || a.neighbourhood, city, a.state, a.country],
+      [street, a.suburb || a.neighbourhood, city, a.country],
       item.addresstype || item.type
     );
   }
@@ -1850,10 +1860,6 @@
       setStatus("Keresés…");
       const list = await lookupAddress(q);
       if (!list.length) throw new Error("Nincs találat.");
-      if (list.length === 1) {
-        await choose(list[0]);
-        return;
-      }
       setStatus(list.length + " találat — koppints a címre");
     } catch (err) {
       showResults([]);
