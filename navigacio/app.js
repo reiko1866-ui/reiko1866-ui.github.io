@@ -4,6 +4,7 @@
   const BUDAPEST = [19.0402, 47.4979];
   const THEME_KEY = "nav2_theme";
   const PLACE_KEY = "nav2_places";
+  const CAR_KEY = "nav2_car";
   const OPTS_KEY = "nav2_opts";
   const EMPTY = { type: "FeatureCollection", features: [] };
   const NOMINATIM = "https://nominatim.openstreetmap.org/search";
@@ -170,6 +171,12 @@
     spokenRoad: "",
     lastSpeedWarn: 0,
     searchTimer: 0,
+    car: null,
+    carMark: null,
+    drove: false,
+    stillSince: 0,
+    parkPos: null,
+    gpsAcc: 0,
     warnCtx: null,
     hazards: [],
     spokenHazard: "",
@@ -194,6 +201,112 @@
       Math.sin(dLat / 2) ** 2 +
       Math.cos(toRad(a.lat)) * Math.cos(toRad(b.lat)) * Math.sin(dLng / 2) ** 2;
     return 2 * R * Math.asin(Math.sqrt(x));
+  }
+
+  function carAge(at) {
+    const m = Math.round((Date.now() - Number(at || 0)) / 60000);
+    if (!Number.isFinite(m) || m < 2) return "Most";
+    if (m < 60) return m + " perce";
+    const h = Math.round(m / 60);
+    if (h < 24) return h + " órája";
+    const d = Math.round(h / 24);
+    return d === 1 ? "tegnap" : d + " napja";
+  }
+
+  function loadCar() {
+    try {
+      const c = JSON.parse(localStorage.getItem(CAR_KEY) || "null");
+      if (c && Number.isFinite(Number(c.lat)) && Number.isFinite(Number(c.lng))) {
+        state.car = { lat: Number(c.lat), lng: Number(c.lng), at: Number(c.at) || Date.now() };
+      }
+    } catch (_e) {
+      state.car = null;
+    }
+  }
+
+  function saveCar(point) {
+    if (!point || !Number.isFinite(point.lat) || !Number.isFinite(point.lng)) return;
+    if (state.gpsAcc > 45) return;
+    const next = { lat: point.lat, lng: point.lng, at: Date.now() };
+    if (state.car && haversine(state.car, next) < 25) state.car.at = next.at;
+    else state.car = next;
+    try {
+      localStorage.setItem(CAR_KEY, JSON.stringify(state.car));
+    } catch (_e) {}
+    paintCar();
+  }
+
+  function paintCar() {
+    if (!state.map || !state.car) return;
+    const hide =
+      (state.origin && haversine(state.origin, state.car) < 40) ||
+      (state.dest && haversine(state.dest, state.car) < 25);
+    if (hide) {
+      if (state.carMark) {
+        try {
+          state.carMark.remove();
+        } catch (_e) {}
+        state.carMark = null;
+      }
+      return;
+    }
+    const lngLat = [state.car.lng, state.car.lat];
+    if (!state.carMark) {
+      try {
+        state.carMark = new maplibregl.Marker({ element: makeEl("car-pin"), anchor: "center" })
+          .setLngLat(lngLat)
+          .addTo(state.map);
+      } catch (_e) {}
+    } else {
+      state.carMark.setLngLat(lngLat);
+    }
+  }
+
+  function watchPark(lngLat, speed) {
+    const kmh = Math.round((Number(speed) || 0) * 3.6);
+    if (kmh >= 18) {
+      state.drove = true;
+      state.parkPos = lngLat;
+      state.stillSince = 0;
+      return;
+    }
+    if (state.navigating) return;
+    if (state.drove && kmh < 5) {
+      if (!state.stillSince) {
+        state.stillSince = Date.now();
+        state.parkPos = lngLat;
+      }
+      if (state.parkPos && haversine(state.parkPos, lngLat) > 45) {
+        state.drove = false;
+        state.stillSince = 0;
+        return;
+      }
+      if (Date.now() - state.stillSince > 150000) {
+        saveCar(state.parkPos || lngLat);
+        state.drove = false;
+        state.stillSince = 0;
+      }
+      return;
+    }
+    state.stillSince = 0;
+  }
+
+  function carPlace() {
+    if (!state.car) return null;
+    if (state.origin && haversine(state.origin, state.car) < 55) return null;
+    return {
+      lat: state.car.lat,
+      lon: state.car.lng,
+      title: "Autó",
+      subtitle: "Itt hagytad · " + carAge(state.car.at),
+      display_name: "Autó",
+      shortcut: "car"
+    };
+  }
+
+  function showShortcuts() {
+    const car = carPlace();
+    showResults(car ? [car] : []);
   }
 
   function bearing(a, b) {
@@ -968,6 +1081,8 @@
       locateRoad();
     }
     updateCamera();
+    watchPark(lngLat, state.speed);
+    paintCar();
   }
 
   function setDest(lngLat, label) {
@@ -980,6 +1095,7 @@
         .setLngLat([lngLat.lng, lngLat.lat])
         .addTo(state.map);
     } else state.pin.setLngLat([lngLat.lng, lngLat.lat]);
+    paintCar();
   }
 
   function weatherIcon(code) {
@@ -1035,6 +1151,7 @@
     $("searchBtn").setAttribute("aria-pressed", "true");
     $("q").focus();
     armBack();
+    showShortcuts();
   }
 
   function addLayers() {
@@ -1054,6 +1171,7 @@
       });
     }
     if (state.coords.length) drawRoute();
+    paintCar();
   }
 
   function drawRoute() {
@@ -1734,6 +1852,10 @@
     } else {
       setStatus("Megérkeztél");
     }
+    if (state.origin) saveCar(state.origin);
+    state.drove = false;
+    state.stillSince = 0;
+    paintCar();
     spyNav();
     if (state.map) state.map.resize();
     syncBack(opts && opts.fromPop);
@@ -1761,6 +1883,7 @@
 
   function onPos(pos) {
     const acc = Number(pos.coords.accuracy);
+    state.gpsAcc = acc;
     setOrigin(
       { lat: pos.coords.latitude, lng: pos.coords.longitude },
       pos.coords.heading,
@@ -1892,6 +2015,7 @@
       const li = document.createElement("li");
       const btn = document.createElement("button");
       btn.type = "button";
+      if (p.shortcut) btn.className = "is-shortcut";
       const title = document.createElement("strong");
       title.className = "result-title";
       title.textContent = p.title || p.display_name;
@@ -1918,6 +2042,7 @@
     showHome();
     const label = place.title || place.display_name || "";
     setDest({ lat: Number(place.lat), lng: Number(place.lon) }, label);
+    paintCar();
     $("q").value = label;
     if (!state.origin) {
       state.pendingPlan = true;
@@ -1929,6 +2054,10 @@
 
   async function lookupAddress(q) {
     const list = await geocode(q);
+    if (/autó|auto|kocsi/i.test(q)) {
+      const car = carPlace();
+      if (car) list.unshift(car);
+    }
     showResults(list);
     return list;
   }
@@ -1936,7 +2065,11 @@
   async function onSearch(e) {
     e.preventDefault();
     const q = String($("q").value || "").trim();
-    if (!q) return setStatus("Írj be egy címet.", true);
+    if (!q) {
+      showShortcuts();
+      if (!carPlace()) setStatus("Írj be egy címet.", true);
+      return;
+    }
     const m = q.match(/^(-?\d+(?:[.,]\d+))\s*[,;]\s*(-?\d+(?:[.,]\d+))$/);
     if (m) {
       const lat = Number(m[1].replace(",", "."));
@@ -1964,8 +2097,7 @@
     const q = String($("q").value || "").trim();
     clearTimeout(state.searchTimer);
     if (q.length < 2) {
-      $("results").hidden = true;
-      $("results").innerHTML = "";
+      showShortcuts();
       return;
     }
     state.searchTimer = setTimeout(function () {
@@ -1993,6 +2125,7 @@
     } catch (_e) {
       state.places = { home: null, work: null };
     }
+    loadCar();
   }
 
   function savePlace(kind) {
