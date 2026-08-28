@@ -266,22 +266,47 @@ button {
   right: var(--pad);
   z-index: 20;
   max-width: 28rem;
+  max-height: min(52vh, 24rem);
   margin: 0;
-  padding: 0.25rem 0;
+  padding: 0.2rem 0;
   list-style: none;
   border-radius: 14px;
   background: var(--bg);
   box-shadow: var(--shadow);
-  overflow: hidden;
+  overflow-x: hidden;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
 #results button {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.18rem;
   width: 100%;
   text-align: left;
-  padding: 0.75rem 1rem;
+  padding: 0.8rem 1rem;
   border: 0;
   border-bottom: 1px solid var(--line);
   background: transparent;
+}
+
+#results button:active {
+  background: var(--chip);
+}
+
+.result-title {
+  font-size: 1rem;
+  font-weight: 800;
+  line-height: 1.25;
+  color: var(--text);
+}
+
+.result-sub {
+  font-size: 0.8rem;
+  font-weight: 500;
+  line-height: 1.3;
+  color: var(--muted);
 }
 
 #results li:last-child button {

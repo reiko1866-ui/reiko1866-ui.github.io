@@ -46,7 +46,7 @@
 
       <form id="searchForm" hidden autocomplete="off">
         <label class="sr-only" for="q">Cél</label>
-        <input id="q" type="search" name="q" placeholder="Hova mész?" enterkeyhint="search" inputmode="search" spellcheck="false" autocapitalize="off">
+        <input id="q" type="search" name="q" placeholder="Cím, utca, város…" enterkeyhint="search" inputmode="search" spellcheck="false" autocapitalize="off">
         <button type="submit" id="go">Menj</button>
       </form>
       <ul id="results" hidden></ul>
@@ -99,10 +99,11 @@
       <h1>Funkciók</h1>
       <ul>
         <li>Felül a kanyartábla: táv, utasítás, utca, alatta a következő kanyar.</li>
-        <li>A kanyarnál a feltöltött hangcsomag szól, letéréskor újratervez.</li>
+        <li>A kereső címlistája: név felül, város/utca alatta. Koppints a találatra — nem az elsőt indítja.</li>
+        <li>A kanyarnál a feltöltött hangcsomag szól, egyszerre csak egy hang. Letéréskor újratervez.</li>
         <li>3D követő kamera, neonkék Európa-térkép (OSM). Offline a letöltött kontinens-térkép.</li>
         <li>Előrejelzés, következő kanyar, kijárat, sáv, település, sebesség, traffipax, vasút, fekvőrendőr.</li>
-        <li>A feltöltött csomagból 306 tiszta kanyarklip szól; 392 poén / zene / nem utasítás kimarad.</li>
+        <li>A 698 feltöltött klip mind bent van. A tiszta kanyarok a kanyarnál, a poénosak induláskor.</li>
         <li>Otthon és munka egy gombbal a menüből.</li>
       </ul>
     </section>
@@ -154,7 +155,7 @@
       <label class="check"><input type="checkbox" id="voiceCheck" checked> Hang</label>
       <label class="check"><input type="checkbox" id="dark"> Sötét térkép</label>
       <div id="voiceTest">
-        <p class="hint">A csomag poénos GPS-hang. 306 klip megy (balra, jobbra, körforgalom…). 392 fájl kimarad: a Whisper szerint nem tiszta utasítás, a fájlnév nem számít.</p>
+        <p class="hint">A csomag poénos GPS-hang. A 698 klip mind szól: kanyarnál a tiszta utasítás, induláskor a poén. Soha nem megy két hang egyszerre. A fájlnév nem számít.</p>
         <input id="voiceBase" type="text" spellcheck="false" placeholder="automatikus" hidden>
         <button type="button" id="voiceFind">Hangok keresése</button>
         <button type="button" id="voiceStart">Hang indítása</button>
@@ -180,6 +181,7 @@
         </div>
         <div class="row">
           <button type="button" data-voice="finish">Megérkeztél</button>
+          <button type="button" data-voice="speed">Gyorshajtás</button>
         </div>
         <p id="voiceLog">Nyomd meg: Hang indítása</p>
       </div>
