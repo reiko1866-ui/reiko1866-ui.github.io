@@ -1285,12 +1285,23 @@
     state.lastCam = now;
     const kmh = (state.speed || 0) * 3.6;
     const zoom = kmh > 110 ? 15 : kmh > 70 ? 15.7 : kmh > 40 ? 16.3 : 17.1;
+    const banner = $("banner");
+    const trip = $("trip");
+    const fabs = $("fabBar");
+    let top = 20;
+    let bottom = 40;
+    let right = 0;
+    if (state.navigating) {
+      top = banner && !banner.hidden ? Math.round(banner.getBoundingClientRect().height + 12) : 150;
+      bottom = trip && !trip.hidden ? Math.round(trip.getBoundingClientRect().height + 12) : 130;
+      if (fabs) right = Math.max(0, Math.round(window.innerWidth - fabs.getBoundingClientRect().left + 8));
+    }
     state.map.easeTo({
       center: [state.origin.lng, state.origin.lat],
       zoom,
       pitch: 58,
       bearing: state.heading,
-      padding: { top: state.navigating ? 150 : 20, bottom: state.navigating ? 130 : 40, left: 0, right: 0 },
+      padding: { top, bottom, left: 8, right },
       duration: force ? 380 : 200,
       essential: true
     });
@@ -1955,7 +1966,40 @@
     updateNav();
     updateRoadFromRoute();
     updateCamera(true);
-    if (navigator.wakeLock) navigator.wakeLock.request("screen").catch(() => {});
+    armWake();
+  }
+
+  let wakeLock = null;
+  let wakeTimer = 0;
+
+  function dropWake() {
+    if (wakeTimer) {
+      clearInterval(wakeTimer);
+      wakeTimer = 0;
+    }
+    if (wakeLock) {
+      try {
+        wakeLock.release();
+      } catch (_e) {}
+      wakeLock = null;
+    }
+  }
+
+  function holdWake() {
+    if (!state.navigating || !navigator.wakeLock) return;
+    navigator.wakeLock.request("screen").then(function (lock) {
+      wakeLock = lock;
+      lock.addEventListener("release", function () {
+        wakeLock = null;
+        if (state.navigating) holdWake();
+      });
+    }).catch(function () {});
+  }
+
+  function armWake() {
+    holdWake();
+    if (wakeTimer) clearInterval(wakeTimer);
+    wakeTimer = setInterval(holdWake, 20000);
   }
 
   function stopNav(opts) {
@@ -1986,6 +2030,7 @@
     spyNav();
     if (state.map) state.map.resize();
     syncBack(opts && opts.fromPop);
+    dropWake();
   }
 
   function maybeReroute() {
@@ -2535,6 +2580,13 @@
 
     window.addEventListener("scroll", spyNav, { passive: true });
     window.addEventListener("popstate", onPopState);
+    window.addEventListener("resize", function () {
+      if (state.map) state.map.resize();
+      if (state.navigating && state.follow) updateCamera(true);
+    });
+    document.addEventListener("visibilitychange", function () {
+      if (document.visibilityState === "visible" && state.navigating) holdWake();
+    });
     spyNav();
     $("homeGo").addEventListener("click", () => goPlace("home"));
     $("workGo").addEventListener("click", () => goPlace("work"));
