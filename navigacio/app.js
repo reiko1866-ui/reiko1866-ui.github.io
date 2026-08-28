@@ -170,6 +170,7 @@
     roadBusy: false,
     spokenRoad: "",
     lastSpeedWarn: 0,
+    lastSpare: 0,
     searchTimer: 0,
     car: null,
     carMark: null,
@@ -964,15 +965,16 @@
         }
       }
     }
-    maybeSpeakHazard();
+    maybePlaySpare();
   }
 
-  function hazardLabel(tags) {
-    if (!tags) return "";
-    if (tags.highway === "speed_camera" || tags.enforcement === "maxspeed") return "Traffipax";
-    if (tags.railway === "level_crossing") return "Vasúti átjáró";
-    if (tags.hazard === "school_zone") return "Iskola";
-    return "";
+  function maybePlaySpare() {
+    if (!state.navigating || !state.voice) return;
+    const nv = navVoice();
+    if (!nv || nv.isBusy()) return;
+    if (Date.now() - (state.lastSpare || 0) < 90000) return;
+    state.lastSpare = Date.now();
+    nv.playCat("start");
   }
 
   function nearestFull(coords, point) {
@@ -983,90 +985,34 @@
     return snap;
   }
 
-  function maybeSpeakHazard() {
-    if (!state.navigating || !state.voice || !state.hazards.length) return;
-    const nv = navVoice();
-    if (nv && nv.isBusy()) return;
-    for (let i = 0; i < state.hazards.length; i++) {
-      const h = state.hazards[i];
-      const d = h.at - state.traveled;
-      if (d < 60 || d > 450) continue;
-      const key = h.kind + ":" + Math.round(h.at / 40);
-      if (state.spokenHazard === key) continue;
-      state.spokenHazard = key;
-      playWarnBeep(2);
-      speakRoad(h.kind);
-      return;
-    }
-  }
-
-  async function loadHazards(coords) {
-    state.hazards = [];
-    if (!coords || coords.length < 2) return;
-    let minLat = 90;
-    let maxLat = -90;
-    let minLng = 180;
-    let maxLng = -180;
-    coords.forEach(function (c) {
-      minLng = Math.min(minLng, c[0]);
-      maxLng = Math.max(maxLng, c[0]);
-      minLat = Math.min(minLat, c[1]);
-      maxLat = Math.max(maxLat, c[1]);
-    });
-    if (maxLat - minLat > 1.6 || maxLng - minLng > 1.6) return;
-    const pad = 0.008;
-    const box = (minLat - pad) + "," + (minLng - pad) + "," + (maxLat + pad) + "," + (maxLng + pad);
-    const q =
-      "[out:json][timeout:18];(" +
-      'node["highway"="speed_camera"](' + box + ");" +
-      'node["enforcement"="maxspeed"](' + box + ");" +
-      'node["railway"="level_crossing"](' + box + ");" +
-      'node["hazard"="school_zone"](' + box + ");" +
-      ");out;";
-    const hosts = [
-      "https://overpass.kumi.systems/api/interpreter",
-      "https://overpass-api.de/api/interpreter"
-    ];
-    for (let i = 0; i < hosts.length; i++) {
-      try {
-        const res = await fetchJson(hosts[i], {
-          method: "POST",
-          headers: { "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8" },
-          body: "data=" + encodeURIComponent(q)
-        }, 19000);
-        if (!res.ok) continue;
-        const data = await res.json();
-        const out = [];
-        (data.elements || []).forEach(function (el) {
-          const kind = hazardLabel(el.tags || {});
-          if (!kind || !Number.isFinite(el.lat) || !Number.isFinite(el.lon)) return;
-          const snap = nearestFull(coords, { lat: el.lat, lng: el.lon });
-          if (snap.dist > 42) return;
-          out.push({ kind: kind, at: snap.traveled });
-        });
-        out.sort(function (a, b) { return a.at - b.at; });
-        state.hazards = out.slice(0, 48);
-        return;
-      } catch (_e) {}
-    }
-  }
+  let voiceGen = 0;
 
   function speakGuidance(kind) {
     if (!state.voice || !kind || kind.skip) return;
     hushSpeech();
     const nv = navVoice();
+    const gen = ++voiceGen;
     if (nv) nv.playCat(kind.cat);
+    afterPack(function () {
+      if (gen !== voiceGen || !state.navigating || !state.voice) return;
+      const n2 = navVoice();
+      if (n2 && !n2.isBusy()) n2.playCat("start");
+    });
   }
 
   function afterPack(fn) {
     let n = 0;
     function tick() {
       const nv = navVoice();
-      if (!nv || !nv.isBusy() || n > 24) return fn();
-      n += 1;
-      setTimeout(tick, 200);
+      if (nv && nv.isBusy() && n < 120) {
+        n += 1;
+        setTimeout(tick, 250);
+        return;
+      }
+      if (nv && nv.isBusy()) return;
+      fn();
     }
-    setTimeout(tick, 350);
+    setTimeout(tick, 400);
   }
 
   function speakTurnExtras(kind, then) {
@@ -1447,19 +1393,7 @@
       }
     }
     const hz = $("hazardThen");
-    const hzText = $("hazardThenText");
-    if (hz && hzText) {
-      let nextH = null;
-      for (let i = 0; i < state.hazards.length; i++) {
-        const d = state.hazards[i].at - state.traveled;
-        if (d > 40 && d < 1800) {
-          nextH = { kind: state.hazards[i].kind, dist: d };
-          break;
-        }
-      }
-      hz.hidden = !nextH;
-      hzText.textContent = nextH ? fmtDist(nextH.dist) + " múlva " + nextH.kind : "";
-    }
+    if (hz) hz.hidden = true;
     if (state.navigating && $("status") && !($("status").classList.contains("is-err") && /GPS/i.test($("status").textContent))) {
       const bits = [];
       if (label) bits.push(label);
@@ -1882,7 +1816,6 @@
       addLayers();
       drawRoute();
       loadRoadProfile(state.coords);
-      loadHazards(state.coords);
       if (reroute) {
         const o = routeOpts();
         setStatus(
@@ -1936,6 +1869,7 @@
     hushSpeech();
     playWarnBeep(1);
     const nv = navVoice();
+    state.lastSpare = Date.now();
     if (state.voice && nv) nv.playCat("start");
     else if (state.voice) speakRoad("Navigáció indul");
     updateNav();
