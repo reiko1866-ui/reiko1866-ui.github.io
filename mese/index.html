@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="hu">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
+  <meta name="theme-color" content="#070b1a"/>
+  <meta name="description" content="Személyre szabott esti mesék, rímes versek és találós kérdések gyerekeknek a Gemini segítségével."/>
+  <title>Holdmese — esti mesék és találósok</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ccircle cx='32' cy='32' r='30' fill='%23070b1a'/%3E%3Cpath fill='%23f0c35b' d='M40 12a20 20 0 1 0 8 36 22 22 0 0 1-8-36z'/%3E%3C/svg%3E"/>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,700&family=Nunito:wght@500;600;700;800&display=swap" rel="stylesheet"/>
+  <link rel="stylesheet" href="style.css"/>
+</head>
+<body>
+  <div class="sky" aria-hidden="true">
+    <div class="stars stars-a"></div>
+    <div class="stars stars-b"></div>
+    <div class="moon"></div>
+  </div>
+
+  <header class="topbar">
+    <a class="back-link" href="../index.html">← Divian</a>
+    <div class="brand">
+      <span class="brand-mark" aria-hidden="true">🌙</span>
+      <div>
+        <h1>Holdmese</h1>
+        <p>Esti mesék, versek és találósok</p>
+      </div>
+    </div>
+    <button type="button" class="icon-btn" id="open-settings" aria-haspopup="dialog" aria-controls="settings-dialog" title="Beállítások">
+      <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
+        <path fill="currentColor" d="M19.14 12.94c.04-.31.06-.63.06-.94s-.02-.63-.06-.94l2.03-1.58a.5.5 0 0 0 .12-.64l-1.92-3.32a.5.5 0 0 0-.6-.22l-2.39.96a7.2 7.2 0 0 0-1.63-.94l-.36-2.54a.5.5 0 0 0-.5-.42h-3.84a.5.5 0 0 0-.5.42l-.36 2.54c-.59.22-1.14.53-1.63.94l-2.39-.96a.5.5 0 0 0-.6.22L2.71 8.84a.5.5 0 0 0 .12.64l2.03 1.58c-.04.31-.06.63-.06.94s.02.63.06.94L2.83 14.52a.5.5 0 0 0-.12.64l1.92 3.32c.13.22.4.31.64.22l2.39-.96c.49.41 1.04.72 1.63.94l.36 2.54c.05.24.26.42.5.42h3.84c.24 0 .45-.18.5-.42l.36-2.54c.59-.22 1.14-.53 1.63-.94l2.39.96c.24.09.51 0 .64-.22l1.92-3.32a.5.5 0 0 0-.12-.64l-2.03-1.58zM12 15.6A3.6 3.6 0 1 1 12 8.4a3.6 3.6 0 0 1 0 7.2z"/>
+      </svg>
+      <span class="sr-only">Beállítások</span>
+    </button>
+  </header>
+
+  <nav class="app-tabs" aria-label="Nézetek">
+    <button type="button" class="tab is-active" id="tab-create">Új mese</button>
+    <button type="button" class="tab" id="tab-favorites">
+      Kedvenc mesék
+      <span class="tab-count" id="fav-count" hidden>0</span>
+    </button>
+  </nav>
+
+  <main class="layout" id="view-create">
+    <form class="card form-card" id="story-form" autocomplete="on">
+      <div class="card-kicker">Személyre szabás</div>
+      <h2>Kinek mesélünk ma este?</h2>
+
+      <div class="field-row">
+        <label class="field">
+          <span>Gyerek neve</span>
+          <input type="text" id="child-name" name="childName" placeholder="pl. Luca" maxlength="40" required/>
+        </label>
+        <label class="field field-age">
+          <span>Életkor</span>
+          <input type="number" id="child-age" name="childAge" min="1" max="14" value="5" required/>
+        </label>
+      </div>
+
+      <fieldset class="field">
+        <legend>Kategória</legend>
+        <div class="pills" role="radiogroup" aria-label="Kategória">
+          <label class="pill">
+            <input type="radio" name="category" value="mese" checked/>
+            <span>Esti mese</span>
+          </label>
+          <label class="pill">
+            <input type="radio" name="category" value="vers"/>
+            <span>Rímes vers / Ének</span>
+          </label>
+          <label class="pill">
+            <input type="radio" name="category" value="talalos"/>
+            <span>Találós kérdések</span>
+          </label>
+          <label class="pill">
+            <input type="radio" name="category" value="unnep"/>
+            <span>Ünnepi / Télapó / Karácsony</span>
+          </label>
+        </div>
+      </fieldset>
+
+      <label class="field">
+        <span>Téma / kedvenc hősök</span>
+        <input type="text" id="theme" name="theme" placeholder="pl. dinók, hercegnők, autók" maxlength="80"/>
+      </label>
+
+      <fieldset class="field">
+        <legend>Terjedelem</legend>
+        <div class="pills pills-compact" role="radiogroup" aria-label="Terjedelem">
+          <label class="pill">
+            <input type="radio" name="length" value="short" checked/>
+            <span>Rövid · 2 perc</span>
+          </label>
+          <label class="pill">
+            <input type="radio" name="length" value="medium"/>
+            <span>Közepes · 5 perc</span>
+          </label>
+        </div>
+      </fieldset>
+
+      <button type="submit" class="generate-btn" id="generate-btn">
+        <span class="btn-label">
+          <span class="sparkle" aria-hidden="true">✨</span>
+          Generálás
+        </span>
+        <span class="btn-loading" hidden>
+          <span class="spinner" aria-hidden="true"></span>
+          A holdfény sző…
+        </span>
+      </button>
+      <p class="form-hint" id="api-hint"></p>
+    </form>
+
+    <section class="card result-card" id="result-card" aria-live="polite">
+      <div class="result-empty" id="result-empty">
+        <div class="empty-art" aria-hidden="true">📖</div>
+        <h2>Még nincs mese</h2>
+        <p>Add meg a nevet és a témát, majd nyomd meg a Generálást. A Holdmese megírja az esti történetet.</p>
+      </div>
+
+      <div class="result-body" id="result-body" hidden>
+        <div class="result-meta" id="result-meta"></div>
+        <article class="story" id="story-output"></article>
+        <div class="result-actions">
+          <button type="button" class="action-btn primary" id="speak-btn" aria-pressed="false">
+            <span class="speak-idle">
+              <span class="action-icon" aria-hidden="true">🔊</span>
+              Hangos felolvasás
+            </span>
+            <span class="speak-loading" hidden>
+              <span class="spinner spinner-on-btn" aria-hidden="true"></span>
+              A hang készül…
+            </span>
+            <span class="speak-stop" hidden>
+              <span class="action-icon" aria-hidden="true">⏹</span>
+              Leállítás
+            </span>
+          </button>
+          <button type="button" class="action-btn" id="save-btn">
+            <span class="action-icon" aria-hidden="true">⭐</span>
+            Mentés a Kedvencek közé
+          </button>
+          <button type="button" class="action-btn" id="copy-btn">
+            <span class="action-icon" aria-hidden="true">📋</span>
+            Másolás
+          </button>
+          <button type="button" class="action-btn" id="regen-btn">
+            <span class="action-icon" aria-hidden="true">🌙</span>
+            Új generálás
+          </button>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <section class="favorites-page" id="view-favorites" hidden>
+    <div class="card favorites-card">
+      <div class="card-kicker">Könyvtár</div>
+      <h2>Kedvenc mesék</h2>
+      <div class="favorites-empty" id="favorites-empty">
+        <div class="empty-art" aria-hidden="true">⭐</div>
+        <p>Még nincs elmentett mese. Generálj egyet, majd nyomd meg a <strong>Mentés a Kedvencek közé</strong> gombot.</p>
+      </div>
+      <div class="favorites-list" id="favorites-list"></div>
+    </div>
+  </section>
+
+  <p class="toast" id="toast" role="status" hidden></p>
+
+  <dialog class="modal" id="settings-dialog" aria-labelledby="settings-title">
+    <form method="dialog" class="modal-card" id="settings-form">
+      <h2 id="settings-title">Beállítások</h2>
+      <p class="modal-lead">A kulcsokat csak a böngésződ tárolja (localStorage). A kérések közvetlenül a Geminihez és az ElevenLabshoz mennek.</p>
+      <label class="field">
+        <span>Gemini API kulcs</span>
+        <div class="secret-row">
+          <input type="password" id="api-key" name="apiKey" placeholder="AIza…" autocomplete="off" spellcheck="false"/>
+          <button type="button" class="text-btn" id="toggle-key">Mutat</button>
+        </div>
+      </label>
+      <p class="help">
+        Meséhez:
+        <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">Google AI Studio</a>
+      </p>
+      <label class="field">
+        <span>ElevenLabs API kulcs</span>
+        <div class="secret-row">
+          <input type="password" id="eleven-key" name="elevenKey" placeholder="sk_…" autocomplete="off" spellcheck="false"/>
+          <button type="button" class="text-btn" id="toggle-eleven-key">Mutat</button>
+        </div>
+      </label>
+      <label class="field">
+        <span>Esti hang</span>
+        <select id="eleven-voice" name="elevenVoice">
+          <option value="EXAVITQu4vr4xnSDxMaL">Sarah — puha, mesélős női hang</option>
+          <option value="pFZP5JQG7iQjIQuC4Bku">Lily — meleg mesemondó</option>
+          <option value="XB0fDUnXU5powFXDhCwa">Charlotte — beszélgetős, esti hang</option>
+          <option value="JBFqnCBsd6RMkjVDRZzb">George — mély mesemondó</option>
+        </select>
+      </label>
+      <p class="help">
+        Élethű magyar felolvasáshoz (ElevenLabs, nem a böngészőhang):
+        <a href="https://elevenlabs.io/app/settings/api-keys" target="_blank" rel="noopener">ElevenLabs API kulcs</a>
+      </p>
+      <div class="modal-actions">
+        <button type="submit" class="action-btn primary" value="save" id="save-settings">Mentés</button>
+        <button type="button" class="action-btn" id="close-settings">Mégsem</button>
+      </div>
+    </form>
+  </dialog>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>
