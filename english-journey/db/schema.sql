@@ -131,6 +131,12 @@ CREATE POLICY "vocabulary_words_read"
   TO anon, authenticated
   USING (true);
 
+DROP POLICY IF EXISTS "vocabulary_words_insert_authenticated" ON public.vocabulary_words;
+CREATE POLICY "vocabulary_words_insert_authenticated"
+  ON public.vocabulary_words FOR INSERT
+  TO authenticated
+  WITH CHECK (true);
+
 DROP POLICY IF EXISTS "sentences_read" ON public.sentences;
 CREATE POLICY "sentences_read"
   ON public.sentences FOR SELECT

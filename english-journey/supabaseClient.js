@@ -138,6 +138,12 @@ const supabaseClient = {
     return data;
   },
 
+  async insertVocabularyWords(rows) {
+    if (!client) throw new Error("Supabase nincs beállítva.");
+    if (!rows?.length) return [];
+    return unwrap(client.from("vocabulary_words").insert(rows).select());
+  },
+
   async upsertUserVocabulary({ userId, wordId, status, reviewInterval, nextReviewDate, correctDelta = 0, incorrectDelta = 0 }) {
     if (!client || !userId || !wordId) return null;
     const { data: existing } = await client
