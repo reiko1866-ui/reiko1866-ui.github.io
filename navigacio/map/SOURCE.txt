@@ -3,5 +3,9 @@ Forrás: https://build.protomaps.com/20260823.pmtiles
 Kivágás: -11,35 – 41,71 (Írország–Görögország–Észak-Skandinávia–Nyugat-Ukrajna)
 Max zoom: 7 (országok, autópályák, nagyvárosok). Utcaszint: OpenFreeMap planet, ha van net.
 
+A fájl ~48 MiB, ezért a Cloudflare deploy (.assetsignore / .cfignore) nem tölti fel
+(Workers/Pages limit: 25 MiB / fájl). GitHub Pages-en megmarad. Cloudflare-en a
+navigáció online OpenFreeMap csempéket használ.
+
 Újra letöltés:
 pmtiles extract https://build.protomaps.com/YYYYMMDD.pmtiles europe.pmtiles --bbox=-11,35,41,71 --maxzoom=7
