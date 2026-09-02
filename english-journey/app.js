@@ -45,7 +45,17 @@ const els = {
   profileModal: document.getElementById("profile-modal"),
   profileClose: document.getElementById("profile-close"),
   learnerName: document.getElementById("learner-name"),
+  learnerEmail: document.getElementById("learner-email"),
+  learnerPassword: document.getElementById("learner-password"),
   saveProfile: document.getElementById("save-profile"),
+  authStatus: document.getElementById("auth-status"),
+  authFields: document.getElementById("auth-fields"),
+  authPrimary: document.getElementById("auth-primary"),
+  authRegister: document.getElementById("auth-register"),
+  authSignout: document.getElementById("auth-signout"),
+  profileLevel: document.getElementById("profile-level"),
+  profilePoints: document.getElementById("profile-points"),
+  profileHint: document.getElementById("profile-hint"),
   cardPosition: document.getElementById("card-position"),
   cardTotal: document.getElementById("card-total"),
   deckProgress: document.getElementById("deck-progress"),
@@ -120,7 +130,10 @@ function defaultState() {
     known: {},
     practicing: {},
     solvedSentences: {},
-    activeDays: []
+    activeDays: [],
+    points: 0,
+    email: "",
+    currentLevel: "A0"
   };
 }
 
@@ -149,6 +162,7 @@ function saveState() {
 }
 
 let state = loadState();
+let remoteUser = null;
 let deck = [...VOCABULARY];
 let index = 0;
 let flipped = false;
@@ -157,6 +171,101 @@ let builderTiles = [];
 let selectedIds = [];
 let builderLocked = false;
 let wrongTries = 0;
+
+function db() {
+  return window.supabaseClient;
+}
+
+function dbReady() {
+  return Boolean(db()?.isConfigured());
+}
+
+async function syncQuiet(task) {
+  try {
+    await task();
+  } catch (error) {
+    console.warn("Supabase szinkron hiba:", error.message || error);
+  }
+}
+
+function nextReviewDate(days) {
+  const date = new Date();
+  date.setDate(date.getDate() + days);
+  return date.toISOString();
+}
+
+async function syncProfileToCloud() {
+  if (!dbReady() || !remoteUser) return;
+  await db().ensureProfile(remoteUser, {
+    full_name: state.name,
+    email: remoteUser.email,
+    streak_count: state.streak,
+    last_active_date: state.lastActiveDate || null,
+    points: state.points || 0,
+    current_level: state.currentLevel || "A0"
+  });
+}
+
+async function syncWordToCloud(card, known) {
+  if (!dbReady() || !remoteUser || !card) return;
+  const row = await db().findWordByEnglish(card.word);
+  if (!row) return;
+  const interval = known ? Math.max(3, 1) : 1;
+  await db().upsertUserVocabulary({
+    userId: remoteUser.id,
+    wordId: row.id,
+    status: known ? "known" : "learning",
+    reviewInterval: known ? 3 : 1,
+    nextReviewDate: nextReviewDate(interval),
+    correctDelta: known ? 1 : 0,
+    incorrectDelta: known ? 0 : 1
+  });
+}
+
+async function syncSentenceToCloud(sentence, completed, attempts) {
+  if (!dbReady() || !remoteUser || !sentence) return;
+  const row = await db().findSentenceByHungarian(sentence.prompt);
+  if (!row) return;
+  await db().upsertSentenceProgress({
+    userId: remoteUser.id,
+    sentenceId: row.id,
+    isCompleted: completed,
+    attempts
+  });
+}
+
+async function applyCloudProfile(user) {
+  remoteUser = user;
+  if (!user) {
+    renderAuth();
+    return;
+  }
+  const profile = await db().getProfile(user.id);
+  if (profile) {
+    if (profile.full_name) state.name = profile.full_name;
+    if (profile.streak_count != null) state.streak = profile.streak_count;
+    if (profile.last_active_date) state.lastActiveDate = profile.last_active_date;
+    if (profile.points != null) state.points = profile.points;
+    if (profile.current_level) state.currentLevel = profile.current_level;
+    if (profile.email) state.email = profile.email;
+    saveState();
+  } else {
+    await db().ensureProfile(user, { full_name: state.name });
+  }
+  renderHeader();
+  renderProgress();
+  renderAuth();
+}
+
+async function initSupabase() {
+  renderAuth();
+  if (!dbReady()) return;
+  const user = await db().getUser();
+  await applyCloudProfile(user);
+  db().onAuthChange((nextUser) => {
+    syncQuiet(() => applyCloudProfile(nextUser));
+  });
+}
 
 function currentCard() {
   return deck[index];
@@ -210,7 +319,7 @@ function renderCard() {
   els.deckProgress.style.width = `${percent}%`;
 }
 
-function recordActivity() {
+function recordActivity(points) {
   const today = todayKey();
   if (state.lastActiveDate !== today) {
     state.streak = state.lastActiveDate === yesterdayKey() ? state.streak + 1 : 1;
@@ -220,22 +329,26 @@ function recordActivity() {
   }
   state.todayDate = today;
   state.todayCount += 1;
+  state.points = (state.points || 0) + (points || 5);
   saveState();
   renderHeader();
   renderProgress();
+  syncQuiet(syncProfileToCloud);
 }
 
 function markCard(status) {
   const card = currentCard();
   if (!card) return;
-  if (status === "known") {
+  const known = status === "known";
+  if (known) {
     state.known[card.id] = true;
     delete state.practicing[card.id];
   } else {
     state.practicing[card.id] = true;
     delete state.known[card.id];
   }
-  recordActivity();
+  recordActivity(known ? 10 : 4);
+  syncQuiet(() => syncWordToCloud(card, known));
   index += 1;
   renderCard();
 }
@@ -375,7 +488,8 @@ function checkBuilder() {
   if (answer === expectedText(sentence)) {
     builderLocked = true;
     state.solvedSentences[sentence.id] = true;
-    recordActivity();
+    recordActivity(15);
+    syncQuiet(() => syncSentenceToCloud(sentence, true, wrongTries + 1));
     els.builderFeedback.textContent = "Ügyes! Ez a helyes szórend.";
     els.builderFeedback.className = "mt-4 min-h-[1.25rem] text-sm font-semibold text-emerald-700";
     els.builderProgress.style.width = `${((builderIndex + 1) / SENTENCES.length) * 100}%`;
@@ -388,9 +502,11 @@ function checkBuilder() {
   els.builderCard.classList.remove("shake-x");
   void els.builderCard.offsetWidth;
   els.builderCard.classList.add("shake-x");
-  const hint = wrongTries >= 2 ? ` Tipp: „${sentence.words[0]}” a kezdet.` : "";
+  const grammar = sentence.grammarTip ? ` ${sentence.grammarTip}` : "";
+  const hint = wrongTries >= 2 ? ` Tipp: „${sentence.words[0]}” a kezdet.${grammar}` : "";
   els.builderFeedback.textContent = `Még nem jó. Próbáld más sorrendben.${hint}`;
   els.builderFeedback.className = "mt-4 min-h-[1.25rem] text-sm font-semibold text-amber-700";
+  syncQuiet(() => syncSentenceToCloud(sentence, false, wrongTries));
 }
 
 function nextSentence() {
@@ -414,8 +530,42 @@ function renderHeader() {
   els.streakCount.textContent = String(state.streak || 0);
   els.todayCount.textContent = String(state.todayCount || 0);
   els.subtitle.textContent = greeting();
-  els.profileAvatar.textContent = state.name ? "🙂" : "🌱";
+  els.profileAvatar.textContent = remoteUser ? "🙂" : state.name ? "🙂" : "🌱";
   els.learnerName.value = state.name;
+  if (els.learnerEmail && !els.learnerEmail.value) els.learnerEmail.value = state.email || remoteUser?.email || "";
+  if (els.profileLevel) els.profileLevel.textContent = `${state.currentLevel || "A0"} – A1 kezdő`;
+  if (els.profilePoints) els.profilePoints.textContent = `${state.points || 0} pont`;
+}
+
+function renderAuth() {
+  if (!els.authStatus) return;
+  const configured = dbReady();
+  if (!configured) {
+    els.authStatus.textContent = "Helyi mód — állítsd be a Supabase URL-t a supabaseConfig.js-ben.";
+    if (els.authPrimary) els.authPrimary.disabled = true;
+    if (els.authRegister) els.authRegister.disabled = true;
+    if (els.authSignout) els.authSignout.classList.add("hidden");
+    return;
+  }
+  if (remoteUser) {
+    els.authStatus.textContent = `Bejelentkezve: ${remoteUser.email}`;
+    if (els.authFields) els.authFields.classList.add("hidden");
+    if (els.authPrimary) els.authPrimary.classList.add("hidden");
+    if (els.authRegister) els.authRegister.classList.add("hidden");
+    if (els.authSignout) els.authSignout.classList.remove("hidden");
+  } else {
+    els.authStatus.textContent = "Supabase kész. Jelentkezz be a felhős mentéshez.";
+    if (els.authFields) els.authFields.classList.remove("hidden");
+    if (els.authPrimary) {
+      els.authPrimary.disabled = false;
+      els.authPrimary.classList.remove("hidden");
+    }
+    if (els.authRegister) {
+      els.authRegister.disabled = false;
+      els.authRegister.classList.remove("hidden");
+    }
+    if (els.authSignout) els.authSignout.classList.add("hidden");
+  }
 }
 
 function mondayOfWeek(date = new Date()) {
@@ -487,9 +637,54 @@ function closeProfile() {
 
 function saveProfile() {
   state.name = els.learnerName.value.trim().slice(0, 24);
+  if (els.learnerEmail) state.email = els.learnerEmail.value.trim();
   saveState();
   renderHeader();
+  syncQuiet(syncProfileToCloud);
   closeProfile();
+}
+
+async function handleSignIn() {
+  const email = els.learnerEmail?.value.trim();
+  const password = els.learnerPassword?.value || "";
+  if (!email || password.length < 6) {
+    els.authStatus.textContent = "Adj meg emailt és legalább 6 karakteres jelszót.";
+    return;
+  }
+  try {
+    els.authStatus.textContent = "Belépés…";
+    await db().signIn(email, password);
+  } catch (error) {
+    els.authStatus.textContent = error.message || "Belépés sikertelen.";
+  }
+}
+
+async function handleRegister() {
+  const email = els.learnerEmail?.value.trim();
+  const password = els.learnerPassword?.value || "";
+  const fullName = els.learnerName.value.trim();
+  if (!email || password.length < 6) {
+    els.authStatus.textContent = "Adj meg emailt és legalább 6 karakteres jelszót.";
+    return;
+  }
+  try {
+    els.authStatus.textContent = "Regisztráció…";
+    await db().signUp(email, password, fullName);
+    els.authStatus.textContent = "Sikeres. Ha kell, erősítsd meg az emailed.";
+  } catch (error) {
+    els.authStatus.textContent = error.message || "Regisztráció sikertelen.";
+  }
+}
+
+async function handleSignOut() {
+  try {
+    await db().signOut();
+    remoteUser = null;
+    renderAuth();
+    renderHeader();
+  } catch (error) {
+    els.authStatus.textContent = error.message || "Kilépés sikertelen.";
+  }
 }
 
 tabs.forEach(({ btn }) => {
@@ -544,6 +739,9 @@ els.builderRestart.addEventListener("click", restartBuilder);
 els.profileBtn.addEventListener("click", openProfile);
 els.profileClose.addEventListener("click", closeProfile);
 els.saveProfile.addEventListener("click", saveProfile);
+els.authPrimary?.addEventListener("click", () => syncQuiet(handleSignIn));
+els.authRegister?.addEventListener("click", () => syncQuiet(handleRegister));
+els.authSignout?.addEventListener("click", () => syncQuiet(handleSignOut));
 els.profileModal.addEventListener("click", (event) => {
   if (event.target === els.profileModal) closeProfile();
 });
@@ -582,3 +780,4 @@ renderCard();
 startSentence();
 renderProgress();
 showTab(tabs[0].btn);
+syncQuiet(initSupabase);
