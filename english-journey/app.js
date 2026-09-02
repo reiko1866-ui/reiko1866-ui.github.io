@@ -19,7 +19,22 @@ const VOCABULARY = [
   { id: "yes", word: "yes", phonetic: "/jes/", meaning: "igen", example: "Yes, I am happy.", exampleHu: "Igen, boldog vagyok.", icon: "✅", color: "from-emerald-50 to-teal-50" }
 ];
 
-const WEEKDAYS = ["H", "K", "Sz", "Cs", "P", "Sz", "V"];
+const WEEKDAYS = ["H", "K", "Sze", "Cs", "P", "Szo", "V"];
+
+const SENTENCES = [
+  { id: "eat-apple", prompt: "Eszem egy almát.", words: ["I", "eat", "an", "apple"], extras: ["a"], icon: "🍏" },
+  { id: "drink-water", prompt: "Vizet iszom.", words: ["I", "drink", "water"], extras: ["a"], icon: "💧" },
+  { id: "my-house", prompt: "Ez az én házam.", words: ["This", "is", "my", "house"], extras: [], icon: "🏠" },
+  { id: "cute-cat", prompt: "A macska aranyos.", words: ["The", "cat", "is", "cute"], extras: ["a"], icon: "🐱" },
+  { id: "go-school", prompt: "Iskolába megyek.", words: ["I", "go", "to", "school"], extras: ["the"], icon: "🏫" },
+  { id: "my-friend", prompt: "Ő a barátom.", words: ["She", "is", "my", "friend"], extras: ["He"], icon: "🤝" },
+  { id: "love-family", prompt: "Szeretem a családom.", words: ["I", "love", "my", "family"], extras: [], icon: "👨‍👩‍👧" },
+  { id: "big-dog", prompt: "A kutya nagy.", words: ["The", "dog", "is", "big"], extras: ["small"], icon: "🐶" },
+  { id: "read-book", prompt: "Könyvet olvasok.", words: ["I", "read", "a", "book"], extras: ["an"], icon: "📖" },
+  { id: "thank-you", prompt: "Nagyon köszönöm.", words: ["Thank", "you", "very", "much"], extras: [], icon: "🙏" },
+  { id: "bright-sun", prompt: "A nap fényes.", words: ["The", "sun", "is", "bright"], extras: [], icon: "☀️" },
+  { id: "drink-tea", prompt: "Teát iszom.", words: ["I", "drink", "tea"], extras: ["coffee"], icon: "🍵" }
+];
 
 const els = {
   subtitle: document.getElementById("header-subtitle"),
@@ -55,7 +70,24 @@ const els = {
   streakCopy: document.getElementById("streak-copy"),
   statKnown: document.getElementById("stat-known"),
   statPractice: document.getElementById("stat-practice"),
-  statToday: document.getElementById("stat-today")
+  statSentences: document.getElementById("stat-sentences"),
+  statToday: document.getElementById("stat-today"),
+  builderPosition: document.getElementById("builder-position"),
+  builderTotal: document.getElementById("builder-total"),
+  builderProgress: document.getElementById("builder-progress"),
+  builderStage: document.getElementById("builder-stage"),
+  builderComplete: document.getElementById("builder-complete"),
+  builderCard: document.getElementById("builder-card"),
+  builderIcon: document.getElementById("builder-icon"),
+  builderPrompt: document.getElementById("builder-prompt"),
+  builderSentence: document.getElementById("builder-sentence"),
+  builderBank: document.getElementById("builder-bank"),
+  builderFeedback: document.getElementById("builder-feedback"),
+  builderCheck: document.getElementById("builder-check"),
+  builderClear: document.getElementById("builder-clear"),
+  builderSpeak: document.getElementById("builder-speak"),
+  builderNext: document.getElementById("builder-next"),
+  builderRestart: document.getElementById("builder-restart")
 };
 
 const tabs = [
@@ -87,6 +119,7 @@ function defaultState() {
     todayDate: todayKey(),
     known: {},
     practicing: {},
+    solvedSentences: {},
     activeDays: []
   };
 }
@@ -102,6 +135,9 @@ function loadState() {
     if (parsed.lastActiveDate && parsed.lastActiveDate !== todayKey() && parsed.lastActiveDate !== yesterdayKey()) {
       parsed.streak = 0;
     }
+    if (!parsed.solvedSentences || typeof parsed.solvedSentences !== "object") {
+      parsed.solvedSentences = {};
+    }
     return parsed;
   } catch {
     return defaultState();
@@ -116,6 +152,11 @@ let state = loadState();
 let deck = [...VOCABULARY];
 let index = 0;
 let flipped = false;
+let builderIndex = 0;
+let builderTiles = [];
+let selectedIds = [];
+let builderLocked = false;
+let wrongTries = 0;
 
 function currentCard() {
   return deck[index];
@@ -202,6 +243,160 @@ function restartDeck() {
   renderCard();
 }
 
+function currentSentence() {
+  return SENTENCES[builderIndex];
+}
+
+function shuffle(list) {
+  const copy = [...list];
+  for (let i = copy.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [copy[i], copy[j]] = [copy[j], copy[i]];
+  }
+  return copy;
+}
+
+function setupBuilderTiles(sentence) {
+  const pool = [...sentence.words, ...(sentence.extras || [])];
+  let tiles = pool.map((word, idx) => ({ id: `${sentence.id}-${idx}-${word}`, word }));
+  tiles = shuffle(tiles);
+  const original = pool.join(" ");
+  if (tiles.map((tile) => tile.word).join(" ") === original && tiles.length > 1) {
+    tiles = shuffle(tiles);
+  }
+  return tiles;
+}
+
+function selectedWords() {
+  return selectedIds
+    .map((id) => builderTiles.find((tile) => tile.id === id)?.word)
+    .filter(Boolean);
+}
+
+function expectedText(sentence = currentSentence()) {
+  return sentence ? sentence.words.join(" ") : "";
+}
+
+function renderBuilderChips() {
+  const sentence = currentSentence();
+  if (!sentence) return;
+
+  const selectedSet = new Set(selectedIds);
+  if (!selectedIds.length) {
+    els.builderSentence.innerHTML = `<p class="self-center text-sm font-medium text-slate-400">Koppints a szavakra a helyes sorrendben.</p>`;
+  } else {
+    els.builderSentence.innerHTML = selectedIds.map((id) => {
+      const tile = builderTiles.find((item) => item.id === id);
+      if (!tile) return "";
+      const chipClass = builderLocked ? "word-chip is-correct" : "word-chip is-selected";
+      return `<button type="button" class="${chipClass}" data-place="sentence" data-id="${tile.id}" ${builderLocked ? "disabled" : ""}>${escapeHtml(tile.word)}</button>`;
+    }).join("");
+  }
+
+  const remaining = builderTiles.filter((tile) => !selectedSet.has(tile.id));
+  els.builderBank.innerHTML = remaining.length
+    ? remaining.map((tile) => `<button type="button" class="word-chip is-bank" data-place="bank" data-id="${tile.id}" ${builderLocked ? "disabled" : ""}>${escapeHtml(tile.word)}</button>`).join("")
+    : `<p class="text-sm font-medium text-slate-400">Minden szó a mondatban van.</p>`;
+
+  const complete = selectedIds.length >= sentence.words.length;
+  els.builderCheck.disabled = builderLocked || !complete;
+  els.builderClear.disabled = builderLocked || !selectedIds.length;
+  els.builderSpeak.disabled = !builderLocked;
+  els.builderNext.disabled = !builderLocked;
+}
+
+function renderBuilder() {
+  const sentence = currentSentence();
+  if (!sentence) {
+    els.builderStage.classList.add("hidden");
+    els.builderComplete.classList.remove("hidden");
+    els.builderPosition.textContent = String(SENTENCES.length);
+    els.builderProgress.style.width = "100%";
+    return;
+  }
+
+  els.builderStage.classList.remove("hidden");
+  els.builderComplete.classList.add("hidden");
+  els.builderIcon.textContent = sentence.icon;
+  els.builderPrompt.textContent = sentence.prompt;
+  els.builderPosition.textContent = String(builderIndex + 1);
+  els.builderTotal.textContent = String(SENTENCES.length);
+  els.builderProgress.style.width = `${(builderIndex / SENTENCES.length) * 100}%`;
+  els.builderFeedback.textContent = "";
+  els.builderFeedback.className = "mt-4 min-h-[1.25rem] text-sm font-semibold";
+  els.builderCard.classList.remove("shake-x", "ring-emerald-200");
+  renderBuilderChips();
+}
+
+function startSentence() {
+  const sentence = currentSentence();
+  if (!sentence) {
+    renderBuilder();
+    return;
+  }
+  builderTiles = setupBuilderTiles(sentence);
+  selectedIds = [];
+  builderLocked = false;
+  wrongTries = 0;
+  renderBuilder();
+}
+
+function pickTile(id) {
+  if (builderLocked || selectedIds.includes(id)) return;
+  selectedIds.push(id);
+  renderBuilderChips();
+}
+
+function returnTile(id) {
+  if (builderLocked) return;
+  selectedIds = selectedIds.filter((item) => item !== id);
+  els.builderFeedback.textContent = "";
+  renderBuilderChips();
+}
+
+function clearBuilder() {
+  if (builderLocked) return;
+  selectedIds = [];
+  els.builderFeedback.textContent = "";
+  renderBuilderChips();
+}
+
+function checkBuilder() {
+  const sentence = currentSentence();
+  if (!sentence || builderLocked) return;
+  const answer = selectedWords().join(" ");
+  if (answer === expectedText(sentence)) {
+    builderLocked = true;
+    state.solvedSentences[sentence.id] = true;
+    recordActivity();
+    els.builderFeedback.textContent = "Ügyes! Ez a helyes szórend.";
+    els.builderFeedback.className = "mt-4 min-h-[1.25rem] text-sm font-semibold text-emerald-700";
+    els.builderProgress.style.width = `${((builderIndex + 1) / SENTENCES.length) * 100}%`;
+    renderBuilderChips();
+    speakEnglish(`${expectedText(sentence)}.`);
+    return;
+  }
+
+  wrongTries += 1;
+  els.builderCard.classList.remove("shake-x");
+  void els.builderCard.offsetWidth;
+  els.builderCard.classList.add("shake-x");
+  const hint = wrongTries >= 2 ? ` Tipp: „${sentence.words[0]}” a kezdet.` : "";
+  els.builderFeedback.textContent = `Még nem jó. Próbáld más sorrendben.${hint}`;
+  els.builderFeedback.className = "mt-4 min-h-[1.25rem] text-sm font-semibold text-amber-700";
+}
+
+function nextSentence() {
+  if (!builderLocked) return;
+  builderIndex += 1;
+  startSentence();
+}
+
+function restartBuilder() {
+  builderIndex = 0;
+  startSentence();
+}
+
 function greeting() {
   if (state.name) return `Szia, ${state.name}! Folytasd a mai utat.`;
   if (state.todayCount > 0) return "Szép ritmus. Még egy kártya?";
@@ -229,8 +424,10 @@ function renderProgress() {
   const knownCount = Object.keys(state.known).length;
   const practiceCount = Object.keys(state.practicing).length;
   const percent = Math.round((knownCount / VOCABULARY.length) * 100);
+  const sentenceCount = Object.keys(state.solvedSentences || {}).length;
   els.statKnown.textContent = String(knownCount);
   els.statPractice.textContent = String(practiceCount);
+  els.statSentences.textContent = String(sentenceCount);
   els.statToday.textContent = String(state.todayCount || 0);
   els.knownPercent.textContent = `${percent}%`;
   els.progressArc.setAttribute("stroke-dasharray", `${percent} 100`);
@@ -267,6 +464,7 @@ function showTab(targetBtn) {
     }
   });
   if (targetBtn.id === "tab-progress") renderProgress();
+  if (targetBtn.id === "tab-builder") renderBuilderChips();
 }
 
 function openProfile() {
@@ -315,6 +513,27 @@ els.knowBtn.addEventListener("click", () => markCard("known"));
 els.practiceBtn.addEventListener("click", () => markCard("practice"));
 els.restartBtn.addEventListener("click", restartDeck);
 
+els.builderBank.addEventListener("click", (event) => {
+  const button = event.target.closest("button[data-id]");
+  if (!button) return;
+  pickTile(button.dataset.id);
+});
+
+els.builderSentence.addEventListener("click", (event) => {
+  const button = event.target.closest("button[data-id]");
+  if (!button) return;
+  returnTile(button.dataset.id);
+});
+
+els.builderCheck.addEventListener("click", checkBuilder);
+els.builderClear.addEventListener("click", clearBuilder);
+els.builderSpeak.addEventListener("click", () => {
+  const sentence = currentSentence();
+  if (sentence && builderLocked) speakEnglish(`${expectedText(sentence)}.`);
+});
+els.builderNext.addEventListener("click", nextSentence);
+els.builderRestart.addEventListener("click", restartBuilder);
+
 els.profileBtn.addEventListener("click", openProfile);
 els.profileClose.addEventListener("click", closeProfile);
 els.saveProfile.addEventListener("click", saveProfile);
@@ -353,5 +572,6 @@ if (window.speechSynthesis) {
 
 renderHeader();
 renderCard();
+startSentence();
 renderProgress();
 showTab(tabs[0].btn);
