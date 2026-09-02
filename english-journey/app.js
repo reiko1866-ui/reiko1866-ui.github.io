@@ -74,6 +74,8 @@ const els = {
   restartBtn: document.getElementById("restart-btn"),
   chatForm: document.getElementById("chat-form"),
   chatInput: document.getElementById("chat-input"),
+  chatThread: document.getElementById("chat-thread"),
+  chatSuggestions: document.getElementById("chat-suggestions"),
   knownPercent: document.getElementById("known-percent"),
   progressArc: document.getElementById("progress-arc"),
   weekRow: document.getElementById("week-row"),
@@ -746,21 +748,41 @@ els.profileModal.addEventListener("click", (event) => {
   if (event.target === els.profileModal) closeProfile();
 });
 
-els.chatForm.addEventListener("submit", (event) => {
-  event.preventDefault();
-  const value = els.chatInput.value.trim();
-  if (!value) return;
-  els.chatInput.value = "";
-  const thread = els.chatForm.previousElementSibling;
+function beginnerReply(value) {
+  const text = value.toLowerCase();
+  if (text.includes("hello") || text.includes("hi")) return "Hello! I am Miss Willow. How are you?";
+  if (text.includes("how are you")) return "I am happy, thank you. Are you happy?";
+  if (text.includes("happy")) return "Great! Happy is a good word. Can you say: I am happy.";
+  if (text.includes("thank")) return "You are welcome. Let’s try: I eat an apple.";
+  return "Nice try! Keep it short. Try: Hello! or I am happy.";
+}
+
+function appendChat(value) {
+  const thread = els.chatThread || document.getElementById("chat-thread");
+  if (!thread) return;
   const userRow = document.createElement("div");
   userRow.className = "flex justify-end";
   userRow.innerHTML = `<div class="max-w-[85%] rounded-2xl rounded-tr-md bg-slate-800 px-3.5 py-2.5 text-sm leading-relaxed text-white">${escapeHtml(value)}</div>`;
   const reply = document.createElement("div");
   reply.className = "flex items-start gap-2";
   reply.innerHTML = `<div class="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-teal-100 text-lg">🤖</div>
-    <div class="max-w-[85%] rounded-2xl rounded-tl-md bg-teal-50 px-3.5 py-2.5 text-sm leading-relaxed text-slate-700">Nice try! The full AI teacher arrives in the next step. For now, practise a flashcard. 🌿</div>`;
+    <div class="max-w-[85%] rounded-2xl rounded-tl-md bg-teal-50 px-3.5 py-2.5 text-sm leading-relaxed text-slate-700">${escapeHtml(beginnerReply(value))}</div>`;
   thread.append(userRow, reply);
   thread.scrollTop = thread.scrollHeight;
+}
+
+els.chatForm.addEventListener("submit", (event) => {
+  event.preventDefault();
+  const value = els.chatInput.value.trim();
+  if (!value) return;
+  els.chatInput.value = "";
+  appendChat(value);
+});
+
+els.chatSuggestions?.addEventListener("click", (event) => {
+  const chip = event.target.closest("[data-chat]");
+  if (!chip) return;
+  appendChat(chip.dataset.chat);
 });
 
 function escapeHtml(value) {
