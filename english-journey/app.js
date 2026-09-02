@@ -162,7 +162,7 @@ function currentCard() {
   return deck[index];
 }
 
-function speakEnglish(text) {
+function speakEnglish(text, button) {
   if (!window.speechSynthesis) return;
   window.speechSynthesis.cancel();
   const utterance = new SpeechSynthesisUtterance(text);
@@ -173,6 +173,13 @@ function speakEnglish(text) {
   const preferred = voices.find((voice) => voice.lang.startsWith("en-GB")) ||
     voices.find((voice) => voice.lang.startsWith("en"));
   if (preferred) utterance.voice = preferred;
+  if (button) {
+    button.classList.add("is-speaking");
+    const clear = () => button.classList.remove("is-speaking");
+    utterance.addEventListener("end", clear, { once: true });
+    utterance.addEventListener("error", clear, { once: true });
+    setTimeout(clear, 2500);
+  }
   window.speechSynthesis.speak(utterance);
 }
 
@@ -506,7 +513,7 @@ els.flashcard.addEventListener("keydown", (event) => {
 els.speakBtn.addEventListener("click", (event) => {
   event.stopPropagation();
   const card = currentCard();
-  if (card) speakEnglish(card.word);
+  if (card) speakEnglish(card.word, els.speakBtn);
 });
 
 els.knowBtn.addEventListener("click", () => markCard("known"));

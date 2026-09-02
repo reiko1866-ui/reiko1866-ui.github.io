@@ -52,7 +52,9 @@
 
     .flip-card {
       position: relative;
+      min-height: 22.5rem;
       transform-style: preserve-3d;
+      -webkit-transform-style: preserve-3d;
       transition: transform 0.62s cubic-bezier(0.4, 0.15, 0.2, 1);
     }
 
@@ -61,12 +63,22 @@
     }
 
     .flip-face {
+      position: absolute;
+      inset: 0;
       backface-visibility: hidden;
       -webkit-backface-visibility: hidden;
+      transform: rotateY(0deg);
+      -webkit-transform: rotateY(0deg);
     }
 
     .flip-face-back {
       transform: rotateY(180deg);
+      -webkit-transform: rotateY(180deg);
+    }
+
+    #speak-btn.is-speaking {
+      background: #0f766e;
+      transform: scale(0.97);
     }
 
     .tab-panel[hidden] {
@@ -197,35 +209,33 @@
         <div id="flashcard-stage">
           <div class="perspective">
             <div id="flashcard" class="flip-card w-full cursor-pointer" role="button" tabindex="0" aria-label="Kártya megfordítása">
-              <div class="relative min-h-[22.5rem]">
-                <article class="flip-face absolute inset-0 flex flex-col items-center justify-between rounded-[1.75rem] bg-white p-6 shadow-card ring-1 ring-slate-200/70">
-                  <div class="w-full text-center">
-                    <span class="inline-flex rounded-full bg-teal-50 px-3 py-1 text-[11px] font-bold uppercase tracking-wider text-teal-700">English</span>
-                  </div>
-                  <div class="flex flex-col items-center">
-                    <div id="card-icon" class="mb-4 grid h-24 w-24 place-items-center rounded-[1.75rem] bg-gradient-to-br from-teal-50 to-amber-50 text-5xl shadow-inner ring-1 ring-teal-100">🍏</div>
-                    <p id="card-word" class="text-4xl font-extrabold tracking-tight text-slate-900">apple</p>
-                    <p id="card-phonetic" class="mt-1 text-base text-slate-400">/ˈæp.əl/</p>
-                    <button id="speak-btn" type="button" class="mt-4 inline-flex items-center gap-2 rounded-full bg-teal-700 px-4 py-2.5 text-sm font-bold text-white shadow-[0_10px_18px_-12px_rgba(15,118,110,0.9)] transition hover:bg-teal-600 active:scale-95">
-                      <span aria-hidden="true">🔊</span>
-                      Kiejtés
-                    </button>
-                  </div>
-                  <p class="text-xs font-medium text-slate-400">Koppints a jelentéshez</p>
-                </article>
-                <article class="flip-face flip-face-back absolute inset-0 flex flex-col items-center justify-between rounded-[1.75rem] bg-gradient-to-b from-white to-teal-50/60 p-6 shadow-card ring-1 ring-teal-100">
-                  <div class="w-full text-center">
-                    <span class="inline-flex rounded-full bg-amber-50 px-3 py-1 text-[11px] font-bold uppercase tracking-wider text-amber-700">Magyar</span>
-                  </div>
-                  <div class="text-center">
-                    <p id="card-meaning" class="text-3xl font-extrabold text-slate-900">alma</p>
-                    <p class="mt-5 text-[11px] font-bold uppercase tracking-[0.16em] text-teal-700/80">Példamondat</p>
-                    <p id="card-example" class="mt-2 text-lg font-semibold leading-snug text-slate-800">I eat an apple.</p>
-                    <p id="card-example-hu" class="mt-1 text-sm text-slate-500">Eszem egy almát.</p>
-                  </div>
-                  <p class="text-xs font-medium text-slate-400">Koppints a visszafordításhoz</p>
-                </article>
-              </div>
+              <article class="flip-face flex flex-col items-center justify-between rounded-[1.75rem] bg-white p-6 shadow-card ring-1 ring-slate-200/70">
+                <div class="w-full text-center">
+                  <span class="inline-flex rounded-full bg-teal-50 px-3 py-1 text-[11px] font-bold uppercase tracking-wider text-teal-700">English</span>
+                </div>
+                <div class="flex flex-col items-center">
+                  <div id="card-icon" class="mb-4 grid h-24 w-24 place-items-center rounded-[1.75rem] bg-gradient-to-br from-teal-50 to-amber-50 text-5xl shadow-inner ring-1 ring-teal-100">🍏</div>
+                  <p id="card-word" class="text-4xl font-extrabold tracking-tight text-slate-900">apple</p>
+                  <p id="card-phonetic" class="mt-1 text-base text-slate-400">/ˈæp.əl/</p>
+                  <button id="speak-btn" type="button" class="mt-4 inline-flex items-center gap-2 rounded-full bg-teal-700 px-4 py-2.5 text-sm font-bold text-white shadow-[0_10px_18px_-12px_rgba(15,118,110,0.9)] transition hover:bg-teal-600 active:scale-95">
+                    <span aria-hidden="true">🔊</span>
+                    Kiejtés
+                  </button>
+                </div>
+                <p class="text-xs font-medium text-slate-400">Koppints a jelentéshez</p>
+              </article>
+              <article class="flip-face flip-face-back flex flex-col items-center justify-between rounded-[1.75rem] bg-gradient-to-b from-white to-teal-50/60 p-6 shadow-card ring-1 ring-teal-100">
+                <div class="w-full text-center">
+                  <span class="inline-flex rounded-full bg-amber-50 px-3 py-1 text-[11px] font-bold uppercase tracking-wider text-amber-700">Magyar</span>
+                </div>
+                <div class="text-center">
+                  <p id="card-meaning" class="text-3xl font-extrabold text-slate-900">alma</p>
+                  <p class="mt-5 text-[11px] font-bold uppercase tracking-[0.16em] text-teal-700/80">Példamondat</p>
+                  <p id="card-example" class="mt-2 text-lg font-semibold leading-snug text-slate-800">I eat an apple.</p>
+                  <p id="card-example-hu" class="mt-1 text-sm text-slate-500">Eszem egy almát.</p>
+                </div>
+                <p class="text-xs font-medium text-slate-400">Koppints a visszafordításhoz</p>
+              </article>
             </div>
           </div>
 
