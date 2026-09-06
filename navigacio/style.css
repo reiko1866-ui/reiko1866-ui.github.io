@@ -110,6 +110,135 @@ button {
   inset: 0;
 }
 
+#arStage {
+  display: none;
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 65%;
+  bottom: 0;
+  z-index: 3;
+  overflow: hidden;
+  background: transparent;
+  pointer-events: none;
+}
+
+#arHint {
+  margin: 0;
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 12px;
+  text-align: center;
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: rgba(226, 232, 240, 0.42);
+  text-shadow: 0 1px 8px #000;
+}
+
+html:has(#app.is-ar),
+body:has(#app.is-ar),
+#app.is-ar,
+#app.is-ar #kezdolap {
+  background: transparent;
+}
+
+#app.is-ar #arStage {
+  display: block;
+}
+
+#app.is-ar #map {
+  inset: auto;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 65%;
+  z-index: 2;
+  background: rgba(15, 23, 42, 0.28);
+}
+
+#app.is-ar .maplibregl-canvas {
+  opacity: 0.9;
+}
+
+#app.is-ar #banner {
+  background: linear-gradient(180deg, #0b1220f2, #0b1220cc);
+}
+
+#app.is-ar #infoCard {
+  max-width: min(18rem, calc(100% - 96px));
+}
+
+#app.is-ar.is-nav #infoCard {
+  display: none;
+}
+
+#app.is-ar #speedBox {
+  top: auto;
+  bottom: calc(35% + 12px);
+  left: var(--pad);
+  z-index: 22;
+}
+
+#app.is-ar.is-nav #speedBox {
+  top: calc(5.7rem + var(--safe-top));
+  bottom: auto;
+}
+
+#app.is-ar #speed {
+  background: #0b1220ee;
+}
+
+#app.is-ar #placeChip {
+  top: auto;
+  bottom: calc(35% + 5.4rem);
+  left: var(--pad);
+}
+
+#app.is-ar.is-nav #placeChip {
+  top: calc(12.1rem + var(--safe-top));
+  bottom: auto;
+}
+
+#app.is-ar #trip,
+#app.is-ar.is-nav #trip {
+  top: calc(5.7rem + var(--safe-top));
+  right: var(--pad);
+  left: auto;
+  bottom: auto;
+  width: min(16.5rem, 46vw);
+  border-radius: 16px;
+  grid-template-columns: 1fr 1fr auto;
+  gap: 0.3rem;
+  padding: 0.4rem 0.5rem;
+  background: #0b1220ee;
+  box-shadow: var(--shadow);
+}
+
+#app.is-ar #trip > div:nth-child(2) {
+  display: none;
+}
+
+#app.is-ar #fabBar,
+#app.is-ar.is-nav #fabBar {
+  top: auto;
+  bottom: calc(35% + 12px);
+  z-index: 23;
+}
+
+#app.is-ar .peek {
+  display: none;
+}
+
+#app.is-ar .maplibregl-ctrl-bottom-right,
+#app.is-ar .maplibregl-ctrl-bottom-left {
+  bottom: 6px;
+  right: 6px;
+  left: auto;
+}
+
 .maplibregl-ctrl-attrib {
   font-size: 10px;
 }
@@ -1148,5 +1277,44 @@ noscript {
 
   #kmh {
     font-size: 2.35rem;
+  }
+}
+
+@media (min-width: 720px) {
+  #app.is-ar.is-nav #speedBox {
+    top: calc(6.6rem + var(--safe-top));
+    bottom: auto;
+  }
+
+  #app.is-ar.is-nav #placeChip {
+    top: calc(13.4rem + var(--safe-top));
+    bottom: auto;
+  }
+
+  #app.is-ar.is-nav #trip {
+    top: calc(6.6rem + var(--safe-top));
+    bottom: auto;
+  }
+
+  #app.is-ar.is-nav #fabBar,
+  #app.is-ar #fabBar {
+    bottom: calc(35% + 14px);
+  }
+}
+
+@media (min-width: 900px) and (min-height: 600px) {
+  #app.is-ar.is-nav #speedBox {
+    top: calc(7.4rem + var(--safe-top));
+    bottom: auto;
+  }
+
+  #app.is-ar.is-nav #trip {
+    top: calc(7.4rem + var(--safe-top));
+    width: min(20rem, 42vw);
+  }
+
+  #app.is-ar.is-nav #fabBar,
+  #app.is-ar #fabBar {
+    bottom: calc(35% + 16px);
   }
 }
