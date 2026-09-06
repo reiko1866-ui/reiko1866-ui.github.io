@@ -123,6 +123,20 @@ button {
   pointer-events: none;
 }
 
+#arCam {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  opacity: 0;
+  pointer-events: none;
+}
+
+#app.has-ar-cam #arCam {
+  opacity: 1;
+}
+
 #arHint {
   margin: 0;
   position: absolute;
@@ -136,6 +150,41 @@ button {
   text-transform: uppercase;
   color: rgba(226, 232, 240, 0.42);
   text-shadow: 0 1px 8px #000;
+}
+
+#arLed {
+  position: absolute;
+  top: calc(var(--pad) + var(--safe-top));
+  right: var(--pad);
+  z-index: 24;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.28rem 0.55rem;
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.72);
+  color: #fecaca;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  box-shadow: var(--shadow);
+  pointer-events: none;
+}
+
+#arLed span {
+  width: 0.55rem;
+  height: 0.55rem;
+  border-radius: 50%;
+  background: #ef4444;
+  box-shadow: 0 0 8px #ef4444, 0 0 0 3px rgba(239, 68, 68, 0.22);
+}
+
+#app.is-nav #arLed {
+  top: auto;
+  right: auto;
+  left: 50%;
+  bottom: calc(5.6rem + var(--safe-bottom) + 8px);
+  transform: translateX(-50%);
 }
 
 html:has(#app.is-ar),
@@ -230,6 +279,24 @@ body:has(#app.is-ar),
 
 #app.is-ar .peek {
   display: none;
+}
+
+#app.is-ar.is-ar-full #map {
+  inset: 0;
+  height: 100%;
+}
+
+#app.is-ar.is-ar-full #arStage {
+  display: none;
+}
+
+#app.is-ar.is-ar-full #fabBar,
+#app.is-ar.is-ar-full.is-nav #fabBar {
+  bottom: calc(var(--pad) + var(--safe-bottom));
+}
+
+#app.is-ar.is-ar-full.is-nav #fabBar {
+  bottom: calc(5.6rem + var(--safe-bottom));
 }
 
 #app.is-ar .maplibregl-ctrl-bottom-right,
@@ -1300,6 +1367,15 @@ noscript {
   #app.is-ar #fabBar {
     bottom: calc(35% + 14px);
   }
+
+  #app.is-ar.is-ar-full.is-nav #fabBar,
+  #app.is-ar.is-ar-full #fabBar {
+    bottom: calc(6.6rem + var(--safe-bottom));
+  }
+
+  #app.is-ar.is-ar-full:not(.is-nav) #fabBar {
+    bottom: calc(var(--pad) + var(--safe-bottom));
+  }
 }
 
 @media (min-width: 900px) and (min-height: 600px) {
@@ -1316,5 +1392,14 @@ noscript {
   #app.is-ar.is-nav #fabBar,
   #app.is-ar #fabBar {
     bottom: calc(35% + 16px);
+  }
+
+  #app.is-ar.is-ar-full.is-nav #fabBar,
+  #app.is-ar.is-ar-full #fabBar {
+    bottom: calc(7.4rem + var(--safe-bottom));
+  }
+
+  #app.is-ar.is-ar-full:not(.is-nav) #fabBar {
+    bottom: calc(var(--pad) + var(--safe-bottom));
   }
 }

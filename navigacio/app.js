@@ -7,6 +7,7 @@
   const CAR_KEY = "nav2_car";
   const OPTS_KEY = "nav2_opts";
   const AR_KEY = "nav2_ar";
+  const CAM_KEY = "nav2_360";
   const EMPTY = { type: "FeatureCollection", features: [] };
   const NOMINATIM = "https://nominatim.openstreetmap.org/search";
   const VALHALLA = "https://valhalla1.openstreetmap.de/route";
@@ -138,6 +139,9 @@
     speed: 0,
     follow: true,
     ar: false,
+    cameraError: false,
+    camBeat: 0,
+    camTimer: 0,
     voice: true,
     navigating: false,
     planning: false,
@@ -2550,17 +2554,134 @@
     if (hint) hint.textContent = "360°";
   }
 
+  function native360Pinned() {
+    try {
+      if (localStorage.getItem(CAM_KEY) === "1") return true;
+    } catch (_e) {}
+    try {
+      const q = new URLSearchParams(location.search);
+      if (q.get("360") === "1" || q.get("cam") === "1") return true;
+    } catch (_e) {}
+    return false;
+  }
+
+  function camVideoLive() {
+    const v = $("arCam");
+    if (!v) return false;
+    if (v.readyState >= 2 && v.videoWidth > 0) return true;
+    if (!v.paused && v.currentTime > 0) return true;
+    return false;
+  }
+
+  function applyCamLayout() {
+    const app = $("app");
+    const stage = $("arStage");
+    const led = $("arLed");
+    const hideWell = !state.ar || state.cameraError;
+    if (app) app.classList.toggle("is-ar-full", !!(state.ar && state.cameraError));
+    if (stage) stage.hidden = hideWell;
+    if (led) led.hidden = !(state.ar && state.cameraError);
+    if (!state.ar || state.cameraError) {
+      const root = $("app");
+      if (root) root.classList.remove("has-ar-cam");
+    }
+    if (state.map) {
+      try {
+        state.map.resize();
+      } catch (_e) {}
+      if (state.follow) updateCamera(true);
+    }
+  }
+
+  function markCamOk() {
+    state.camBeat = Date.now();
+    if (!state.ar) return;
+    if (state.cameraError) {
+      state.cameraError = false;
+      applyCamLayout();
+    }
+  }
+
+  function markCamError() {
+    if (!state.ar || state.cameraError) return;
+    state.cameraError = true;
+    applyCamLayout();
+  }
+
+  function stopCamWatch() {
+    if (state.camTimer) {
+      clearInterval(state.camTimer);
+      state.camTimer = 0;
+    }
+    state.cameraError = false;
+    state.camBeat = 0;
+    const v = $("arCam");
+    if (v) {
+      try {
+        v.pause();
+      } catch (_e) {}
+      v.removeAttribute("src");
+      v.srcObject = null;
+    }
+    const root = $("app");
+    if (root) root.classList.remove("has-ar-cam", "is-ar-full");
+    if ($("arLed")) $("arLed").hidden = true;
+  }
+
+  function bindCamVideo() {
+    const v = $("arCam");
+    if (!v || v.getAttribute("data-bound") === "1") return;
+    v.setAttribute("data-bound", "1");
+    ["playing", "timeupdate", "loadeddata", "canplay"].forEach(function (ev) {
+      v.addEventListener(ev, function () {
+        if (!camVideoLive()) return;
+        const root = $("app");
+        if (root) root.classList.add("has-ar-cam");
+        markCamOk();
+      });
+    });
+    ["error", "stalled", "emptied"].forEach(function (ev) {
+      v.addEventListener(ev, function () {
+        const root = $("app");
+        if (root) root.classList.remove("has-ar-cam");
+      });
+    });
+  }
+
+  function watchCam() {
+    bindCamVideo();
+    if (state.camTimer) {
+      clearInterval(state.camTimer);
+      state.camTimer = 0;
+    }
+    if (!state.ar) return;
+    state.cameraError = false;
+    state.camBeat = Date.now();
+    applyCamLayout();
+    if (native360Pinned()) return;
+    state.camTimer = setInterval(function () {
+      if (!state.ar) return;
+      if (native360Pinned() || camVideoLive()) {
+        state.camBeat = Date.now();
+        if (state.cameraError) {
+          state.cameraError = false;
+          applyCamLayout();
+        }
+        return;
+      }
+      if (state.camBeat && Date.now() - state.camBeat >= 3000) markCamError();
+    }, 400);
+  }
+
   function applyAr(on) {
     state.ar = !!on;
     try {
       localStorage.setItem(AR_KEY, state.ar ? "1" : "0");
     } catch (_e) {}
     const app = $("app");
-    const stage = $("arStage");
     const btn = $("arBtn");
     const check = $("arCheck");
     if (app) app.classList.toggle("is-ar", state.ar);
-    if (stage) stage.hidden = !state.ar;
     if (btn) {
       btn.classList.toggle("is-on", state.ar);
       btn.setAttribute("aria-pressed", state.ar ? "true" : "false");
@@ -2572,8 +2693,12 @@
         $("follow").classList.add("is-on");
         $("follow").setAttribute("aria-pressed", "true");
       }
+      paintArHud();
+      watchCam();
+    } else {
+      stopCamWatch();
+      if ($("arStage")) $("arStage").hidden = true;
     }
-    paintArHud();
     if (state.map) {
       syncSatellite();
       try {
@@ -2582,6 +2707,18 @@
       updateCamera(true);
     }
   }
+
+  window.Nav360 = {
+    beat: markCamOk,
+    ok: markCamOk,
+    error: markCamError,
+    present: function () {
+      try {
+        localStorage.setItem(CAM_KEY, "1");
+      } catch (_e) {}
+      markCamOk();
+    }
+  };
 
   function applyTheme(dark) {
     document.documentElement.classList.toggle("dark", dark);
@@ -2686,6 +2823,12 @@
         applyAr($("arCheck").checked);
       });
     }
+    window.addEventListener("message", function (ev) {
+      const d = ev && ev.data;
+      if (!d || (d.source !== "nav360" && d.type !== "nav360")) return;
+      if (d.state === "error" || d.ok === false) markCamError();
+      else markCamOk();
+    });
     $("searchBtn").addEventListener("click", () => {
       armVoice();
       toggleSearch();
