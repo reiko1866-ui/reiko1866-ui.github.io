@@ -2616,10 +2616,8 @@
   function markCamOk() {
     state.camBeat = Date.now();
     if (!state.ar) return;
-    if (state.cameraError) {
-      state.cameraError = false;
-      applyCamLayout();
-    }
+    state.cameraError = false;
+    applyCamLayout();
   }
 
   function markCamError() {
