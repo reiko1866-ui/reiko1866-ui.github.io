@@ -6,6 +6,8 @@
   const PLACE_KEY = "nav2_places";
   const CAR_KEY = "nav2_car";
   const OPTS_KEY = "nav2_opts";
+  const AR_KEY = "nav2_ar";
+  const CAM_KEY = "nav2_360";
   const EMPTY = { type: "FeatureCollection", features: [] };
   const NOMINATIM = "https://nominatim.openstreetmap.org/search";
   const VALHALLA = "https://valhalla1.openstreetmap.de/route";
@@ -136,6 +138,10 @@
     heading: 0,
     speed: 0,
     follow: true,
+    ar: false,
+    cameraError: false,
+    camBeat: 0,
+    camTimer: 0,
     voice: true,
     navigating: false,
     planning: false,
@@ -1267,19 +1273,87 @@
     showShortcuts();
   }
 
+  function satTileUrl() {
+    return "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}";
+  }
+
+  function syncSatellite() {
+    if (!state.map || !state.map.isStyleLoaded()) return;
+    const want = !!(state.ar && !state.mapOffline);
+    if (want && !state.map.getSource("sat")) {
+      state.map.addSource("sat", {
+        type: "raster",
+        tiles: [satTileUrl()],
+        tileSize: 256,
+        maxzoom: 19,
+        attribution: "Esri"
+      });
+      const layers = (state.map.getStyle() && state.map.getStyle().layers) || [];
+      let beforeId = null;
+      for (let i = 0; i < layers.length; i++) {
+        if (layers[i].type !== "background" && layers[i].id !== "sat") {
+          beforeId = layers[i].id;
+          break;
+        }
+      }
+      const layer = {
+        id: "sat",
+        type: "raster",
+        source: "sat",
+        paint: { "raster-opacity": 0.76 }
+      };
+      try {
+        if (beforeId) state.map.addLayer(layer, beforeId);
+        else state.map.addLayer(layer);
+      } catch (_e) {
+        try {
+          state.map.addLayer(layer);
+        } catch (_e2) {}
+      }
+    }
+    if (!want) {
+      try {
+        if (state.map.getLayer("sat")) state.map.removeLayer("sat");
+        if (state.map.getSource("sat")) state.map.removeSource("sat");
+      } catch (_e) {}
+    }
+  }
+
   function addLayers() {
     if (!state.map || !state.map.isStyleLoaded()) return;
+    syncSatellite();
     if (!state.map.getSource("route")) {
-      state.map.addSource("route", { type: "geojson", data: EMPTY });
+      state.map.addSource("route", { type: "geojson", data: EMPTY, lineMetrics: true });
+      state.map.addLayer({
+        id: "route-glow",
+        type: "line",
+        source: "route",
+        layout: { "line-cap": "round", "line-join": "round" },
+        paint: {
+          "line-color": "#38BDF8",
+          "line-width": 18,
+          "line-opacity": 0.34,
+          "line-blur": 10
+        }
+      });
       state.map.addLayer({
         id: "route-line",
         type: "line",
         source: "route",
         layout: { "line-cap": "round", "line-join": "round" },
         paint: {
-          "line-color": "#3B82F6",
           "line-width": 8,
-          "line-opacity": 0.8
+          "line-gradient": [
+            "interpolate",
+            ["linear"],
+            ["line-progress"],
+            0,
+            "#7DD3FC",
+            0.45,
+            "#3B82F6",
+            1,
+            "#22D3EE"
+          ]
         }
       });
     }
@@ -1308,6 +1382,14 @@
     let top = 20;
     let bottom = 40;
     let right = 0;
+    if (state.ar) {
+      const banner = $("banner");
+      const top =
+        state.navigating && banner && !banner.hidden
+          ? Math.min(170, Math.round(banner.getBoundingClientRect().height + 10))
+          : 16;
+      return { top: top, bottom: 28, left: 70, right: 70 };
+    }
     if (state.navigating) {
       top = banner && !banner.hidden ? Math.round(banner.getBoundingClientRect().height + 12) : 150;
       bottom = trip && !trip.hidden ? Math.round(trip.getBoundingClientRect().height + 12) : 130;
@@ -1370,12 +1452,14 @@
     if (!state.follow) return;
     if (state.lastCam && ts - state.lastCam < 32) return;
     state.lastCam = ts;
-    const zoom = kmh > 110 ? 15 : kmh > 70 ? 15.7 : kmh > 40 ? 16.3 : 17.1;
+    const zoom = state.ar
+      ? kmh > 90 ? 16 : 16.7
+      : kmh > 110 ? 15 : kmh > 70 ? 15.7 : kmh > 40 ? 16.3 : 17.1;
     try {
       state.map.jumpTo({
         center: [v.lng, v.lat],
         zoom: zoom,
-        pitch: 58,
+        pitch: state.ar ? 74 : 58,
         bearing: state.camHeading || 0,
         padding: camPad()
       });
@@ -1677,6 +1761,7 @@
         $("lanes").hidden = true;
         $("lanes").innerHTML = "";
       }
+      paintArHud();
       return;
     }
     const kind = cur.kind;
@@ -1707,6 +1792,7 @@
       markSpoken(cur.index, "now");
       speakGuidance(kind);
     }
+    paintArHud();
     if ((kind.cat === "arrive" && cur.until < 40 && !state.arrived) || (r.m < 35 && !state.arrived)) {
       state.arrived = true;
       if (!already(cur.index, "now")) {
@@ -2029,6 +2115,7 @@
     updateNav();
     updateRoadFromRoute();
     updateCamera(true);
+    paintArHud();
     armWake();
   }
 
@@ -2085,6 +2172,7 @@
     } else {
       setStatus("Megérkeztél");
     }
+    paintArHud();
     if (state.lastFix && state.lastFix.ll) saveCar(state.lastFix.ll);
     else if (state.origin) saveCar(state.origin);
     state.drove = false;
@@ -2461,6 +2549,205 @@
     };
   }
 
+  function paintArHud() {
+    const hint = $("arHint");
+    if (hint) hint.textContent = "360°";
+  }
+
+  function native360Pinned() {
+    try {
+      const q = new URLSearchParams(location.search);
+      const raw = q.get("360") || q.get("cam");
+      if (raw === "0") {
+        try {
+          localStorage.removeItem(CAM_KEY);
+        } catch (_e) {}
+        return false;
+      }
+      if (raw === "1") {
+        try {
+          localStorage.setItem(CAM_KEY, "1");
+        } catch (_e) {}
+        return true;
+      }
+      if (raw === "clear") {
+        const app = $("app");
+        if (app) app.classList.add("is-ar-clear");
+        try {
+          localStorage.setItem(CAM_KEY, "1");
+        } catch (_e) {}
+        return true;
+      }
+    } catch (_e) {}
+    try {
+      if (localStorage.getItem(CAM_KEY) === "1") return true;
+    } catch (_e) {}
+    return false;
+  }
+
+  function camVideoLive() {
+    const v = $("arCam");
+    if (!v) return false;
+    if (v.readyState >= 2 && v.videoWidth > 0) return true;
+    if (!v.paused && v.currentTime > 0) return true;
+    return false;
+  }
+
+  function applyCamLayout() {
+    const app = $("app");
+    const stage = $("arStage");
+    const led = $("arLed");
+    const hideWell = !state.ar || state.cameraError;
+    if (app) app.classList.toggle("is-ar-full", !!(state.ar && state.cameraError));
+    if (stage) stage.hidden = hideWell;
+    if (led) led.hidden = !(state.ar && state.cameraError);
+    if (!state.ar || state.cameraError) {
+      const root = $("app");
+      if (root) root.classList.remove("has-ar-cam");
+    }
+    if (state.map) {
+      try {
+        state.map.resize();
+      } catch (_e) {}
+      if (state.follow) updateCamera(true);
+    }
+  }
+
+  function markCamOk() {
+    state.camBeat = Date.now();
+    if (!state.ar) return;
+    if (state.cameraError) {
+      state.cameraError = false;
+      applyCamLayout();
+    }
+  }
+
+  function markCamError() {
+    if (!state.ar || state.cameraError) return;
+    state.cameraError = true;
+    applyCamLayout();
+  }
+
+  function stopCamWatch() {
+    if (state.camTimer) {
+      clearInterval(state.camTimer);
+      state.camTimer = 0;
+    }
+    state.cameraError = false;
+    state.camBeat = 0;
+    const v = $("arCam");
+    if (v) {
+      try {
+        v.pause();
+      } catch (_e) {}
+      v.removeAttribute("src");
+      v.srcObject = null;
+    }
+    const root = $("app");
+    if (root) root.classList.remove("has-ar-cam", "is-ar-full");
+    if ($("arLed")) $("arLed").hidden = true;
+  }
+
+  function bindCamVideo() {
+    const v = $("arCam");
+    if (!v || v.getAttribute("data-bound") === "1") return;
+    v.setAttribute("data-bound", "1");
+    ["playing", "timeupdate", "loadeddata", "canplay"].forEach(function (ev) {
+      v.addEventListener(ev, function () {
+        if (!camVideoLive()) return;
+        const root = $("app");
+        if (root) root.classList.add("has-ar-cam");
+        markCamOk();
+      });
+    });
+    ["error", "stalled", "emptied"].forEach(function (ev) {
+      v.addEventListener(ev, function () {
+        const root = $("app");
+        if (root) root.classList.remove("has-ar-cam");
+      });
+    });
+  }
+
+  function watchCam() {
+    bindCamVideo();
+    if (state.camTimer) {
+      clearInterval(state.camTimer);
+      state.camTimer = 0;
+    }
+    if (!state.ar) return;
+    state.cameraError = false;
+    state.camBeat = Date.now();
+    applyCamLayout();
+    if (native360Pinned()) return;
+    state.camTimer = setInterval(function () {
+      if (!state.ar) return;
+      if (native360Pinned() || camVideoLive()) {
+        state.camBeat = Date.now();
+        if (state.cameraError) {
+          state.cameraError = false;
+          applyCamLayout();
+        }
+        return;
+      }
+      if (state.camBeat && Date.now() - state.camBeat >= 3000) markCamError();
+    }, 400);
+  }
+
+  function applyAr(on) {
+    state.ar = !!on;
+    try {
+      localStorage.setItem(AR_KEY, state.ar ? "1" : "0");
+    } catch (_e) {}
+    const app = $("app");
+    const btn = $("arBtn");
+    const check = $("arCheck");
+    if (app) app.classList.toggle("is-ar", state.ar);
+    if (btn) {
+      btn.classList.toggle("is-on", state.ar);
+      btn.setAttribute("aria-pressed", state.ar ? "true" : "false");
+    }
+    if (check) check.checked = state.ar;
+    if (state.ar) {
+      state.follow = true;
+      if ($("follow")) {
+        $("follow").classList.add("is-on");
+        $("follow").setAttribute("aria-pressed", "true");
+      }
+      paintArHud();
+      watchCam();
+    } else {
+      stopCamWatch();
+      if ($("arStage")) $("arStage").hidden = true;
+    }
+    if (state.map) {
+      syncSatellite();
+      try {
+        state.map.resize();
+      } catch (_e) {}
+      updateCamera(true);
+    }
+  }
+
+  window.Nav360 = {
+    beat: markCamOk,
+    ok: markCamOk,
+    error: markCamError,
+    present: function () {
+      try {
+        localStorage.setItem(CAM_KEY, "1");
+      } catch (_e) {}
+      markCamOk();
+    },
+    clear: function () {
+      const app = $("app");
+      if (app) app.classList.add("is-ar-clear");
+      try {
+        localStorage.setItem(CAM_KEY, "1");
+      } catch (_e) {}
+      markCamOk();
+    }
+  };
+
   function applyTheme(dark) {
     document.documentElement.classList.toggle("dark", dark);
     localStorage.setItem(THEME_KEY, dark ? "dark" : "light");
@@ -2495,7 +2782,7 @@
       center: BUDAPEST,
       zoom: 13.5,
       pitch: 50,
-      maxPitch: 75,
+      maxPitch: 85,
       attributionControl: true
     });
     let ready = false;
@@ -2553,6 +2840,22 @@
       $("follow").classList.toggle("is-on", state.follow);
       $("follow").setAttribute("aria-pressed", state.follow ? "true" : "false");
       if (state.follow) updateCamera(true);
+    });
+    if ($("arBtn")) {
+      $("arBtn").addEventListener("click", function () {
+        applyAr(!state.ar);
+      });
+    }
+    if ($("arCheck")) {
+      $("arCheck").addEventListener("change", function () {
+        applyAr($("arCheck").checked);
+      });
+    }
+    window.addEventListener("message", function (ev) {
+      const d = ev && ev.data;
+      if (!d || (d.source !== "nav360" && d.type !== "nav360")) return;
+      if (d.state === "error" || d.ok === false) markCamError();
+      else markCamOk();
     });
     $("searchBtn").addEventListener("click", () => {
       armVoice();
@@ -2756,6 +3059,9 @@
       .then(() => {
         initMap();
         bind();
+        try {
+          if (localStorage.getItem(AR_KEY) === "1") applyAr(true);
+        } catch (_e) {}
         initVoice();
         initGps();
       })
