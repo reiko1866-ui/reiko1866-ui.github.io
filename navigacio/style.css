@@ -110,6 +110,206 @@ button {
   inset: 0;
 }
 
+#arStage {
+  display: none;
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 65%;
+  bottom: 0;
+  z-index: 3;
+  overflow: hidden;
+  background: #000;
+  pointer-events: none;
+}
+
+#app.is-ar-clear #arStage {
+  background: transparent;
+}
+
+#arCam {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  opacity: 0;
+  pointer-events: none;
+}
+
+#app.has-ar-cam #arCam {
+  opacity: 1;
+}
+
+#arHint {
+  margin: 0;
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 12px;
+  text-align: center;
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: rgba(226, 232, 240, 0.42);
+  text-shadow: 0 1px 8px #000;
+}
+
+#arLed {
+  position: absolute;
+  top: calc(var(--pad) + var(--safe-top));
+  right: var(--pad);
+  z-index: 24;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.28rem 0.55rem;
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.72);
+  color: #fecaca;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  box-shadow: var(--shadow);
+  pointer-events: none;
+}
+
+#arLed span {
+  width: 0.55rem;
+  height: 0.55rem;
+  border-radius: 50%;
+  background: #ef4444;
+  box-shadow: 0 0 8px #ef4444, 0 0 0 3px rgba(239, 68, 68, 0.22);
+}
+
+#app.is-nav #arLed {
+  top: auto;
+  right: auto;
+  left: 50%;
+  bottom: calc(5.6rem + var(--safe-bottom) + 8px);
+  transform: translateX(-50%);
+}
+
+html:has(#app.is-ar),
+body:has(#app.is-ar),
+#app.is-ar,
+#app.is-ar #kezdolap {
+  background: transparent;
+}
+
+#app.is-ar #arStage {
+  display: block;
+}
+
+#app.is-ar #map {
+  inset: auto;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 65%;
+  z-index: 2;
+  background: rgba(15, 23, 42, 0.28);
+}
+
+#app.is-ar .maplibregl-canvas {
+  opacity: 0.9;
+}
+
+#app.is-ar #banner {
+  background: linear-gradient(180deg, #0b1220f2, #0b1220cc);
+}
+
+#app.is-ar #infoCard {
+  max-width: min(18rem, calc(100% - 96px));
+}
+
+#app.is-ar.is-nav #infoCard {
+  display: none;
+}
+
+#app.is-ar #speedBox {
+  top: auto;
+  bottom: calc(35% + 12px);
+  left: var(--pad);
+  z-index: 22;
+}
+
+#app.is-ar.is-nav #speedBox {
+  top: calc(5.7rem + var(--safe-top));
+  bottom: auto;
+}
+
+#app.is-ar #speed {
+  background: #0b1220ee;
+}
+
+#app.is-ar #placeChip {
+  top: auto;
+  bottom: calc(35% + 5.4rem);
+  left: var(--pad);
+}
+
+#app.is-ar.is-nav #placeChip {
+  top: calc(12.1rem + var(--safe-top));
+  bottom: auto;
+}
+
+#app.is-ar #trip,
+#app.is-ar.is-nav #trip {
+  top: calc(5.7rem + var(--safe-top));
+  right: var(--pad);
+  left: auto;
+  bottom: auto;
+  width: min(16.5rem, 46vw);
+  border-radius: 16px;
+  grid-template-columns: 1fr 1fr auto;
+  gap: 0.3rem;
+  padding: 0.4rem 0.5rem;
+  background: #0b1220ee;
+  box-shadow: var(--shadow);
+}
+
+#app.is-ar #trip > div:nth-child(2) {
+  display: none;
+}
+
+#app.is-ar #fabBar,
+#app.is-ar.is-nav #fabBar {
+  top: auto;
+  bottom: calc(35% + 12px);
+  z-index: 23;
+}
+
+#app.is-ar .peek {
+  display: none;
+}
+
+#app.is-ar.is-ar-full #map {
+  inset: 0;
+  height: 100%;
+}
+
+#app.is-ar.is-ar-full #arStage {
+  display: none;
+}
+
+#app.is-ar.is-ar-full #fabBar,
+#app.is-ar.is-ar-full.is-nav #fabBar {
+  bottom: calc(var(--pad) + var(--safe-bottom));
+}
+
+#app.is-ar.is-ar-full.is-nav #fabBar {
+  bottom: calc(5.6rem + var(--safe-bottom));
+}
+
+#app.is-ar .maplibregl-ctrl-bottom-right,
+#app.is-ar .maplibregl-ctrl-bottom-left {
+  bottom: 6px;
+  right: 6px;
+  left: auto;
+}
+
 .maplibregl-ctrl-attrib {
   font-size: 10px;
 }
@@ -1148,5 +1348,62 @@ noscript {
 
   #kmh {
     font-size: 2.35rem;
+  }
+}
+
+@media (min-width: 720px) {
+  #app.is-ar.is-nav #speedBox {
+    top: calc(6.6rem + var(--safe-top));
+    bottom: auto;
+  }
+
+  #app.is-ar.is-nav #placeChip {
+    top: calc(13.4rem + var(--safe-top));
+    bottom: auto;
+  }
+
+  #app.is-ar.is-nav #trip {
+    top: calc(6.6rem + var(--safe-top));
+    bottom: auto;
+  }
+
+  #app.is-ar.is-nav #fabBar,
+  #app.is-ar #fabBar {
+    bottom: calc(35% + 14px);
+  }
+
+  #app.is-ar.is-ar-full.is-nav #fabBar,
+  #app.is-ar.is-ar-full #fabBar {
+    bottom: calc(6.6rem + var(--safe-bottom));
+  }
+
+  #app.is-ar.is-ar-full:not(.is-nav) #fabBar {
+    bottom: calc(var(--pad) + var(--safe-bottom));
+  }
+}
+
+@media (min-width: 900px) and (min-height: 600px) {
+  #app.is-ar.is-nav #speedBox {
+    top: calc(7.4rem + var(--safe-top));
+    bottom: auto;
+  }
+
+  #app.is-ar.is-nav #trip {
+    top: calc(7.4rem + var(--safe-top));
+    width: min(20rem, 42vw);
+  }
+
+  #app.is-ar.is-nav #fabBar,
+  #app.is-ar #fabBar {
+    bottom: calc(35% + 16px);
+  }
+
+  #app.is-ar.is-ar-full.is-nav #fabBar,
+  #app.is-ar.is-ar-full #fabBar {
+    bottom: calc(7.4rem + var(--safe-bottom));
+  }
+
+  #app.is-ar.is-ar-full:not(.is-nav) #fabBar {
+    bottom: calc(var(--pad) + var(--safe-bottom));
   }
 }
