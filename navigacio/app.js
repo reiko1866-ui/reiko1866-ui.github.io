@@ -2676,9 +2676,8 @@
     }
     if (!state.ar) return;
     state.cameraError = false;
-    state.camBeat = Date.now();
+    state.camBeat = 0;
     applyCamLayout();
-    if (native360Pinned()) return;
     state.camTimer = setInterval(function () {
       if (!state.ar) return;
       if (native360Pinned() || camVideoLive()) {
