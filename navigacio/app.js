@@ -2616,10 +2616,8 @@
   function markCamOk() {
     state.camBeat = Date.now();
     if (!state.ar) return;
-    if (state.cameraError) {
-      state.cameraError = false;
-      applyCamLayout();
-    }
+    state.cameraError = false;
+    applyCamLayout();
   }
 
   function markCamError() {
@@ -2660,7 +2658,12 @@
         markCamOk();
       });
     });
-    ["error", "stalled", "emptied"].forEach(function (ev) {
+    v.addEventListener("error", function () {
+      const root = $("app");
+      if (root) root.classList.remove("has-ar-cam");
+      if (state.ar && !native360Pinned()) markCamError();
+    });
+    ["stalled", "emptied", "suspend"].forEach(function (ev) {
       v.addEventListener(ev, function () {
         const root = $("app");
         if (root) root.classList.remove("has-ar-cam");
@@ -2676,8 +2679,9 @@
     }
     if (!state.ar) return;
     state.cameraError = false;
-    state.camBeat = 0;
+    state.camBeat = Date.now();
     applyCamLayout();
+    if (native360Pinned()) return;
     state.camTimer = setInterval(function () {
       if (!state.ar) return;
       if (native360Pinned() || camVideoLive()) {
