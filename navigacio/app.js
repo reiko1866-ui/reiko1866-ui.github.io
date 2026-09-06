@@ -146,6 +146,9 @@
     spoken: {},
     arrived: false,
     lastCam: 0,
+    view: null,
+    target: null,
+    camHeading: 0,
     lastOff: 0,
     lastGpsWarn: 0,
     gpsHits: 0,
@@ -167,6 +170,7 @@
     lastPlaceAt: 0,
     lastUrban: null,
     lastLimitShown: 0,
+    spokenLimit: 0,
     roadBusy: false,
     spokenRoad: "",
     lastSpeedWarn: 0,
@@ -1022,15 +1026,24 @@
     speakRoad(text);
   }
 
+  function announceLimit(limit) {
+    const n = Number(limit) || 0;
+    if (!n || n === state.spokenLimit) return false;
+    if (!state.navigating || !state.voice) return false;
+    const nv = navVoice();
+    if (nv && nv.isBusy()) return false;
+    state.spokenLimit = n;
+    warnRoad("Sebességhatár " + n, 1, "lim:" + n);
+    return true;
+  }
+
   function maybeSpeakRoad() {
     if (!state.navigating || !state.voice) return;
     const kmh = Math.round((state.speed || 0) * 3.6);
     const limit = Number(state.road && state.road.limit) || 0;
     const nxt = state.limits.length ? nextBoundary(state.traveled) : null;
-    if (nxt && nxt.dist < 420 && nxt.dist > 50) {
-      if (nxt.limit && nxt.limit !== limit) {
-        warnRoad("Sebességhatár " + nxt.limit, 1, "soon:" + nxt.limit);
-      }
+    if (nxt && nxt.dist < 420 && nxt.dist > 50 && nxt.limit && nxt.limit !== limit) {
+      announceLimit(nxt.limit);
     }
     if (limit && kmh > limit + 5 && Date.now() - state.lastSpeedWarn > 22000) {
       const nv = navVoice();
@@ -1143,8 +1156,9 @@
     state.fixRejects = 0;
     state.lastFix = { ll: raw, t: now, speed: speed || 0 };
 
-    if (Number.isFinite(heading)) state.heading = heading;
     if (Number.isFinite(speed) && speed >= 0) state.speed = speed;
+    const kmh = (state.speed || 0) * 3.6;
+    if (Number.isFinite(heading) && kmh >= 5) state.heading = heading;
 
     let display = raw;
     if (state.coords.length) {
@@ -1161,11 +1175,8 @@
         const along = alongLine(state.coords, nextT);
         if (along) display = along;
         const br = snap.bearing;
-        if (
-          Number.isFinite(br) &&
-          (!Number.isFinite(heading) || (speed != null && speed < 2.2) || Math.abs(angDelta(heading, br)) < 55)
-        ) {
-          state.heading = mixHeading(state.heading, br, (state.speed || 0) < 3 ? 0.55 : 0.32);
+        if (kmh >= 5 && Number.isFinite(br) && (!Number.isFinite(heading) || Math.abs(angDelta(heading, br)) < 55)) {
+          state.heading = mixHeading(state.heading, br, 0.38);
         }
       } else if (snap.dist < offRouteLimit() && state.traveled > 0) {
         const along = alongLine(state.coords, state.traveled);
@@ -1180,17 +1191,9 @@
       locateRoad();
     }
 
-    if (!state.puck) {
-      state.puck = new maplibregl.Marker({ element: makeEl("puck"), anchor: "center" })
-        .setLngLat([display.lng, display.lat])
-        .addTo(state.map);
-    } else state.puck.setLngLat([display.lng, display.lat]);
-    const mapBearing = state.map.getBearing();
-    state.puck.setRotation(state.heading - mapBearing);
-    const kmh = Math.round((state.speed || 0) * 3.6);
+    setTarget(display, state.heading);
     $("speed").hidden = false;
-    $("kmh").textContent = String(kmh);
-    updateCamera();
+    $("kmh").textContent = String(Math.round(kmh));
     watchPark(raw, state.speed);
     paintCar();
   }
@@ -1290,13 +1293,15 @@
     src.setData(splitLine(state.coords, state.traveled));
   }
 
-  function updateCamera(force) {
-    if (!state.map || !state.origin || !state.follow) return;
-    const now = performance.now();
-    if (!force && now - state.lastCam < 220) return;
-    state.lastCam = now;
-    const kmh = (state.speed || 0) * 3.6;
-    const zoom = kmh > 110 ? 15 : kmh > 70 ? 15.7 : kmh > 40 ? 16.3 : 17.1;
+  function copyPose(p, heading) {
+    return {
+      lng: p.lng,
+      lat: p.lat,
+      heading: Number.isFinite(heading) ? heading : Number.isFinite(p.heading) ? p.heading : state.heading || 0
+    };
+  }
+
+  function camPad() {
     const banner = $("banner");
     const trip = $("trip");
     const fabs = $("fabBar");
@@ -1308,15 +1313,86 @@
       bottom = trip && !trip.hidden ? Math.round(trip.getBoundingClientRect().height + 12) : 130;
       if (fabs) right = Math.max(0, Math.round(window.innerWidth - fabs.getBoundingClientRect().left + 8));
     }
-    state.map.easeTo({
-      center: [state.origin.lng, state.origin.lat],
-      zoom,
-      pitch: 58,
-      bearing: state.heading,
-      padding: { top, bottom, left: 8, right },
-      duration: force ? 380 : 200,
-      essential: true
-    });
+    return { top: top, bottom: bottom, left: 8, right: right };
+  }
+
+  function placePuck(ll, heading) {
+    if (!state.map || !ll) return;
+    if (!state.puck) {
+      state.puck = new maplibregl.Marker({ element: makeEl("puck"), anchor: "center" })
+        .setLngLat([ll.lng, ll.lat])
+        .addTo(state.map);
+    } else state.puck.setLngLat([ll.lng, ll.lat]);
+    const mapBearing = state.map.getBearing();
+    state.puck.setRotation((Number.isFinite(heading) ? heading : 0) - mapBearing);
+  }
+
+  let smoothRaf = 0;
+  let smoothTs = 0;
+
+  function startSmooth() {
+    if (smoothRaf) return;
+    smoothTs = 0;
+    smoothRaf = requestAnimationFrame(tickSmooth);
+  }
+
+  function setTarget(ll, heading) {
+    if (!ll) return;
+    state.target = copyPose(ll, heading);
+    if (!state.view) state.view = copyPose(state.target);
+    startSmooth();
+  }
+
+  function tickSmooth(ts) {
+    smoothRaf = requestAnimationFrame(tickSmooth);
+    if (!state.map || !state.target) return;
+    const dt = smoothTs ? Math.min(0.08, (ts - smoothTs) / 1000) : 0.016;
+    smoothTs = ts;
+    if (!state.view) state.view = copyPose(state.target);
+    const k = 1 - Math.exp(-dt * 5.2);
+    const v = state.view;
+    const t = state.target;
+    v.lng += (t.lng - v.lng) * k;
+    v.lat += (t.lat - v.lat) * k;
+    const kmh = (state.speed || 0) * 3.6;
+    const remain = haversine(v, t);
+    const turn = Number.isFinite(t.heading) ? Math.abs(angDelta(v.heading, t.heading)) : 0;
+    const headingOk = kmh >= 5 && remain >= 0.8;
+    if (headingOk && turn > 2) {
+      v.heading = mixHeading(v.heading, t.heading, k);
+      state.camHeading = v.heading;
+    } else if (!Number.isFinite(state.camHeading)) {
+      state.camHeading = v.heading || t.heading || 0;
+    } else {
+      v.heading = state.camHeading;
+    }
+    placePuck(v, v.heading);
+    if (!state.follow) return;
+    if (state.lastCam && ts - state.lastCam < 32) return;
+    state.lastCam = ts;
+    const zoom = kmh > 110 ? 15 : kmh > 70 ? 15.7 : kmh > 40 ? 16.3 : 17.1;
+    try {
+      state.map.jumpTo({
+        center: [v.lng, v.lat],
+        zoom: zoom,
+        pitch: 58,
+        bearing: state.camHeading || 0,
+        padding: camPad()
+      });
+    } catch (_e) {}
+  }
+
+  function updateCamera(force) {
+    if (!state.origin) return;
+    setTarget(state.origin, state.heading);
+    if (force && state.target) {
+      state.view = copyPose(state.target);
+      if ((state.speed || 0) * 3.6 >= 5 && Number.isFinite(state.target.heading)) {
+        state.camHeading = state.target.heading;
+        state.view.heading = state.camHeading;
+      }
+      placePuck(state.view, state.view.heading);
+    }
   }
 
   function remaining() {
@@ -1581,9 +1657,7 @@
         if (road.urban === true && state.origin) refreshPlace(state.origin.lat, state.origin.lng);
         else if (road.urban === false) state.place = "";
       }
-      if (limitChanged && road.limit) {
-        warnRoad("Sebességhatár " + road.limit, 1, "now:lim:" + road.limit);
-      }
+      if (limitChanged && road.limit) announceLimit(road.limit);
       state.lastUrban = road.urban;
       state.lastLimitShown = road.limit;
       return;
@@ -1889,6 +1963,7 @@
       else state.traveled = 0;
       state.spoken = {};
       state.spokenRoad = "";
+      state.spokenLimit = 0;
       state.spokenHazard = "";
       state.lastSpeedWarn = 0;
       state.arrived = false;
