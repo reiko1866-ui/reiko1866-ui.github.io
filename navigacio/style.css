@@ -213,7 +213,7 @@ body:has(#app.is-ar),
 }
 
 #app.is-ar .maplibregl-canvas {
-  opacity: 0.9;
+  opacity: 0.72;
 }
 
 #app.is-ar #banner {
