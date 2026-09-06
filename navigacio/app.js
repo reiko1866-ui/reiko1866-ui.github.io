@@ -2556,11 +2556,31 @@
 
   function native360Pinned() {
     try {
-      if (localStorage.getItem(CAM_KEY) === "1") return true;
+      const q = new URLSearchParams(location.search);
+      const raw = q.get("360") || q.get("cam");
+      if (raw === "0") {
+        try {
+          localStorage.removeItem(CAM_KEY);
+        } catch (_e) {}
+        return false;
+      }
+      if (raw === "1") {
+        try {
+          localStorage.setItem(CAM_KEY, "1");
+        } catch (_e) {}
+        return true;
+      }
+      if (raw === "clear") {
+        const app = $("app");
+        if (app) app.classList.add("is-ar-clear");
+        try {
+          localStorage.setItem(CAM_KEY, "1");
+        } catch (_e) {}
+        return true;
+      }
     } catch (_e) {}
     try {
-      const q = new URLSearchParams(location.search);
-      if (q.get("360") === "1" || q.get("cam") === "1") return true;
+      if (localStorage.getItem(CAM_KEY) === "1") return true;
     } catch (_e) {}
     return false;
   }
@@ -2713,6 +2733,14 @@
     ok: markCamOk,
     error: markCamError,
     present: function () {
+      try {
+        localStorage.setItem(CAM_KEY, "1");
+      } catch (_e) {}
+      markCamOk();
+    },
+    clear: function () {
+      const app = $("app");
+      if (app) app.classList.add("is-ar-clear");
       try {
         localStorage.setItem(CAM_KEY, "1");
       } catch (_e) {}

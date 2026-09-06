@@ -119,8 +119,12 @@ button {
   bottom: 0;
   z-index: 3;
   overflow: hidden;
-  background: transparent;
+  background: #000;
   pointer-events: none;
+}
+
+#app.is-ar-clear #arStage {
+  background: transparent;
 }
 
 #arCam {
