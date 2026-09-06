@@ -21,6 +21,42 @@ const VOCABULARY = [
 
 const WEEKDAYS = ["H", "K", "Sze", "Cs", "P", "Szo", "V"];
 
+const LEVELS = [
+  {
+    id: "A0",
+    name: "Kezdő",
+    badge: "🌱",
+    minPoints: 0,
+    minKnown: 0,
+    minSentences: 0,
+    targetPoints: 80,
+    targetKnown: 8,
+    targetSentences: 4
+  },
+  {
+    id: "A1",
+    name: "Alapfok",
+    badge: "🌿",
+    minPoints: 80,
+    minKnown: 8,
+    minSentences: 4,
+    targetPoints: 200,
+    targetKnown: 16,
+    targetSentences: 10
+  },
+  {
+    id: "A2",
+    name: "Elemi",
+    badge: "🌳",
+    minPoints: 200,
+    minKnown: 16,
+    minSentences: 10,
+    targetPoints: 200,
+    targetKnown: 16,
+    targetSentences: 10
+  }
+];
+
 const SENTENCES = [
   { id: "eat-apple", prompt: "Eszem egy almát.", words: ["I", "eat", "an", "apple"], extras: ["a"], icon: "🍏" },
   { id: "drink-water", prompt: "Vizet iszom.", words: ["I", "drink", "water"], extras: ["a"], icon: "💧" },
@@ -56,6 +92,17 @@ const els = {
   profileLevel: document.getElementById("profile-level"),
   profilePoints: document.getElementById("profile-points"),
   profileHint: document.getElementById("profile-hint"),
+  headerLevel: document.getElementById("header-level"),
+  headerLevelBar: document.getElementById("header-level-bar"),
+  levelTitle: document.getElementById("level-title"),
+  levelCopy: document.getElementById("level-copy"),
+  levelBadge: document.getElementById("level-badge"),
+  levelBar: document.getElementById("level-bar"),
+  levelXp: document.getElementById("level-xp"),
+  levelGoals: document.getElementById("level-goals"),
+  levelupModal: document.getElementById("levelup-modal"),
+  levelupCopy: document.getElementById("levelup-copy"),
+  levelupClose: document.getElementById("levelup-close"),
   cardPosition: document.getElementById("card-position"),
   cardTotal: document.getElementById("card-total"),
   deckProgress: document.getElementById("deck-progress"),
@@ -522,6 +569,90 @@ function restartBuilder() {
   startSentence();
 }
 
+function statsNow() {
+  return {
+    points: state.points || 0,
+    known: Object.keys(state.known || {}).length,
+    sentences: Object.keys(state.solvedSentences || {}).length
+  };
+}
+
+function qualifiesFor(level, stats) {
+  return stats.points >= level.minPoints && stats.known >= level.minKnown && stats.sentences >= level.minSentences;
+}
+
+function computeLevel(stats = statsNow()) {
+  let current = LEVELS[0];
+  LEVELS.forEach((level) => {
+    if (qualifiesFor(level, stats)) current = level;
+  });
+  const next = LEVELS[LEVELS.indexOf(current) + 1] || null;
+  const span = next ? Math.max(1, next.minPoints - current.minPoints) : 1;
+  const gained = Math.max(0, stats.points - current.minPoints);
+  const percent = next ? Math.min(100, Math.round((gained / span) * 100)) : 100;
+  return { current, next, percent, stats };
+}
+
+function goalLine(done, label) {
+  return `<li class="flex items-center gap-2 ${done ? "font-semibold text-emerald-700" : ""}">
+    <span>${done ? "✓" : "○"}</span><span>${label}</span>
+  </li>`;
+}
+
+function renderLevel() {
+  const { current, next, percent, stats } = computeLevel();
+  if (state.currentLevel !== current.id) {
+    const previous = state.currentLevel;
+    state.currentLevel = current.id;
+    saveState();
+    if (previous && previous !== current.id && LEVELS.findIndex((l) => l.id === current.id) > LEVELS.findIndex((l) => l.id === previous)) {
+      showLevelUp(current);
+    }
+    syncQuiet(syncProfileToCloud);
+  }
+
+  if (els.headerLevel) els.headerLevel.textContent = `${current.id} · ${current.name}`;
+  if (els.headerLevelBar) els.headerLevelBar.style.width = `${percent}%`;
+  if (els.profileLevel) els.profileLevel.textContent = `${current.id} · ${current.name}`;
+  if (els.profilePoints) els.profilePoints.textContent = `${stats.points} pont`;
+  if (els.levelTitle) els.levelTitle.textContent = `${current.id} · ${current.name}`;
+  if (els.levelBadge) els.levelBadge.textContent = current.badge;
+  if (els.levelBar) els.levelBar.style.width = `${percent}%`;
+  if (els.levelXp) {
+    els.levelXp.textContent = next
+      ? `${stats.points} / ${next.minPoints} pont az ${next.id}-hez`
+      : `${stats.points} pont · a jelenlegi csúcs`;
+  }
+  if (els.levelCopy) {
+    els.levelCopy.textContent = next
+      ? `Még ${Math.max(0, next.minPoints - stats.points)} pont az ${next.id} (${next.name}) szinthez.`
+      : "Szép munka. Tartsd a ritmust.";
+  }
+  if (els.levelGoals) {
+    const target = next || current;
+    els.levelGoals.innerHTML = [
+      goalLine(stats.known >= target.minKnown, `${stats.known} / ${target.minKnown} ismert szó`),
+      goalLine(stats.sentences >= target.minSentences, `${stats.sentences} / ${target.minSentences} mondat`),
+      goalLine(stats.points >= target.minPoints, `${stats.points} / ${target.minPoints} pont`)
+    ].join("");
+  }
+}
+
+function showLevelUp(level) {
+  if (!els.levelupModal) return;
+  if (els.levelupCopy) {
+    els.levelupCopy.textContent = `Mostantól ${level.id} · ${level.name} vagy. Új szavak és mondatok várnak.`;
+  }
+  els.levelupModal.classList.remove("hidden");
+  els.levelupModal.classList.add("flex");
+}
+
+function hideLevelUp() {
+  if (!els.levelupModal) return;
+  els.levelupModal.classList.add("hidden");
+  els.levelupModal.classList.remove("flex");
+}
+
 function greeting() {
   if (state.name) return `Szia, ${state.name}! Folytasd a mai utat.`;
   if (state.todayCount > 0) return "Szép ritmus. Még egy kártya?";
@@ -537,6 +668,7 @@ function renderHeader() {
   if (els.learnerEmail && !els.learnerEmail.value) els.learnerEmail.value = state.email || remoteUser?.email || "";
   if (els.profileLevel) els.profileLevel.textContent = `${state.currentLevel || "A0"} – A1 kezdő`;
   if (els.profilePoints) els.profilePoints.textContent = `${state.points || 0} pont`;
+  renderLevel();
 }
 
 function renderAuth() {
@@ -607,6 +739,7 @@ function renderProgress() {
       <span class="week-dot h-7 w-7 rounded-full ${active ? "bg-teal-600 text-white" : "bg-slate-100 text-slate-400"} ${isToday ? "is-today" : ""} grid place-items-center text-[11px] font-bold">${active ? "✓" : "·"}</span>
     </div>`;
   }).join("");
+  renderLevel();
 }
 
 function showTab(targetBtn) {
@@ -741,6 +874,10 @@ els.builderRestart.addEventListener("click", restartBuilder);
 els.profileBtn.addEventListener("click", openProfile);
 els.profileClose.addEventListener("click", closeProfile);
 els.saveProfile.addEventListener("click", saveProfile);
+els.levelupClose?.addEventListener("click", hideLevelUp);
+els.levelupModal?.addEventListener("click", (event) => {
+  if (event.target === els.levelupModal) hideLevelUp();
+});
 els.authPrimary?.addEventListener("click", () => syncQuiet(handleSignIn));
 els.authRegister?.addEventListener("click", () => syncQuiet(handleRegister));
 els.authSignout?.addEventListener("click", () => syncQuiet(handleSignOut));
