@@ -75,12 +75,15 @@ export default function App() {
     if (!session || !onMap) return;
     if (session.sharing && !session.demo) {
       void startBackgroundUpdates();
-      void activateKeepAwakeAsync('ketten');
+      void activateKeepAwakeAsync('ketten').catch(() => undefined);
     } else {
       void stopBackgroundUpdates();
-      void deactivateKeepAwake('ketten');
     }
-  }, [session, onMap]);
+    return () => {
+      void stopBackgroundUpdates();
+      void deactivateKeepAwake('ketten').catch(() => undefined);
+    };
+  }, [session?.sharing, session?.demo, onMap]);
 
   const updateSession = useCallback(async (next: Session) => {
     setSession(next);
