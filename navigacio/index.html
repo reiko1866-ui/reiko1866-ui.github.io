@@ -16,7 +16,7 @@
     html, body { margin: 0; background: #0F172A; color: #E2E8F0; font-family: system-ui, sans-serif; }
     #kezdolap { position: relative; height: 100dvh; min-height: 100vh; overflow: hidden; background: #0F172A; }
     #map { position: absolute; inset: 0; background: #0F172A; }
-    #app.is-ar #map { inset: auto; top: 0; left: 0; right: 0; height: 65%; }
+    #app.is-ar #map { inset: auto; left: 16px; right: auto; top: auto; bottom: 16px; width: min(42vw, 280px); height: min(28vh, 210px); }
     #infoCard { position: absolute; top: 16px; left: 16px; z-index: 20; max-width: 22rem; padding: 10px 14px; border-radius: 16px; background: rgba(15, 23, 42, 0.72); color: #E2E8F0; }
     #fabBar { position: fixed; right: 16px; bottom: 24px; z-index: 22; display: flex; flex-direction: column; gap: 6px; }
     .fab { width: 44px; height: 44px; border: 0; border-radius: 50%; background: #3B82F6; color: #fff; font-size: 1.1rem; }
@@ -35,7 +35,17 @@
       <div id="map" role="application" aria-label="Térkép"></div>
       <div id="arStage" hidden>
         <video id="arCam" playsinline muted autoplay></video>
-        <p id="arHint">360°</p>
+        <div id="arRoad" hidden aria-hidden="true">
+          <span class="ar-chevron"></span>
+          <span class="ar-chevron"></span>
+          <span class="ar-chevron"></span>
+        </div>
+        <div id="arHud" hidden>
+          <div id="arArrow">↑</div>
+          <p id="arDist"></p>
+          <p id="arStreet"></p>
+        </div>
+        <p id="arHint">Dashcam</p>
       </div>
       <div id="arLed" hidden><span aria-hidden="true"></span>360° Kamera offline</div>
 
@@ -121,7 +131,7 @@
         <li>Felül a kanyartábla: táv, utasítás, utca, alatta a következő kanyar.</li>
         <li>A kereső címlistája: név felül, város/utca alatta. Koppints a találatra — nem az elsőt indítja.</li>
         <li>A kanyarnál a feltöltött hangcsomag szól, egyszerre csak egy hang. Letéréskor újratervez.</li>
-        <li>3D követő kamera, neonkék Európa-térkép (OSM). Offline a letöltött kontinens-térkép. AR / Tesla: felül félig átlátszó 3D műholdas térkép neon útvonallal, alul hely a 360-as kamerának. Ha 3 mp-ig nincs jel, teljes térkép + diszkrét „360° Kamera offline”. A kanyar, a sebesség és az érkezés a térkép sarkaiban van.</li>
+        <li>3D követő kamera, neonkék Európa-térkép (OSM). Offline a letöltött kontinens-térkép. AR Dashcam (Navitel RE5): a 360-as / dashcam kitölti a képernyőt, rá a kanyarnyíl és a sávnyilak, sarokban a mini térkép. Ha 3 mp-ig nincs jel, teljes térkép + „360° Kamera offline”.</li>
         <li>Előrejelzés, következő kanyar, kijárat, sávrajz, sebesség.</li>
         <li>A 698 feltöltött klip mind szól: kanyarnál az utasítás, utána a poén. A Poén fülön külön is hallgathatók.</li>
         <li>Otthon és munka a menüből. Az autó helye mentődik: keresőben Autó, sárga pont a térképen.</li>
@@ -145,7 +155,7 @@
 
     <div id="fabBar">
       <button type="button" id="searchBtn" class="fab" title="Kereső" aria-pressed="false">⌕</button>
-      <button type="button" id="arBtn" class="fab" title="Tesla / 360 nézet" aria-pressed="false">AR</button>
+      <button type="button" id="arBtn" class="fab" title="AR Dashcam" aria-pressed="false">AR</button>
       <button type="button" id="follow" class="fab is-on" title="Pozíció" aria-pressed="true">⌖</button>
       <button type="button" id="hamburgerBtn" class="fab" title="Menü" aria-expanded="false" aria-controls="mobileDrawer">☰</button>
     </div>
@@ -176,8 +186,8 @@
       <p class="hint">A pipák megmaradnak. Ha van cél, az útvonal azonnal újraterveződik autópálya / fizető nélkül. A telefon vissza gombja a menüt zárja, nem az appot.</p>
       <label class="check"><input type="checkbox" id="voiceCheck" checked> Hang</label>
       <label class="check"><input type="checkbox" id="dark"> Sötét térkép</label>
-      <label class="check"><input type="checkbox" id="arCheck"> Tesla / 360 nézet</label>
-      <p class="hint">AR: felül 3D térkép, alul 360-as hely. Ha 3 mp-ig nincs kamerajel, teljes térkép + piros LED. A fejegység <code>Nav360.beat()</code> vagy <code>?360=1</code> jellel tartja a sávot.</p>
+      <label class="check"><input type="checkbox" id="arCheck"> AR Dashcam</label>
+      <p class="hint">AR Dashcam (Navitel RE5): a kamera kitölti a képernyőt, a térkép mini ablak. Ha 3 mp-ig nincs jel, teljes térkép. <code>Nav360.beat()</code> vagy <code>?360=1</code> tartja a kamerát.</p>
       <div id="voiceTest">
         <p class="hint">A csomag poénos GPS-hang. A 698 klip mind szól: kanyarnál az utasítás, utána a poén, autópályán is. Soha nem megy két hang egyszerre. A fájlnév nem számít.</p>
         <input id="voiceBase" type="text" spellcheck="false" placeholder="automatikus" hidden>

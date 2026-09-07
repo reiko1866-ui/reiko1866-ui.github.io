@@ -119,11 +119,8 @@ button {
 #arStage {
   display: none;
   position: absolute;
-  left: 0;
-  right: 0;
-  top: 65%;
-  bottom: 0;
-  z-index: 3;
+  inset: 0;
+  z-index: 2;
   overflow: hidden;
   background: #000;
   pointer-events: none;
@@ -147,18 +144,115 @@ button {
   opacity: 1;
 }
 
+#arRoad {
+  position: absolute;
+  left: 50%;
+  bottom: 16%;
+  width: min(78vw, 420px);
+  height: 44%;
+  transform: translateX(-50%) perspective(480px) rotateX(64deg);
+  transform-origin: 50% 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.55rem;
+}
+
+#arRoad.is-left {
+  transform: translateX(-42%) perspective(480px) rotateX(64deg) rotateZ(-26deg);
+}
+
+#arRoad.is-right {
+  transform: translateX(-58%) perspective(480px) rotateX(64deg) rotateZ(26deg);
+}
+
+#arRoad.is-uturn {
+  transform: translateX(-50%) perspective(480px) rotateX(64deg) rotateZ(-48deg);
+}
+
+.ar-chevron {
+  display: block;
+  width: 46%;
+  height: 1.7rem;
+  background: #3B82F6;
+  clip-path: polygon(50% 0, 100% 62%, 72% 62%, 72% 100%, 28% 100%, 28% 62%, 0 62%);
+  opacity: 0.9;
+  filter: drop-shadow(0 0 14px rgba(59, 130, 246, 0.85));
+  animation: arPulse 1.15s ease-in-out infinite;
+}
+
+.ar-chevron:nth-child(2) {
+  animation-delay: 0.18s;
+  width: 54%;
+}
+
+.ar-chevron:nth-child(3) {
+  animation-delay: 0.36s;
+  width: 62%;
+}
+
+#arRoad.is-now .ar-chevron {
+  background: #f97316;
+  filter: drop-shadow(0 0 16px rgba(249, 115, 22, 0.9));
+}
+
+@keyframes arPulse {
+  0%,
+  100% {
+    opacity: 0.45;
+    transform: translateY(6px);
+  }
+  50% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+#arHud {
+  position: absolute;
+  left: 50%;
+  top: 42%;
+  transform: translate(-50%, -40%);
+  text-align: center;
+  color: #fff;
+  text-shadow: 0 4px 18px #000;
+}
+
+#arArrow {
+  font-size: 5.2rem;
+  line-height: 1;
+  font-weight: 800;
+}
+
+#arDist {
+  margin: 0.15rem 0 0;
+  font-size: 2rem;
+  font-weight: 800;
+}
+
+#arStreet {
+  margin: 0.1rem 0 0;
+  font-size: 1.05rem;
+  font-weight: 700;
+  max-width: 16rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 #arHint {
   margin: 0;
   position: absolute;
   left: 0;
   right: 0;
-  top: 12px;
+  bottom: 10px;
   text-align: center;
-  font-size: 0.78rem;
+  font-size: 0.72rem;
   font-weight: 800;
-  letter-spacing: 0.18em;
+  letter-spacing: 0.16em;
   text-transform: uppercase;
-  color: rgba(226, 232, 240, 0.42);
+  color: rgba(226, 232, 240, 0.45);
   text-shadow: 0 1px 8px #000;
 }
 
@@ -210,16 +304,26 @@ body:has(#app.is-ar),
 
 #app.is-ar #map {
   inset: auto;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 65%;
-  z-index: 2;
+  left: var(--pad);
+  right: auto;
+  top: auto;
+  bottom: calc(var(--pad) + var(--safe-bottom));
+  width: min(44vw, 300px);
+  height: min(30vh, 220px);
+  z-index: 8;
+  border-radius: 18px;
+  overflow: hidden;
   background: #0F172A;
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.45), 0 0 0 2px rgba(255, 255, 255, 0.12);
+  pointer-events: auto;
+}
+
+#app.is-ar.is-nav #map {
+  bottom: calc(5.6rem + var(--safe-bottom));
 }
 
 #app.is-ar .maplibregl-canvas {
-  opacity: 0.88;
+  opacity: 1;
 }
 
 #app.is-ar #banner {
@@ -236,14 +340,15 @@ body:has(#app.is-ar),
 
 #app.is-ar #speedBox {
   top: auto;
-  bottom: calc(35% + 12px);
-  left: var(--pad);
+  bottom: calc(var(--pad) + var(--safe-bottom));
+  left: calc(var(--pad) + min(44vw, 300px) + 10px);
   z-index: 22;
 }
 
 #app.is-ar.is-nav #speedBox {
   top: calc(5.7rem + var(--safe-top));
   bottom: auto;
+  left: var(--pad);
 }
 
 #app.is-ar #speed {
@@ -252,13 +357,14 @@ body:has(#app.is-ar),
 
 #app.is-ar #placeChip {
   top: auto;
-  bottom: calc(35% + 5.4rem);
-  left: var(--pad);
+  bottom: calc(5.4rem + var(--safe-bottom));
+  left: calc(var(--pad) + min(44vw, 300px) + 10px);
 }
 
 #app.is-ar.is-nav #placeChip {
   top: calc(12.1rem + var(--safe-top));
   bottom: auto;
+  left: var(--pad);
 }
 
 #app.is-ar #trip,
@@ -283,8 +389,12 @@ body:has(#app.is-ar),
 #app.is-ar #fabBar,
 #app.is-ar.is-nav #fabBar {
   top: auto;
-  bottom: calc(35% + 12px);
+  bottom: calc(var(--pad) + var(--safe-bottom));
   z-index: 23;
+}
+
+#app.is-ar.is-nav #fabBar {
+  bottom: calc(5.6rem + var(--safe-bottom));
 }
 
 #app.is-ar .peek {
@@ -293,11 +403,19 @@ body:has(#app.is-ar),
 
 #app.is-ar.is-ar-full #map {
   inset: 0;
+  width: auto;
   height: 100%;
+  border-radius: 0;
+  box-shadow: none;
 }
 
 #app.is-ar.is-ar-full #arStage {
   display: none;
+}
+
+#app.is-ar.is-ar-full #speedBox,
+#app.is-ar.is-ar-full #placeChip {
+  left: var(--pad);
 }
 
 #app.is-ar.is-ar-full #fabBar,
@@ -311,8 +429,8 @@ body:has(#app.is-ar),
 
 #app.is-ar .maplibregl-ctrl-bottom-right,
 #app.is-ar .maplibregl-ctrl-bottom-left {
-  bottom: 6px;
-  right: 6px;
+  bottom: 4px;
+  right: 4px;
   left: auto;
 }
 
@@ -1375,7 +1493,15 @@ noscript {
 
   #app.is-ar.is-nav #fabBar,
   #app.is-ar #fabBar {
-    bottom: calc(35% + 14px);
+    bottom: calc(var(--pad) + var(--safe-bottom));
+  }
+
+  #app.is-ar.is-nav #fabBar {
+    bottom: calc(6.6rem + var(--safe-bottom));
+  }
+
+  #app.is-ar.is-nav #map {
+    bottom: calc(6.6rem + var(--safe-bottom));
   }
 
   #app.is-ar.is-ar-full.is-nav #fabBar,
@@ -1401,7 +1527,17 @@ noscript {
 
   #app.is-ar.is-nav #fabBar,
   #app.is-ar #fabBar {
-    bottom: calc(35% + 16px);
+    bottom: calc(var(--pad) + var(--safe-bottom));
+  }
+
+  #app.is-ar.is-nav #fabBar {
+    bottom: calc(7.4rem + var(--safe-bottom));
+  }
+
+  #app.is-ar.is-nav #map {
+    bottom: calc(7.4rem + var(--safe-bottom));
+    width: min(34vw, 360px);
+    height: min(34vh, 260px);
   }
 
   #app.is-ar.is-ar-full.is-nav #fabBar,
