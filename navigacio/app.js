@@ -8,6 +8,8 @@
   const OPTS_KEY = "nav2_opts";
   const AR_KEY = "nav2_ar";
   const CAM_KEY = "nav2_360";
+  const KALAND_KEY = "nav2_kaland";
+  const FUNPOI_KEY = "nav2_funpoi";
   const EMPTY = { type: "FeatureCollection", features: [] };
   const NOMINATIM = "https://nominatim.openstreetmap.org/search";
   const VALHALLA = "https://valhalla1.openstreetmap.de/route";
@@ -181,6 +183,13 @@
     spokenRoad: "",
     lastSpeedWarn: 0,
     lastSpare: 0,
+    kaland: false,
+    funPoi: true,
+    funPois: [],
+    spokenPoi: {},
+    poiAt: 0,
+    poiBusy: false,
+    funChipUntil: 0,
     searchTimer: 0,
     car: null,
     carMark: null,
@@ -1070,9 +1079,159 @@
     if (!state.navigating || !state.voice) return;
     const nv = navVoice();
     if (!nv || nv.isBusy()) return;
-    if (Date.now() - (state.lastSpare || 0) < 90000) return;
+    if (Date.now() - (state.lastSpare || 0) < (state.kaland ? 45000 : 90000)) return;
     state.lastSpare = Date.now();
     nv.playCat("start");
+  }
+
+  const FUN_GAG = {
+    fuel: ["a kocsi is szomjas", "tankolj, mielőtt a poén kifogy"],
+    pub: ["ide most nem térünk be", "söröző. te vezetsz"],
+    bar: ["a GPS nem kér fröccsöt"],
+    cafe: ["a szemednek kell, nem a kocsinak"],
+    restaurant: ["a gyomor navigál, de én a kormány"],
+    fast_food: ["gyorsabban eszel, mint ahogy kanyarodsz"],
+    attraction: ["nézd a műemléket, ne a telefont"],
+    museum: ["a múltat nem ússzuk le"],
+    viewpoint: ["a kilátás szép, a sávot tartsd"],
+    castle: ["nem ostrom, csak elhaladunk"],
+    supermarket: ["tej, kenyér, és egyenesben maradsz"]
+  };
+
+  function poiKindFromTags(tags) {
+    if (!tags) return "";
+    const a = String(tags.amenity || "");
+    const t = String(tags.tourism || "");
+    const h = String(tags.historic || "");
+    const s = String(tags.shop || "");
+    if (a === "fuel") return "fuel";
+    if (a === "pub") return "pub";
+    if (a === "bar") return "bar";
+    if (a === "cafe") return "cafe";
+    if (a === "restaurant") return "restaurant";
+    if (a === "fast_food") return "fast_food";
+    if (t === "attraction") return "attraction";
+    if (t === "museum") return "museum";
+    if (t === "viewpoint") return "viewpoint";
+    if (h === "castle") return "castle";
+    if (s === "supermarket") return "supermarket";
+    return "";
+  }
+
+  function poiGag(kind, name) {
+    const list = FUN_GAG[kind] || ["figyelem, poénos hely"];
+    let n = 0;
+    const s = String(name || kind || "");
+    for (let i = 0; i < s.length; i++) n = (n * 31 + s.charCodeAt(i)) | 0;
+    const gag = list[Math.abs(n) % list.length];
+    return (name ? name + " — " + cap(gag) : cap(gag)) + ".";
+  }
+
+  function showFunChip(text) {
+    const chip = $("placeChip");
+    const chipText = $("placeText");
+    if (!chip || !chipText || !text) return;
+    chip.hidden = false;
+    chipText.textContent = text;
+    chip.classList.add("is-fun");
+    chip.classList.remove("is-town", "is-rural");
+    state.funChipUntil = Date.now() + 9000;
+  }
+
+  function parseOverpassPois(data) {
+    const out = [];
+    (data && data.elements ? data.elements : []).forEach(function (el) {
+      const tags = el.tags || {};
+      const kind = poiKindFromTags(tags);
+      if (!kind) return;
+      const lat = Number(el.lat || (el.center && el.center.lat));
+      const lon = Number(el.lon || (el.center && el.center.lon));
+      if (!Number.isFinite(lat) || !Number.isFinite(lon)) return;
+      out.push({
+        id: String(el.type || "n") + "/" + el.id,
+        lat: lat,
+        lng: lon,
+        kind: kind,
+        name: tags.name || tags["name:hu"] || ""
+      });
+    });
+    return out;
+  }
+
+  function maybeLoadFunPois() {
+    if (!state.funPoi || !state.navigating || !state.origin) return;
+    if (state.poiBusy) return;
+    if (Date.now() - (state.poiAt || 0) < 40000) return;
+    const lat = state.origin.lat;
+    const lng = state.origin.lng;
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
+    state.poiBusy = true;
+    state.poiAt = Date.now();
+    const q =
+      "[out:json][timeout:6];(" +
+      "nwr(around:850," +
+      lat.toFixed(5) +
+      "," +
+      lng.toFixed(5) +
+      ')[amenity~"^(fuel|pub|bar|cafe|restaurant|fast_food)$"];' +
+      "nwr(around:850," +
+      lat.toFixed(5) +
+      "," +
+      lng.toFixed(5) +
+      ')[tourism~"^(attraction|museum|viewpoint)$"];' +
+      "nwr(around:850," +
+      lat.toFixed(5) +
+      "," +
+      lng.toFixed(5) +
+      ")[historic=castle];" +
+      "nwr(around:850," +
+      lat.toFixed(5) +
+      "," +
+      lng.toFixed(5) +
+      ")[shop=supermarket];);out center 28;";
+    fetch("https://overpass-api.de/api/interpreter", {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8" },
+      body: "data=" + encodeURIComponent(q)
+    })
+      .then(function (res) {
+        if (!res.ok) throw new Error("poi");
+        return res.json();
+      })
+      .then(function (data) {
+        state.funPois = parseOverpassPois(data);
+        state.poiBusy = false;
+      })
+      .catch(function () {
+        state.poiBusy = false;
+      });
+  }
+
+  function maybeSpeakFunPoi() {
+    if (!state.funPoi || !state.navigating || !state.origin) return;
+    if (state.funChipUntil && Date.now() < state.funChipUntil - 4000) return;
+    const here = state.origin;
+    let best = null;
+    let bestD = 90;
+    (state.funPois || []).forEach(function (p) {
+      if (state.spokenPoi[p.id]) return;
+      const d = haversine(here, p);
+      if (d < bestD) {
+        best = p;
+        bestD = d;
+      }
+    });
+    if (!best) return;
+    state.spokenPoi[best.id] = true;
+    const line = poiGag(best.kind, best.name);
+    showFunChip(line);
+    if (!state.voice) return;
+    const nv = navVoice();
+    if (nv && nv.isBusy()) return;
+    if (nv) {
+      nv.playCat("start");
+      state.lastSpare = Date.now();
+    }
   }
 
   function nearestFull(coords, point) {
@@ -1202,6 +1361,8 @@
     $("kmh").textContent = String(Math.round(kmh));
     watchPark(raw, state.speed);
     paintCar();
+    maybeLoadFunPois();
+    maybeSpeakFunPoi();
   }
 
   function setDest(lngLat, label) {
@@ -1390,6 +1551,39 @@
     }
     if (state.coords.length) drawRoute();
     paintCar();
+    applyRouteStyle();
+  }
+
+  function routeColors() {
+    if (state.kaland) {
+      return {
+        glow: "#FBBF24",
+        stops: [0, "#FDE68A", 0.45, "#F59E0B", 1, "#F97316"]
+      };
+    }
+    return {
+      glow: "#38BDF8",
+      stops: [0, "#7DD3FC", 0.45, "#3B82F6", 1, "#22D3EE"]
+    };
+  }
+
+  function applyRouteStyle() {
+    if (!state.map || !state.map.getLayer("route-line")) return;
+    const c = routeColors();
+    try {
+      state.map.setPaintProperty("route-glow", "line-color", c.glow);
+      state.map.setPaintProperty("route-line", "line-gradient", [
+        "interpolate",
+        ["linear"],
+        ["line-progress"],
+        c.stops[0],
+        c.stops[1],
+        c.stops[2],
+        c.stops[3],
+        c.stops[4],
+        c.stops[5]
+      ]);
+    } catch (_e) {}
   }
 
   function drawRoute() {
@@ -1668,7 +1862,8 @@
     const chip = $("placeChip");
     const chipText = $("placeText");
     const label = placeLabel(urban, state.place);
-    if (chip && chipText) {
+    if (chip && chipText && !(state.funChipUntil && Date.now() < state.funChipUntil)) {
+      chip.classList.remove("is-fun");
       chip.hidden = !label;
       chipText.textContent = label;
       chip.classList.toggle("is-town", urban === true);
@@ -1859,7 +2054,7 @@
 
   function routeOpts() {
     return {
-      avoidMotorway: !!( $("avoidMotorway") && $("avoidMotorway").checked ),
+      avoidMotorway: !!( ($("avoidMotorway") && $("avoidMotorway").checked) || state.kaland ),
       avoidToll: !!( $("avoidToll") && $("avoidToll").checked )
     };
   }
@@ -1874,6 +2069,7 @@
 
   function avoidStatus(reroute) {
     const o = routeOpts();
+    if (state.kaland) return reroute ? "Kaland: újratervezés autópálya nélkül…" : "Kaland útvonal…";
     if (o.avoidMotorway && o.avoidToll) return reroute ? "Újratervezés autópálya és fizető nélkül…" : "Autópálya és fizető nélkül…";
     if (o.avoidMotorway) return reroute ? "Újratervezés autópálya nélkül…" : "Autópálya nélkül…";
     if (o.avoidToll) return reroute ? "Újratervezés fizető nélkül…" : "Fizető út nélkül…";
@@ -2113,7 +2309,9 @@
       if (reroute) {
         const o = routeOpts();
         setStatus(
-          o.avoidMotorway && o.avoidToll
+          state.kaland
+            ? "Kaland útvonal, autópálya nélkül."
+            : o.avoidMotorway && o.avoidToll
             ? "Útvonal autópálya és fizető nélkül."
             : o.avoidMotorway
               ? "Útvonal autópálya nélkül."
@@ -2157,9 +2355,12 @@
     $("follow").classList.add("is-on");
     $("follow").setAttribute("aria-pressed", "true");
     state.spoken = {};
+    state.spokenPoi = {};
+    state.funPois = [];
+    state.poiAt = 0;
     armVoice();
     hushSpeech();
-    setStatus("Navigáció");
+    setStatus(state.kaland ? "Kaland mód" : "Navigáció");
     hushSpeech();
     playWarnBeep(1);
     const nv = navVoice();
@@ -2170,6 +2371,7 @@
     updateRoadFromRoute();
     updateCamera(true);
     paintArHud();
+    maybeLoadFunPois();
     armWake();
   }
 
@@ -2227,6 +2429,10 @@
       setStatus("Megérkeztél");
     }
     paintArHud();
+    state.funPois = [];
+    state.spokenPoi = {};
+    state.funChipUntil = 0;
+    if ($("placeChip")) $("placeChip").classList.remove("is-fun");
     if (state.lastFix && state.lastFix.ll) saveCar(state.lastFix.ll);
     else if (state.origin) saveCar(state.origin);
     state.drove = false;
@@ -2494,10 +2700,56 @@
       if ($("avoidMotorway") && o.avoidMotorway) $("avoidMotorway").checked = true;
       if ($("avoidToll") && o.avoidToll) $("avoidToll").checked = true;
     } catch (_e) {}
+    try {
+      state.kaland = localStorage.getItem(KALAND_KEY) === "1";
+      if ($("kalandCheck")) $("kalandCheck").checked = state.kaland;
+      if ($("app")) $("app").classList.toggle("is-kaland", state.kaland);
+    } catch (_e2) {}
+    try {
+      const fun = localStorage.getItem(FUNPOI_KEY);
+      state.funPoi = fun !== "0";
+      if ($("funPoiCheck")) $("funPoiCheck").checked = state.funPoi;
+    } catch (_e3) {}
   }
 
   function saveNavOpts() {
-    localStorage.setItem(OPTS_KEY, JSON.stringify(routeOpts()));
+    localStorage.setItem(
+      OPTS_KEY,
+      JSON.stringify({
+        avoidMotorway: !!( $("avoidMotorway") && $("avoidMotorway").checked ),
+        avoidToll: !!( $("avoidToll") && $("avoidToll").checked )
+      })
+    );
+  }
+
+  function applyKaland(on) {
+    state.kaland = !!on;
+    try {
+      localStorage.setItem(KALAND_KEY, state.kaland ? "1" : "0");
+    } catch (_e) {}
+    const app = $("app");
+    const check = $("kalandCheck");
+    if (app) app.classList.toggle("is-kaland", state.kaland);
+    if (check) check.checked = state.kaland;
+    applyRouteStyle();
+    setStatus(state.kaland ? "Kaland mód be" : "Kaland mód ki");
+    if (state.origin && state.dest) plan(true);
+  }
+
+  function applyFunPoi(on) {
+    state.funPoi = !!on;
+    try {
+      localStorage.setItem(FUNPOI_KEY, state.funPoi ? "1" : "0");
+    } catch (_e) {}
+    const check = $("funPoiCheck");
+    if (check) check.checked = state.funPoi;
+    if (!state.funPoi) {
+      state.funPois = [];
+      state.funChipUntil = 0;
+    } else if (state.navigating) {
+      state.poiAt = 0;
+      maybeLoadFunPois();
+    }
   }
 
   function loadPlaces() {
@@ -3103,6 +3355,17 @@
         if (state.origin && state.dest) plan(true);
       });
     });
+    if ($("kalandCheck")) {
+      $("kalandCheck").addEventListener("change", function () {
+        applyKaland($("kalandCheck").checked);
+      });
+    }
+    if ($("funPoiCheck")) {
+      $("funPoiCheck").addEventListener("change", function () {
+        applyFunPoi($("funPoiCheck").checked);
+        setStatus(state.funPoi ? "Poénos POI be" : "Poénos POI ki");
+      });
+    }
   }
 
   function loadScript(src) {
