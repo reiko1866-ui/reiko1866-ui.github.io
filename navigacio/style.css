@@ -892,8 +892,9 @@ html.dark #results button.is-shortcut .result-title {
   background: rgba(22, 101, 52, 0.88);
 }
 
-#placeChip.is-rural {
-  background: rgba(30, 41, 59, 0.88);
+#placeChip.is-fun {
+  background: rgba(180, 83, 9, 0.92);
+  max-width: min(22rem, calc(100% - 96px));
 }
 
 #roadThen,
