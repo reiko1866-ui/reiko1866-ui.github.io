@@ -1442,7 +1442,7 @@
       if (r.left > 0) right = Math.max(8, Math.round(window.innerWidth - r.left + 6));
     }
     if (state.ar) {
-      return { top: 0, bottom: Math.round(h * 0.18), left: 8, right: 8 };
+      return { top: 6, bottom: 10, left: 6, right: 6 };
     }
     let bottom = Math.round(h * 0.26);
     if (state.navigating && trip && !trip.hidden) {
@@ -2605,7 +2605,76 @@
 
   function paintArHud() {
     const hint = $("arHint");
-    if (hint) hint.textContent = "360°";
+    const hud = $("arHud");
+    const arrow = $("arArrow");
+    const dist = $("arDist");
+    const street = $("arStreet");
+    const road = $("arRoad");
+    if (hint) hint.textContent = camVideoLive() ? "Dashcam" : "360°";
+    if (!state.ar || !state.navigating) {
+      if (hud) hud.hidden = true;
+      if (road) road.hidden = true;
+      return;
+    }
+    const cur = nextActionable();
+    if (!cur || !cur.kind) {
+      if (hud) hud.hidden = true;
+      if (road) road.hidden = true;
+      return;
+    }
+    const kind = cur.kind;
+    const soon = cur.until <= Math.min(90, warnMeters(kind));
+    if (hud) hud.hidden = false;
+    if (arrow) arrow.textContent = kind.icon || "↑";
+    if (dist) dist.textContent = fmtTurnDist(cur.until);
+    if (street) street.textContent = kind.street || kind.label || "";
+    if (road) {
+      road.hidden = kind.cat === "arrive";
+      road.classList.toggle("is-left", /left|uturn/i.test(kind.cat || ""));
+      road.classList.toggle("is-right", /right/i.test(kind.cat || "") || kind.cat === "roundabout");
+      road.classList.toggle("is-uturn", kind.cat === "uturn");
+      road.classList.toggle("is-now", soon);
+    }
+  }
+
+  function tryDashcam() {
+    if (!state.ar || native360Pinned()) return;
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) return;
+    if (camVideoLive()) return;
+    function start() {
+      if (!state.ar) return;
+      navigator.mediaDevices
+        .getUserMedia({
+          video: { facingMode: { ideal: "environment" }, width: { ideal: 1280 }, height: { ideal: 720 } },
+          audio: false
+        })
+        .then(function (stream) {
+          if (!state.ar) {
+            stream.getTracks().forEach(function (t) {
+              t.stop();
+            });
+            return;
+          }
+          const v = $("arCam");
+          if (v) {
+            v.srcObject = stream;
+            const play = v.play();
+            if (play && play.catch) play.catch(function () {});
+          }
+          const root = $("app");
+          if (root) root.classList.add("has-ar-cam");
+          markCamOk();
+        })
+        .catch(function () {});
+    }
+    if (navigator.permissions && navigator.permissions.query) {
+      navigator.permissions
+        .query({ name: "camera" })
+        .then(function (st) {
+          if (st.state === "granted") start();
+        })
+        .catch(function () {});
+    }
   }
 
   function native360Pinned() {
@@ -2692,6 +2761,11 @@
       try {
         v.pause();
       } catch (_e) {}
+      if (v.srcObject && v.srcObject.getTracks) {
+        v.srcObject.getTracks().forEach(function (t) {
+          t.stop();
+        });
+      }
       v.removeAttribute("src");
       v.srcObject = null;
     }
@@ -2735,6 +2809,7 @@
     state.cameraError = false;
     state.camBeat = Date.now();
     applyCamLayout();
+    tryDashcam();
     if (native360Pinned()) return;
     state.camTimer = setInterval(function () {
       if (!state.ar) return;
@@ -2765,6 +2840,7 @@
     }
     if (check) check.checked = state.ar;
     if (state.ar) {
+      if (app) app.classList.add("is-ar-clear");
       state.follow = true;
       if ($("follow")) {
         $("follow").classList.add("is-on");
@@ -2774,6 +2850,7 @@
       watchCam();
     } else {
       stopCamWatch();
+      if (app) app.classList.remove("is-ar-clear");
       if ($("arStage")) $("arStage").hidden = true;
     }
     if (state.map) {
