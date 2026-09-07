@@ -12,7 +12,27 @@ A helyzet egy saját, kicsi relé-szerveren keresztül megy: csak az a két eszk
 - Próba mód egyedül (szerver nélkül)
 - Előtérben működik Expo Go-val; háttérbeli követéshez később development build kell
 
-## Gyors indítás (ugyanazon a Wi-Fi-n)
+## Telefonon kipróbálás
+
+A relé a webes appot is kiszolgálja. Indítsd:
+
+```bash
+cd ketten
+npm install
+npm run relay
+```
+
+Nyisd meg a telefonon: `http://<a-géped-LAN-IP-je>:8787`
+
+Távolról (HTTPS kell a GPS-hez) tedd ki alagúttal, például:
+
+```bash
+cloudflared tunnel --url http://127.0.0.1:8787
+```
+
+A kapott `https://…trycloudflare.com` címet nyissátok meg mindkét telefonon. Az egyik **Pár létrehozása**, a másik a kóddal csatlakozik.
+
+## Gyors indítás Expo Go-val (ugyanazon a Wi-Fi-n)
 
 Két terminál:
 

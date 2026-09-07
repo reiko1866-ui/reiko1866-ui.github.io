@@ -42,5 +42,7 @@ yarn-error.*
 
 # relay persistence
 server/data/
-ketten/.claude/
-ketten/CLAUDE.md
+
+# template leftovers
+.claude/
+CLAUDE.md

@@ -9,6 +9,45 @@ const { createStore } = require('./rooms.js');
 const PORT = Number(process.env.PORT || 8787);
 const HOST = process.env.HOST || '0.0.0.0';
 const DATA_FILE = process.env.KETTEN_DATA_FILE || path.join(__dirname, 'data', 'pairs.json');
+const PUBLIC_DIR = path.join(__dirname, '..', 'public');
+
+function contentType(filePath) {
+  switch (path.extname(filePath).toLowerCase()) {
+    case '.html':
+      return 'text/html; charset=utf-8';
+    case '.js':
+      return 'text/javascript; charset=utf-8';
+    case '.css':
+      return 'text/css; charset=utf-8';
+    case '.json':
+      return 'application/json; charset=utf-8';
+    case '.webmanifest':
+      return 'application/manifest+json; charset=utf-8';
+    case '.png':
+      return 'image/png';
+    case '.svg':
+      return 'image/svg+xml';
+    default:
+      return 'application/octet-stream';
+  }
+}
+
+function tryStatic(url, res) {
+  let reqPath = decodeURIComponent(url.pathname);
+  if (reqPath === '/') reqPath = '/index.html';
+  const abs = path.normalize(path.join(PUBLIC_DIR, reqPath));
+  if (!abs.startsWith(PUBLIC_DIR)) return false;
+  if (!fs.existsSync(abs) || fs.statSync(abs).isDirectory()) return false;
+  const body = fs.readFileSync(abs);
+  res.writeHead(200, {
+    'Content-Type': contentType(abs),
+    'Content-Length': body.length,
+    'Cache-Control': 'no-store',
+    'Access-Control-Allow-Origin': '*',
+  });
+  res.end(body);
+  return true;
+}
 
 const store = createStore();
 /** @type {Map<string, { ws: import('ws').WebSocket, pairCode: string | null, deviceId: string | null }>} */
@@ -173,6 +212,8 @@ const server = http.createServer(async (req, res) => {
       json(res, 200, result);
       return;
     }
+
+    if (req.method === 'GET' && tryStatic(url, res)) return;
 
     json(res, 404, { error: 'Not found' });
   } catch (err) {

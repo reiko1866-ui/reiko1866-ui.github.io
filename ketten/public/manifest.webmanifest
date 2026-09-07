@@ -1,0 +1,9 @@
+{
+  "name": "Ketten",
+  "short_name": "Ketten",
+  "display": "standalone",
+  "start_url": "./",
+  "background_color": "#10141A",
+  "theme_color": "#10141A",
+  "lang": "hu"
+}
