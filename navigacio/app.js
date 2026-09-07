@@ -1417,8 +1417,8 @@
 
   function lookAheadMeters() {
     const kmh = (state.speed || 0) * 3.6;
-    if (state.ar) return Math.max(24, Math.min(80, 24 + kmh * 0.5));
-    return Math.max(36, Math.min(150, 40 + kmh * 0.85));
+    if (state.ar) return Math.max(48, Math.min(120, 48 + kmh * 0.7));
+    return Math.max(55, Math.min(180, 55 + kmh * 1.05));
   }
 
   function lookAhead(from, heading) {
@@ -1442,9 +1442,9 @@
       if (r.left > 0) right = Math.max(8, Math.round(window.innerWidth - r.left + 6));
     }
     if (state.ar) {
-      return { top: 4, bottom: Math.round(h * 0.3), left: 10, right: 10 };
+      return { top: 0, bottom: Math.round(h * 0.18), left: 8, right: 8 };
     }
-    let bottom = Math.round(h * 0.34);
+    let bottom = Math.round(h * 0.26);
     if (state.navigating && trip && !trip.hidden) {
       bottom = Math.max(bottom, Math.round(trip.getBoundingClientRect().height + 12));
     }
@@ -1513,7 +1513,7 @@
       state.map.jumpTo({
         center: [ahead.lng, ahead.lat],
         zoom: zoom,
-        pitch: state.ar ? 60 : 50,
+        pitch: state.ar ? 48 : 42,
         bearing: state.camHeading || 0,
         padding: camPad()
       });
@@ -2838,7 +2838,7 @@
       style: dark ? STYLES.dark : STYLES.light,
       center: BUDAPEST,
       zoom: 13.5,
-      pitch: 48,
+      pitch: 42,
       maxPitch: 85,
       attributionControl: true
     });
