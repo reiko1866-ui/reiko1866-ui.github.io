@@ -1319,8 +1319,39 @@
     }
   }
 
+  function applySky() {
+    if (!state.map) return;
+    const dark = document.documentElement.classList.contains("dark") || localStorage.getItem(THEME_KEY) !== "light";
+    const sky = dark ? "#0B1220" : "#64748b";
+    const horizon = dark ? "#0F172A" : "#94a3b8";
+    try {
+      if (typeof state.map.setSky === "function") {
+        state.map.setSky({
+          "sky-color": sky,
+          "horizon-color": horizon,
+          "fog-color": sky,
+          "sky-horizon-blend": 0.5,
+          "horizon-fog-blend": 0.85,
+          "fog-ground-blend": 0.45
+        });
+      }
+    } catch (_e) {}
+    try {
+      if (typeof state.map.setFog === "function") {
+        state.map.setFog({
+          color: sky,
+          "high-color": sky,
+          "space-color": sky,
+          "horizon-blend": 0.12,
+          range: [0.8, 12]
+        });
+      }
+    } catch (_e2) {}
+  }
+
   function addLayers() {
     if (!state.map || !state.map.isStyleLoaded()) return;
+    applySky();
     syncSatellite();
     if (!state.map.getSource("route")) {
       state.map.addSource("route", { type: "geojson", data: EMPTY, lineMetrics: true });
@@ -1375,27 +1406,49 @@
     };
   }
 
+  function offsetLngLat(ll, heading, meters) {
+    if (!ll || !Number.isFinite(meters) || meters === 0) return ll;
+    const rad = toRad(Number.isFinite(heading) ? heading : 0);
+    const dLat = (meters * Math.cos(rad)) / 111320;
+    const cos = Math.cos(toRad(ll.lat)) || 1;
+    const dLng = (meters * Math.sin(rad)) / (111320 * cos);
+    return { lng: ll.lng + dLng, lat: ll.lat + dLat };
+  }
+
+  function lookAheadMeters() {
+    const kmh = (state.speed || 0) * 3.6;
+    if (state.ar) return Math.max(24, Math.min(80, 24 + kmh * 0.5));
+    return Math.max(36, Math.min(150, 40 + kmh * 0.85));
+  }
+
+  function lookAhead(from, heading) {
+    if (!from) return from;
+    const m = lookAheadMeters();
+    if (state.navigating && state.coords.length) {
+      const p = alongLine(state.coords, (state.traveled || 0) + m);
+      if (p) return p;
+    }
+    return offsetLngLat(from, heading, m);
+  }
+
   function camPad() {
-    const banner = $("banner");
-    const trip = $("trip");
+    const box = state.map ? state.map.getContainer() : null;
+    const h = box ? box.clientHeight : window.innerHeight;
     const fabs = $("fabBar");
-    let top = 20;
-    let bottom = 40;
-    let right = 0;
+    const trip = $("trip");
+    let right = 8;
+    if (fabs) {
+      const r = fabs.getBoundingClientRect();
+      if (r.left > 0) right = Math.max(8, Math.round(window.innerWidth - r.left + 6));
+    }
     if (state.ar) {
-      const banner = $("banner");
-      const top =
-        state.navigating && banner && !banner.hidden
-          ? Math.min(170, Math.round(banner.getBoundingClientRect().height + 10))
-          : 16;
-      return { top: top, bottom: 28, left: 70, right: 70 };
+      return { top: 4, bottom: Math.round(h * 0.3), left: 10, right: 10 };
     }
-    if (state.navigating) {
-      top = banner && !banner.hidden ? Math.round(banner.getBoundingClientRect().height + 12) : 150;
-      bottom = trip && !trip.hidden ? Math.round(trip.getBoundingClientRect().height + 12) : 130;
-      if (fabs) right = Math.max(0, Math.round(window.innerWidth - fabs.getBoundingClientRect().left + 8));
+    let bottom = Math.round(h * 0.34);
+    if (state.navigating && trip && !trip.hidden) {
+      bottom = Math.max(bottom, Math.round(trip.getBoundingClientRect().height + 12));
     }
-    return { top: top, bottom: bottom, left: 8, right: right };
+    return { top: 6, bottom: bottom, left: 8, right: right };
   }
 
   function placePuck(ll, heading) {
@@ -1453,13 +1506,14 @@
     if (state.lastCam && ts - state.lastCam < 32) return;
     state.lastCam = ts;
     const zoom = state.ar
-      ? kmh > 90 ? 16 : 16.7
-      : kmh > 110 ? 15 : kmh > 70 ? 15.7 : kmh > 40 ? 16.3 : 17.1;
+      ? kmh > 90 ? 15.6 : 16.2
+      : kmh > 110 ? 14.6 : kmh > 70 ? 15.3 : kmh > 40 ? 15.9 : 16.6;
+    const ahead = lookAhead(v, v.heading);
     try {
       state.map.jumpTo({
-        center: [v.lng, v.lat],
+        center: [ahead.lng, ahead.lat],
         zoom: zoom,
-        pitch: state.ar ? 74 : 58,
+        pitch: state.ar ? 60 : 50,
         bearing: state.camHeading || 0,
         padding: camPad()
       });
@@ -2784,7 +2838,7 @@
       style: dark ? STYLES.dark : STYLES.light,
       center: BUDAPEST,
       zoom: 13.5,
-      pitch: 50,
+      pitch: 48,
       maxPitch: 85,
       attributionControl: true
     });

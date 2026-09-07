@@ -108,6 +108,12 @@ button {
 #map {
   position: absolute;
   inset: 0;
+  background: #0F172A;
+}
+
+.maplibregl-canvas-container,
+.maplibregl-canvas {
+  background: #0F172A;
 }
 
 #arStage {
@@ -209,11 +215,11 @@ body:has(#app.is-ar),
   right: 0;
   height: 65%;
   z-index: 2;
-  background: rgba(15, 23, 42, 0.28);
+  background: #0F172A;
 }
 
 #app.is-ar .maplibregl-canvas {
-  opacity: 0.72;
+  opacity: 0.88;
 }
 
 #app.is-ar #banner {
