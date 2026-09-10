@@ -42,6 +42,7 @@
     targetPos: { lat: BUDAPEST[1], lng: BUDAPEST[0], bearing: 0 },
     activeRoute: null,
     selectedCar: readSelectedCar(),
+    snappedPosition: null,
     triggeredPois: new Set(),
     speed: 0,
     accuracy: 0
@@ -193,7 +194,7 @@
     ignorePop: false,
     places: { home: null, work: null },
     limits: [],
-    road: { limit: 0, urban: null, cls: "", start: 0, end: 0 },
+    road: { limit: 0, urban: null, cls: "", start: 0, end: 0, posted: false },
     place: "",
     snapI: 1,
     routeLen: 0,
@@ -1094,14 +1095,24 @@
 
   function maybeSpeakRoad() {
     if (!state.navigating || !state.voice) return;
-    const kmh = Math.round((state.speed || 0) * 3.6);
+    if (!isSnappedToRoute()) return;
+    if (guidanceBlocking()) return;
+    const kmh = Math.round((state.speed || AppState.speed || 0) * 3.6);
+    const posted = !!(state.road && state.road.posted);
     const limit = Number(state.road && state.road.limit) || 0;
-    if (limit && kmh > limit + 8 && Date.now() - state.lastSpeedWarn > 28000) {
+    if (!posted || !limit) return;
+    if (kmh > limit + 5 && Date.now() - state.lastSpeedWarn > 28000) {
       const nv = navVoice();
-      if (!(nv && nv.isBusy())) {
-        state.lastSpeedWarn = Date.now();
-        playWarnBeep(3);
-        if (nv) nv.playCat("speed");
+      if (nv && nv.isBusy()) return;
+      state.lastSpeedWarn = Date.now();
+      playWarnBeep(3);
+      if (nv) nv.playCat("speed");
+      if (state.funPoi || state.kaland) {
+        const id = "man:speed:" + limit;
+        if (!AppState.triggeredPois.has(id)) {
+          AppState.triggeredPois.add(id);
+          showFunChip("Túllépés: " + Math.round(kmh) + " a " + limit + " helyett.");
+        }
       }
     }
   }
@@ -1119,6 +1130,66 @@
     castle: ["nem ostrom, csak elhaladunk"],
     supermarket: ["tej, kenyér, és egyenesben maradsz"]
   };
+
+  const MANEUVER_GAG = {
+    roundabout: [
+      "körforgalom. számold a kijáratot, ne a viccet",
+      "a körforgalom nem körhinta",
+      "kijárat, nem körbe-körbe"
+    ],
+    sharp: [
+      "éles kanyar. a gyomor maradjon a helyén",
+      "meredek vagy éles: fogd a kormányt, ne a poént",
+      "élesen. a járdát hagyd békén"
+    ]
+  };
+
+  function maneuverGagLine(theme) {
+    const list = MANEUVER_GAG[theme];
+    if (!list || !list.length) return "";
+    return cap(list[Math.floor(Math.random() * list.length)]) + ".";
+  }
+
+  function gagThemeForStep(step, kind) {
+    const type = String((step && step.maneuver && step.maneuver.type) || "").toLowerCase();
+    const mod = String((step && step.maneuver && step.maneuver.modifier) || "").toLowerCase();
+    if (type.includes("roundabout") || type.includes("rotary")) return "roundabout";
+    if (kind && (kind.cat === "leftSharp" || kind.cat === "rightSharp")) return "sharp";
+    if (mod.includes("sharp")) return "sharp";
+    return "";
+  }
+
+  let gagTimer = 0;
+
+  function queueManeuverGag(id, line) {
+    if (!line || AppState.triggeredPois.has(id)) return;
+    AppState.triggeredPois.add(id);
+    showFunChip(line);
+    if (gagTimer) return;
+    gagTimer = window.setTimeout(function () {
+      gagTimer = 0;
+      if (!state.navigating || !(state.funPoi || state.kaland)) return;
+      if (!isSnappedToRoute()) return;
+      if (navVoiceBusy() || guidanceBlocking()) return;
+      const nv = navVoice();
+      const files = poenFiles();
+      if (!nv || !files.length) return;
+      nv.playJokes([files[Math.floor(Math.random() * files.length)]], 0);
+    }, 1600);
+  }
+
+  function maybeSpeakManeuverGag(cur) {
+    if (!state.navigating || !(state.funPoi || state.kaland)) return;
+    if (!cur || !cur.kind || !cur.step) return;
+    if (!isSnappedToRoute()) return;
+    if (!already(cur.index, "now")) return;
+    if (cur.until > 95) return;
+    if (navVoiceBusy() || guidanceBlocking()) return;
+    const theme = gagThemeForStep(cur.step, cur.kind);
+    if (!theme) return;
+    const id = "man:" + cur.index + ":" + theme;
+    queueManeuverGag(id, maneuverGagLine(theme));
+  }
 
   function poiKindFromTags(tags) {
     if (!tags) return "";
@@ -1234,6 +1305,7 @@
 
   function maybeSpeakFunPoi(lat, lng) {
     if (!state.funPoi) return;
+    if (state.navigating) return;
     const here =
       Number.isFinite(lat) && Number.isFinite(lng)
         ? { lat: lat, lng: lng }
@@ -1286,6 +1358,7 @@
 
   function speakGuidance(kind) {
     if (!state.voice || !kind || kind.skip) return;
+    if (!isSnappedToRoute()) return;
     hushSpeech();
     const nv = navVoice();
     if (nv) nv.playCat(kind.cat);
@@ -1329,6 +1402,49 @@
     return Math.max(snapLimit() + 8, (state.speed || 0) > 22 ? 80 : 45);
   }
 
+  function snappedPosition() {
+    if (!state.coords.length) {
+      AppState.snappedPosition = null;
+      return null;
+    }
+    const snap = state.lastSnap;
+    if (!snap || !Number.isFinite(snap.dist) || snap.dist > snapLimit()) {
+      AppState.snappedPosition = null;
+      return null;
+    }
+    const along = alongLine(state.coords, snap.traveled);
+    if (!along || !Number.isFinite(along.lat) || !Number.isFinite(along.lng)) {
+      AppState.snappedPosition = null;
+      return null;
+    }
+    const pos = {
+      lat: along.lat,
+      lng: along.lng,
+      dist: snap.dist,
+      traveled: snap.traveled,
+      bearing: snap.bearing
+    };
+    AppState.snappedPosition = pos;
+    return pos;
+  }
+
+  function isSnappedToRoute() {
+    return !!snappedPosition();
+  }
+
+  function navVoiceBusy() {
+    const nv = navVoice();
+    return !!(nv && nv.isBusy());
+  }
+
+  function guidanceBlocking() {
+    if (navVoiceBusy()) return true;
+    if (!state.navigating) return false;
+    const cur = nextActionable();
+    if (!cur || !cur.kind || cur.kind.skip) return false;
+    return cur.until <= warnMeters(cur.kind) && !already(cur.index, "now");
+  }
+
   function plausibleJump(prev, next, acc) {
     if (!prev || !prev.ll) return true;
     const dt = (next.t - prev.t) / 1000;
@@ -1353,6 +1469,7 @@
     if (state.coords.length) {
       const snap = nearest(state.coords, display);
       state.lastSnap = snap;
+      snappedPosition();
       const onRoad = snap.dist < snapLimit();
       if (onRoad) {
         const prevT = state.traveled || 0;
@@ -1378,6 +1495,7 @@
     } else {
       state.origin = display;
       locateRoad();
+      AppState.snappedPosition = null;
     }
 
     $("speed").hidden = false;
@@ -1875,7 +1993,7 @@
     if (now - lastPoiTick > 400) {
       lastPoiTick = now;
       maybeLoadFunPois();
-      maybeSpeakFunPoi(cur.lat, cur.lng);
+      if (!state.navigating) maybeSpeakFunPoi(cur.lat, cur.lng);
     }
     if (now - lastOffTick > 400) {
       lastOffTick = now;
@@ -2023,13 +2141,14 @@
     (edges || []).forEach((edge) => {
       const meters = Math.max(1, (Number(edge.length) || 0) * 1000);
       const cls = edge.road_class || "";
-      const limit = legalLimit(edge.speed_limit, cls);
+      const posted = Number(edge.speed_limit) >= 5 && Number(edge.speed_limit) <= 140;
+      const limit = posted ? Number(edge.speed_limit) : defaultLimit(cls);
       const urban = inferUrban(limit, cls);
       const last = segs[segs.length - 1];
-      if (last && last.limit === limit && last.urban === urban && last.cls === cls) {
+      if (last && last.limit === limit && last.urban === urban && last.cls === cls && last.posted === posted) {
         last.end += meters;
       } else {
-        segs.push({ start: at, end: at + meters, limit, urban, cls });
+        segs.push({ start: at, end: at + meters, limit, urban, cls, posted: posted });
       }
       at += meters;
     });
@@ -2441,9 +2560,10 @@
       if (!hit) return;
       const cls = (hit.edge && hit.edge.classification && hit.edge.classification.classification) || "";
       const raw = hit.edge_info && hit.edge_info.speed_limit;
-      const limit = legalLimit(raw, cls);
+      const posted = Number(raw) >= 5 && Number(raw) <= 140;
+      const limit = posted ? Number(raw) : legalLimit(raw, cls);
       const urban = inferUrban(limit, cls);
-      applyRoad({ limit, urban, cls }, true);
+      applyRoad({ limit, urban, cls, posted: posted }, true);
       if (urban === true) refreshPlace(state.origin.lat, state.origin.lng);
       else if (urban === false) {
         state.place = "";
@@ -2534,8 +2654,12 @@
       if (then) nv.warmCat(then.kind.cat);
     }
     if (cur.until <= warn && !already(cur.index, "now")) {
-      markSpoken(cur.index, "now");
-      speakGuidance(kind);
+      if (isSnappedToRoute()) {
+        markSpoken(cur.index, "now");
+        speakGuidance(kind);
+      }
+    } else if (already(cur.index, "now")) {
+      maybeSpeakManeuverGag(cur);
     }
     paintArHud();
     syncFloatMarks();
