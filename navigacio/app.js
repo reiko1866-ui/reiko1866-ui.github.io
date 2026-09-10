@@ -1717,7 +1717,9 @@
     state.lastCam = ts;
     const zoom = state.ar
       ? kmh > 90 ? 15.8 : 16.4
-      : kmh > 110 ? 16.9 : kmh > 70 ? 17.35 : kmh > 40 ? 17.8 : 18.2;
+      : state.navigating
+        ? kmh > 110 ? 17.8 : kmh > 70 ? 18.35 : kmh > 40 ? 18.8 : 19.15
+        : kmh > 110 ? 16.4 : kmh > 70 ? 16.9 : 17.4;
     const ahead = lookAhead(v, v.heading);
     try {
       state.map.jumpTo({
@@ -2539,6 +2541,13 @@
     state.follow = true;
     $("follow").classList.add("is-on");
     $("follow").setAttribute("aria-pressed", "true");
+    if (state.coords.length >= 2) {
+      state.heading = bearing(
+        { lng: state.coords[0][0], lat: state.coords[0][1] },
+        { lng: state.coords[1][0], lat: state.coords[1][1] }
+      );
+      state.camHeading = state.heading;
+    }
     state.spoken = {};
     state.spokenPoi = {};
     state.funPois = [];
