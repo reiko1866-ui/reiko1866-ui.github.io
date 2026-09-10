@@ -1313,28 +1313,25 @@
     el.className = "car3d";
     el.setAttribute("aria-hidden", "true");
     el.innerHTML =
-      '<svg viewBox="0 0 140 180" xmlns="http://www.w3.org/2000/svg">' +
-      '<defs><linearGradient id="body" x1="0" y1="0" x2="0" y2="1">' +
-      '<stop offset="0" stop-color="#f8fafc"/><stop offset="1" stop-color="#cbd5e1"/></linearGradient>' +
-      '<linearGradient id="glass" x1="0" y1="0" x2="0" y2="1">' +
-      '<stop offset="0" stop-color="#64748b"/><stop offset="1" stop-color="#0f172a"/></linearGradient></defs>' +
-      '<ellipse cx="70" cy="168" rx="40" ry="7" fill="rgba(0,0,0,.45)"/>' +
-      '<path d="M38 150c2 8 10 12 32 12s30-4 32-12l8-28c2-8-4-14-40-14s-42 6-40 14z" fill="#0f172a"/>' +
-      '<path d="M32 118l10 32c2 7 10 11 28 11s26-4 28-11l10-32c2-10-8-16-38-16s-40 6-38 16z" fill="url(#body)" stroke="#0f172a" stroke-width="1.6"/>' +
-      '<path d="M44 78c2-10 8-16 26-16s24 6 26 16l8 34H36z" fill="url(#body)" stroke="#0f172a" stroke-width="1.4"/>' +
-      '<path d="M52 62c3-8 8-12 18-12s15 4 18 12l6 22H46z" fill="#e2e8f0"/>' +
-      '<path d="M50 84c1-10 7-16 20-16s19 6 20 16l1 18H49z" fill="url(#glass)" opacity=".92"/>' +
-      '<path d="M36 112h68l-2 10H38z" fill="#e2e8f0"/>' +
-      '<rect x="34" y="118" width="20" height="9" rx="2.2" fill="#ef4444"/>' +
-      '<rect x="86" y="118" width="20" height="9" rx="2.2" fill="#ef4444"/>' +
-      '<rect x="56" y="128" width="28" height="9" rx="1.6" fill="#111"/>' +
-      '<rect x="60" y="130" width="20" height="5" rx="1" fill="#eab308"/>' +
-      '<ellipse cx="28" cy="108" rx="8" ry="4.5" fill="#f1f5f9" stroke="#0f172a" stroke-width="1.2"/>' +
-      '<ellipse cx="112" cy="108" rx="8" ry="4.5" fill="#f1f5f9" stroke="#0f172a" stroke-width="1.2"/>' +
-      '<path d="M26 96h12v18H28z" fill="#fff" opacity=".7"/>' +
-      '<path d="M102 96h12v18h-10z" fill="#fff" opacity=".7"/>' +
-      '<circle cx="40" cy="148" r="5" fill="#111"/><circle cx="100" cy="148" r="5" fill="#111"/>' +
-      '<circle cx="44" cy="92" r="2.2" fill="#fbbf24"/><circle cx="96" cy="92" r="2.2" fill="#fbbf24"/>' +
+      '<svg viewBox="0 0 160 200" xmlns="http://www.w3.org/2000/svg">' +
+      '<defs><linearGradient id="paint" x1="0" y1="0" x2="1" y2="1">' +
+      '<stop offset="0" stop-color="#ffffff"/><stop offset=".45" stop-color="#e8eef4"/>' +
+      '<stop offset="1" stop-color="#9aa7b8"/></linearGradient>' +
+      '<linearGradient id="win" x1="0" y1="0" x2="0" y2="1">' +
+      '<stop offset="0" stop-color="#93c5fd"/><stop offset="1" stop-color="#0f172a"/></linearGradient>' +
+      '<linearGradient id="bar" x1="0" y1="0" x2="1" y2="0">' +
+      '<stop offset="0" stop-color="#7f1d1d"/><stop offset=".5" stop-color="#fb7185"/>' +
+      '<stop offset="1" stop-color="#7f1d1d"/></linearGradient></defs>' +
+      '<ellipse cx="84" cy="186" rx="46" ry="8" fill="rgba(0,0,0,.5)"/>' +
+      '<path d="M48 92c8-28 28-40 52-36 18 3 32 18 36 42l8 48c2 16-10 28-46 32-34 4-52-8-56-24z" fill="url(#paint)" stroke="#0f172a" stroke-width="1.4"/>' +
+      '<path d="M62 78c8-16 22-24 38-20 12 3 22 14 26 28l4 18H58z" fill="url(#win)" opacity=".95"/>' +
+      '<path d="M52 128h78l-3 12H56z" fill="#dbe3ee"/>' +
+      '<rect x="54" y="132" width="72" height="9" rx="4" fill="url(#bar)"/>' +
+      '<rect x="78" y="144" width="28" height="8" rx="1.5" fill="#111"/>' +
+      '<ellipse cx="44" cy="118" rx="9" ry="5" fill="#f8fafc" stroke="#0f172a" stroke-width="1.2"/>' +
+      '<ellipse cx="128" cy="112" rx="8" ry="4.5" fill="#f8fafc" stroke="#0f172a" stroke-width="1.2"/>' +
+      '<ellipse cx="58" cy="168" rx="10" ry="6" fill="#111"/><ellipse cx="118" cy="162" rx="10" ry="6" fill="#111"/>' +
+      '<path d="M70 70c10-6 24-6 34 0" fill="none" stroke="#cbd5e1" stroke-width="3"/>' +
       "</svg>";
     return el;
   }
@@ -1556,7 +1553,7 @@
         "source-layer": bLayer,
         minzoom: 13,
         paint: {
-          "fill-extrusion-color": "#1a1e28",
+            "fill-extrusion-color": "#243044",
           "fill-extrusion-height": [
             "coalesce",
             ["to-number", ["get", "render_height"]],
@@ -1582,10 +1579,10 @@
         minzoom: 15,
         layout: { "line-cap": "butt", "line-join": "round" },
         paint: {
-          "line-color": ["match", ["get", "class"], "motorway", "#f5c518", "trunk", "#f5c518", "#e8edf5"],
-          "line-width": ["interpolate", ["linear"], ["zoom"], 15, 0.55, 18, 1.55],
-          "line-dasharray": [2, 2],
-          "line-opacity": 0.72
+          "line-color": ["match", ["get", "class"], "motorway", "#f5c518", "trunk", "#f5c518", "#f8fafc"],
+          "line-width": ["interpolate", ["linear"], ["zoom"], 15, 0.8, 18, 2.1],
+          "line-dasharray": [2.2, 2.4],
+          "line-opacity": 0.88
         }
       });
     }
@@ -1610,9 +1607,9 @@
     setPaint("landuse_residential", "fill-color", "#0d1524");
     setPaint("landuse_park", "fill-color", "#0b1710");
     setPaint("landcover_wood", "fill-color", "#0a140e");
-    const asphalt = "#3e4450";
-    const asphaltHi = "#4b5160";
-    const casing = "#161920";
+    const asphalt = "#3a4555";
+    const asphaltHi = "#465264";
+    const casing = "#151a22";
     setPaint("highway_path", "line-color", "#2c313c");
     setPaint("highway_minor", "line-color", asphalt);
     setPaint("highway_major_inner", "line-color", asphaltHi);
@@ -1646,7 +1643,7 @@
     if (!state.map) return;
     const dark = document.documentElement.classList.contains("dark") || localStorage.getItem(THEME_KEY) !== "light";
     const zenith = dark ? "#020617" : "#64748b";
-    const horizon = dark ? "#1d4a7a" : "#94a3b8";
+    const horizon = dark ? "#2b6cb0" : "#94a3b8";
     const fog = dark ? "#0b1b33" : "#64748b";
     try {
       if (typeof state.map.setSky === "function") {
@@ -1686,7 +1683,7 @@
         layout: { "line-cap": "round", "line-join": "round" },
         paint: {
           "line-color": "#04140c",
-          "line-width": 18,
+          "line-width": 22,
           "line-opacity": 0.95
         }
       });
@@ -1697,9 +1694,9 @@
         layout: { "line-cap": "round", "line-join": "round" },
         paint: {
           "line-color": "#00ff66",
-          "line-width": 22,
-          "line-opacity": 0.3,
-          "line-blur": 8
+          "line-width": 34,
+          "line-opacity": 0.38,
+          "line-blur": 10
         }
       });
       state.map.addLayer({
@@ -1709,7 +1706,7 @@
         layout: { "line-cap": "round", "line-join": "round" },
         paint: {
           "line-color": "#00ff66",
-          "line-width": 12
+          "line-width": 16
         }
       });
     }
@@ -1733,12 +1730,12 @@
     try {
       if (state.map.getLayer("route-outline")) {
         state.map.setPaintProperty("route-outline", "line-color", c.outline);
-        state.map.setPaintProperty("route-outline", "line-width", 18);
+        state.map.setPaintProperty("route-outline", "line-width", 22);
       }
       state.map.setPaintProperty("route-glow", "line-color", c.glow);
-      state.map.setPaintProperty("route-glow", "line-width", 22);
+      state.map.setPaintProperty("route-glow", "line-width", 34);
       state.map.setPaintProperty("route-line", "line-color", c.line);
-      state.map.setPaintProperty("route-line", "line-width", 12);
+      state.map.setPaintProperty("route-line", "line-width", 16);
     } catch (_e) {}
   }
 
@@ -1767,7 +1764,7 @@
 
   function lookAheadMeters() {
     const kmh = (state.speed || 0) * 3.6;
-    return Math.max(8, Math.min(22, 8 + kmh * 0.1));
+    return Math.max(16, Math.min(40, 16 + kmh * 0.18));
   }
 
   function lookAhead(from, heading) {
@@ -1793,14 +1790,16 @@
     const pad = state.ar
       ? { top: 6, bottom: 10, left: 6, right: 6 }
       : {
-          top: Math.round(h * (state.navigating ? 0.42 : 0.16)),
-          bottom: Math.round(h * (state.navigating ? 0.16 : 0.22)),
+          top: Math.round(h * (state.navigating ? 0.08 : 0.12)),
+          bottom: Math.round(h * (state.navigating ? 0.2 : 0.2)),
           left: 8,
           right: right
         };
     padCache = { t: now, nav: state.navigating, ar: state.ar, pad: pad };
     return pad;
   }
+
+  function paintCompass() {}
 
   function placePuck(ll, heading) {
     if (!state.map || !ll) return;
@@ -1854,11 +1853,12 @@
       state.camHeading = v.heading || 0;
     }
     placePuck(v, v.heading);
+    paintCompass();
     if (!state.follow) return;
     const kmh = (state.speed || 0) * 3.6;
     const wantZoom = state.navigating
-        ? kmh > 110 ? 16.9 : kmh > 70 ? 17.35 : 17.7
-        : kmh > 90 ? 16.4 : 16.9;
+        ? kmh > 110 ? 17.15 : kmh > 70 ? 17.55 : 17.95
+        : kmh > 90 ? 16.5 : 17.0;
     v.zoom = lerp(Number.isFinite(v.zoom) ? v.zoom : wantZoom, wantZoom, 0.04);
     const ahead = lookAhead(v, v.heading);
     try {
