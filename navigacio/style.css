@@ -1282,67 +1282,30 @@ html.dark #results button.is-shortcut .result-title {
 
 .garage-swatch {
   position: relative;
-  height: 3.4rem;
+  height: 4.4rem;
   border-radius: 8px;
   overflow: hidden;
   background: linear-gradient(180deg, #1e293b, #0f172a);
 }
 
-.garage-car {
-  position: absolute;
-  left: 50%;
-  bottom: 0.35rem;
-  width: 4.6rem;
-  height: 2.15rem;
-  transform: translateX(-50%) perspective(80px) rotateX(18deg);
-  border-radius: 0.55rem 0.55rem 0.35rem 0.35rem;
-  background: var(--paint, #ccc);
-  box-shadow: inset 0 8px 0 rgba(255, 255, 255, 0.22), 0 6px 8px rgba(0, 0, 0, 0.35);
+.garage-swatch svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  transform: perspective(120px) rotateX(16deg);
 }
 
-.garage-car::before {
-  content: "";
-  position: absolute;
-  left: 12%;
-  right: 12%;
-  top: 18%;
-  height: 38%;
-  border-radius: 0.2rem;
-  background: linear-gradient(180deg, rgba(147, 197, 253, 0.85), rgba(15, 23, 42, 0.88));
-}
-
-.garage-car::after {
-  content: "";
-  position: absolute;
-  left: 8%;
-  right: 8%;
-  bottom: 10%;
-  height: 18%;
-  border-radius: 0.15rem;
-  background: var(--lamp, #fb7185);
-  opacity: 0.95;
-}
-
-.garage-card[data-car="scross"] .garage-car::after,
-.garage-card[data-car="merc_e"] .garage-car::after {
-  height: 12%;
-  background: linear-gradient(90deg, #ef4444, #fecaca, #ef4444);
-}
-
-.garage-card[data-car="bmw3"] .garage-car::after {
-  left: 14%;
-  right: 14%;
-  clip-path: polygon(0 40%, 18% 0, 100% 0, 100% 100%, 0 100%);
-}
-
-.garage-card[data-car="verso"] .garage-car,
-.garage-card[data-car="korando"] .garage-car {
-  height: 2.45rem;
-}
-
-.garage-name {
+.garage-brand {
   font-weight: 800;
-  font-size: 0.82rem;
+  font-size: 0.78rem;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.garage-type {
+  font-weight: 800;
+  font-size: 0.92rem;
   line-height: 1.2;
 }
 
