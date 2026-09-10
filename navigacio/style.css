@@ -69,7 +69,8 @@ body {
 }
 
 button,
-input {
+input,
+select {
   font: inherit;
   color: inherit;
 }
@@ -1427,18 +1428,80 @@ html.dark #results button.is-shortcut .result-title {
   font-weight: 700;
 }
 
+.voice-cats {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.35rem;
+  margin: 0.15rem 0 0.55rem;
+}
+
+.voice-cats .check {
+  min-height: 2.7rem;
+  padding: 0.35rem 0.55rem;
+  border-radius: 10px;
+  background: var(--chip);
+  font-size: 0.82rem;
+}
+
+.pack-cats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin: 0.7rem 0 0.55rem;
+}
+
+.pack-cat {
+  min-height: 2.7rem;
+  padding: 0.4rem 0.7rem;
+  border: 0;
+  border-radius: 999px;
+  background: var(--chip);
+  color: var(--text);
+  font-weight: 800;
+}
+
+.pack-cat.is-on {
+  background: var(--blue);
+  color: #fff;
+}
+
+.pack-cat.is-muted {
+  opacity: 0.55;
+}
+
+.pack-drive-row {
+  margin: 0.2rem 0 0.55rem;
+  min-height: 2.6rem;
+}
+
+.pack-toolbar {
+  margin-top: 0.45rem;
+}
+
 #poenList {
   list-style: none;
   margin: 0.9rem 0 0;
   padding: 0;
-  display: grid;
-  grid-template-columns: 1fr 1fr;
+  display: flex;
+  flex-direction: column;
   gap: 0.4rem;
 }
 
-#poenList button {
-  width: 100%;
-  min-height: 2.6rem;
+.pack-item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 3.4rem minmax(7.2rem, 9.5rem);
+  gap: 0.35rem;
+  align-items: stretch;
+}
+
+.pack-item.is-off .pack-play {
+  opacity: 0.55;
+}
+
+.pack-play,
+.pack-drive,
+.pack-where {
+  min-height: 2.8rem;
   border: 0;
   border-radius: 10px;
   background: var(--chip);
@@ -1446,9 +1509,29 @@ html.dark #results button.is-shortcut .result-title {
   font-weight: 700;
 }
 
+.pack-play {
+  text-align: left;
+  padding: 0 0.7rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pack-drive.is-on {
+  background: #059669;
+  color: #fff;
+}
+
+.pack-where {
+  border: 1px solid var(--line);
+  padding: 0 0.4rem;
+}
+
 @media (min-width: 720px) {
   .poen-bar button,
-  #poenList button {
+  .pack-play,
+  .pack-drive,
+  .pack-where {
     min-height: 3.3rem;
     font-size: 1.15rem;
   }
