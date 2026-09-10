@@ -16,10 +16,56 @@ const VOCABULARY = [
   { id: "drink", word: "drink", phonetic: "/drɪŋk/", meaning: "inni", example: "I drink tea.", exampleHu: "Teát iszom.", icon: "🍵", color: "from-green-50 to-lime-50" },
   { id: "school", word: "school", phonetic: "/skuːl/", meaning: "iskola", example: "I go to school.", exampleHu: "Iskolába megyek.", icon: "🏫", color: "from-blue-50 to-indigo-50" },
   { id: "dog", word: "dog", phonetic: "/dɒɡ/", meaning: "kutya", example: "The dog is big.", exampleHu: "A kutya nagy.", icon: "🐶", color: "from-yellow-50 to-amber-50" },
-  { id: "yes", word: "yes", phonetic: "/jes/", meaning: "igen", example: "Yes, I am happy.", exampleHu: "Igen, boldog vagyok.", icon: "✅", color: "from-emerald-50 to-teal-50" }
+  { id: "yes", word: "yes", phonetic: "/jes/", meaning: "igen", example: "Yes, I am happy.", exampleHu: "Igen, boldog vagyok.", icon: "✅", color: "from-emerald-50 to-teal-50" },
+  { id: "please", word: "please", phonetic: "/pliːz/", meaning: "kérem", example: "Water, please.", exampleHu: "Vizet, kérek.", icon: "🙏", color: "from-rose-50 to-amber-50", level: "A1" },
+  { id: "sorry", word: "sorry", phonetic: "/ˈsɒr.i/", meaning: "bocsánat", example: "I am sorry.", exampleHu: "Bocsánatot kérek.", icon: "💛", color: "from-yellow-50 to-orange-50", level: "A1" },
+  { id: "goodbye", word: "goodbye", phonetic: "/ˌɡʊdˈbaɪ/", meaning: "viszlát", example: "Goodbye, my friend.", exampleHu: "Viszlát, barátom.", icon: "👋", color: "from-sky-50 to-indigo-50", level: "A1" },
+  { id: "happy", word: "happy", phonetic: "/ˈhæp.i/", meaning: "boldog", example: "I am happy.", exampleHu: "Boldog vagyok.", icon: "😊", color: "from-amber-50 to-rose-50", level: "A1" },
+  { id: "milk", word: "milk", phonetic: "/mɪlk/", meaning: "tej", example: "I drink milk.", exampleHu: "Tejet iszom.", icon: "🥛", color: "from-slate-50 to-sky-50", level: "A1" },
+  { id: "bread", word: "bread", phonetic: "/bred/", meaning: "kenyér", example: "I eat bread.", exampleHu: "Kenyeret eszem.", icon: "🍞", color: "from-amber-50 to-yellow-50", level: "A1" },
+  { id: "today", word: "today", phonetic: "/təˈdeɪ/", meaning: "ma", example: "I am happy today.", exampleHu: "Ma boldog vagyok.", icon: "📅", color: "from-sky-50 to-indigo-50", level: "A2" },
+  { id: "tomorrow", word: "tomorrow", phonetic: "/təˈmɒr.əʊ/", meaning: "holnap", example: "See you tomorrow.", exampleHu: "Holnap találkozunk.", icon: "🌤️", color: "from-amber-50 to-sky-50", level: "A2" },
+  { id: "always", word: "always", phonetic: "/ˈɔːl.weɪz/", meaning: "mindig", example: "I always drink water.", exampleHu: "Mindig iszom vizet.", icon: "🔁", color: "from-violet-50 to-sky-50", level: "A2" },
+  { id: "never", word: "never", phonetic: "/ˈnev.ə/", meaning: "soha", example: "I never eat this.", exampleHu: "Ezt soha nem eszem.", icon: "🚫", color: "from-rose-50 to-slate-50", level: "A2" }
 ];
 
 const WEEKDAYS = ["H", "K", "Sze", "Cs", "P", "Szo", "V"];
+
+const LEVELS = [
+  {
+    id: "A0",
+    name: "Kezdő",
+    badge: "🌱",
+    minPoints: 0,
+    minKnown: 0,
+    minSentences: 0,
+    targetPoints: 80,
+    targetKnown: 8,
+    targetSentences: 4
+  },
+  {
+    id: "A1",
+    name: "Alapfok",
+    badge: "🌿",
+    minPoints: 80,
+    minKnown: 8,
+    minSentences: 4,
+    targetPoints: 220,
+    targetKnown: 20,
+    targetSentences: 12
+  },
+  {
+    id: "A2",
+    name: "Elemi",
+    badge: "🌳",
+    minPoints: 220,
+    minKnown: 20,
+    minSentences: 12,
+    targetPoints: 220,
+    targetKnown: 20,
+    targetSentences: 12
+  }
+];
 
 const SENTENCES = [
   { id: "eat-apple", prompt: "Eszem egy almát.", words: ["I", "eat", "an", "apple"], extras: ["a"], icon: "🍏" },
@@ -33,7 +79,12 @@ const SENTENCES = [
   { id: "read-book", prompt: "Könyvet olvasok.", words: ["I", "read", "a", "book"], extras: ["an"], icon: "📖" },
   { id: "thank-you", prompt: "Nagyon köszönöm.", words: ["Thank", "you", "very", "much"], extras: [], icon: "🙏" },
   { id: "bright-sun", prompt: "A nap fényes.", words: ["The", "sun", "is", "bright"], extras: [], icon: "☀️" },
-  { id: "drink-tea", prompt: "Teát iszom.", words: ["I", "drink", "tea"], extras: ["coffee"], icon: "🍵" }
+  { id: "drink-tea", prompt: "Teát iszom.", words: ["I", "drink", "tea"], extras: ["coffee"], icon: "🍵", level: "A0" },
+  { id: "please-water", prompt: "Vizet kérek.", words: ["Water", "please"], extras: ["milk"], icon: "🙏", level: "A1" },
+  { id: "i-am-happy", prompt: "Boldog vagyok.", words: ["I", "am", "happy"], extras: ["sad"], icon: "😊", level: "A1" },
+  { id: "goodbye-friend", prompt: "Viszlát, barátom.", words: ["Goodbye", "my", "friend"], extras: ["hello"], icon: "👋", level: "A1" },
+  { id: "see-tomorrow", prompt: "Holnap találkozunk.", words: ["See", "you", "tomorrow"], extras: ["today"], icon: "🌤️", level: "A2" },
+  { id: "always-happy", prompt: "Mindig boldog vagyok.", words: ["I", "am", "always", "happy"], extras: ["never"], icon: "😊", level: "A2" }
 ];
 
 const els = {
@@ -56,6 +107,19 @@ const els = {
   profileLevel: document.getElementById("profile-level"),
   profilePoints: document.getElementById("profile-points"),
   profileHint: document.getElementById("profile-hint"),
+  headerLevel: document.getElementById("header-level"),
+  headerLevelBar: document.getElementById("header-level-bar"),
+  levelTitle: document.getElementById("level-title"),
+  levelCopy: document.getElementById("level-copy"),
+  levelBadge: document.getElementById("level-badge"),
+  levelBar: document.getElementById("level-bar"),
+  levelXp: document.getElementById("level-xp"),
+  levelGoals: document.getElementById("level-goals"),
+  levelPath: document.getElementById("level-path"),
+  levelupModal: document.getElementById("levelup-modal"),
+  levelupTitle: document.getElementById("levelup-title"),
+  levelupCopy: document.getElementById("levelup-copy"),
+  levelupClose: document.getElementById("levelup-close"),
   cardPosition: document.getElementById("card-position"),
   cardTotal: document.getElementById("card-total"),
   deckProgress: document.getElementById("deck-progress"),
@@ -135,7 +199,8 @@ function defaultState() {
     activeDays: [],
     points: 0,
     email: "",
-    currentLevel: "A0"
+    currentLevel: "A0",
+    celebratedLevel: "A0"
   };
 }
 
@@ -153,6 +218,7 @@ function loadState() {
     if (!parsed.solvedSentences || typeof parsed.solvedSentences !== "object") {
       parsed.solvedSentences = {};
     }
+    if (!parsed.celebratedLevel) parsed.celebratedLevel = parsed.currentLevel || "A0";
     return parsed;
   } catch {
     return defaultState();
@@ -254,7 +320,10 @@ async function applyCloudProfile(user) {
   } else {
     await db().ensureProfile(user, { full_name: state.name });
   }
+  refreshUnlockedDecks();
   renderHeader();
+  renderCard();
+  startSentence();
   renderProgress();
   renderAuth();
 }
@@ -356,17 +425,18 @@ function markCard(status) {
 }
 
 function restartDeck() {
+  const pool = unlockedVocabulary();
   const practicingIds = Object.keys(state.practicing);
   deck = practicingIds.length
-    ? VOCABULARY.filter((card) => practicingIds.includes(card.id))
-    : [...VOCABULARY];
-  if (!deck.length) deck = [...VOCABULARY];
+    ? pool.filter((card) => practicingIds.includes(card.id))
+    : [...pool];
+  if (!deck.length) deck = [...pool];
   index = 0;
   renderCard();
 }
 
 function currentSentence() {
-  return SENTENCES[builderIndex];
+  return unlockedSentences()[builderIndex];
 }
 
 function shuffle(list) {
@@ -432,7 +502,7 @@ function renderBuilder() {
   if (!sentence) {
     els.builderStage.classList.add("hidden");
     els.builderComplete.classList.remove("hidden");
-    els.builderPosition.textContent = String(SENTENCES.length);
+    els.builderPosition.textContent = String(unlockedSentences().length);
     els.builderProgress.style.width = "100%";
     return;
   }
@@ -442,8 +512,8 @@ function renderBuilder() {
   els.builderIcon.textContent = sentence.icon;
   els.builderPrompt.textContent = sentence.prompt;
   els.builderPosition.textContent = String(builderIndex + 1);
-  els.builderTotal.textContent = String(SENTENCES.length);
-  els.builderProgress.style.width = `${(builderIndex / SENTENCES.length) * 100}%`;
+  els.builderTotal.textContent = String(unlockedSentences().length);
+  els.builderProgress.style.width = `${(builderIndex / unlockedSentences().length) * 100}%`;
   els.builderFeedback.textContent = "";
   els.builderFeedback.className = "mt-4 min-h-[1.25rem] text-sm font-semibold";
   els.builderCard.classList.remove("shake-x", "ring-emerald-200");
@@ -494,7 +564,7 @@ function checkBuilder() {
     syncQuiet(() => syncSentenceToCloud(sentence, true, wrongTries + 1));
     els.builderFeedback.textContent = "Ügyes! Ez a helyes szórend.";
     els.builderFeedback.className = "mt-4 min-h-[1.25rem] text-sm font-semibold text-emerald-700";
-    els.builderProgress.style.width = `${((builderIndex + 1) / SENTENCES.length) * 100}%`;
+    els.builderProgress.style.width = `${((builderIndex + 1) / unlockedSentences().length) * 100}%`;
     renderBuilderChips();
     speakEnglish(`${expectedText(sentence)}.`);
     return;
@@ -522,6 +592,139 @@ function restartBuilder() {
   startSentence();
 }
 
+function statsNow() {
+  return {
+    points: state.points || 0,
+    known: Object.keys(state.known || {}).length,
+    sentences: Object.keys(state.solvedSentences || {}).length
+  };
+}
+
+function levelIndex(id) {
+  const idx = LEVELS.findIndex((level) => level.id === id);
+  return idx < 0 ? 0 : idx;
+}
+
+function unlockedVocabulary() {
+  const max = levelIndex(state.currentLevel);
+  return VOCABULARY.filter((card) => levelIndex(card.level || "A0") <= max);
+}
+
+function unlockedSentences() {
+  const max = levelIndex(state.currentLevel);
+  return SENTENCES.filter((sentence) => levelIndex(sentence.level || "A0") <= max);
+}
+
+function refreshUnlockedDecks(resetPosition) {
+  deck = unlockedVocabulary();
+  if (resetPosition || index >= deck.length) index = 0;
+  if (resetPosition) builderIndex = 0;
+  if (builderIndex >= unlockedSentences().length) builderIndex = 0;
+}
+
+function qualifiesFor(level, stats) {
+  return stats.points >= level.minPoints && stats.known >= level.minKnown && stats.sentences >= level.minSentences;
+}
+
+function computeLevel(stats = statsNow()) {
+  let current = LEVELS[0];
+  LEVELS.forEach((level) => {
+    if (qualifiesFor(level, stats)) current = level;
+  });
+  const next = LEVELS[LEVELS.indexOf(current) + 1] || null;
+  const span = next ? Math.max(1, next.minPoints - current.minPoints) : 1;
+  const gained = Math.max(0, stats.points - current.minPoints);
+  const percent = next ? Math.min(100, Math.round((gained / span) * 100)) : 100;
+  return { current, next, percent, stats };
+}
+
+function goalLine(done, label) {
+  return `<li class="flex items-center gap-2 ${done ? "font-semibold text-emerald-700" : ""}">
+    <span>${done ? "✓" : "○"}</span><span>${label}</span>
+  </li>`;
+}
+
+function renderLevel() {
+  const { current, next, percent, stats } = computeLevel();
+  const previousId = state.currentLevel;
+  if (previousId !== current.id) {
+    state.currentLevel = current.id;
+    saveState();
+    refreshUnlockedDecks(true);
+    renderCard();
+    startSentence();
+    syncQuiet(syncProfileToCloud);
+  }
+  if (state.celebratedLevel !== current.id) {
+    if (levelIndex(current.id) > levelIndex(state.celebratedLevel || "A0")) {
+      showLevelUp(current);
+    }
+    state.celebratedLevel = current.id;
+    saveState();
+  }
+
+  if (els.headerLevel) els.headerLevel.textContent = `${current.id} · ${current.name}`;
+  if (els.headerLevelBar) els.headerLevelBar.style.width = `${percent}%`;
+  if (els.profileLevel) els.profileLevel.textContent = `${current.id} · ${current.name}`;
+  if (els.profilePoints) els.profilePoints.textContent = `${stats.points} pont`;
+  if (els.levelTitle) els.levelTitle.textContent = `${current.id} · ${current.name}`;
+  if (els.levelBadge) els.levelBadge.textContent = current.badge;
+  if (els.levelBar) els.levelBar.style.width = `${percent}%`;
+  if (els.levelXp) {
+    els.levelXp.textContent = next
+      ? `${stats.points} / ${next.minPoints} pont az ${next.id}-hez`
+      : `${stats.points} pont · a jelenlegi csúcs`;
+  }
+  if (els.levelCopy) {
+    const lockedWords = VOCABULARY.length - unlockedVocabulary().length;
+    els.levelCopy.textContent = next
+      ? `Még ${Math.round(Math.max(0, next.minPoints - stats.points))} pont az ${next.id} (${next.name}) szinthez.${lockedWords ? ` ${lockedWords} szó még zárva.` : ""}`
+      : "Szép munka. Elérted a jelenlegi csúcsot.";
+  }
+  if (els.levelGoals) {
+    const target = next || current;
+    els.levelGoals.innerHTML = [
+      goalLine(stats.known >= target.minKnown, `${stats.known} / ${target.minKnown} ismert szó`),
+      goalLine(stats.sentences >= target.minSentences, `${stats.sentences} / ${target.minSentences} mondat`),
+      goalLine(stats.points >= target.minPoints, `${stats.points} / ${target.minPoints} pont`)
+    ].join("");
+  }
+  if (els.levelPath) {
+    els.levelPath.innerHTML = LEVELS.map((level) => {
+      const unlocked = levelIndex(current.id) >= levelIndex(level.id);
+      const active = level.id === current.id;
+      const tone = active
+        ? "bg-teal-50 ring-1 ring-teal-200"
+        : unlocked
+          ? "bg-slate-50"
+          : "bg-slate-100 text-slate-400";
+      return `<li class="rounded-2xl px-2 py-2 text-center ${tone}">
+        <p class="text-lg">${unlocked ? level.badge : "🔒"}</p>
+        <p class="text-[11px] font-extrabold">${level.id}</p>
+        <p class="text-[10px] font-semibold">${level.name}</p>
+      </li>`;
+    }).join("");
+  }
+}
+
+function showLevelUp(level) {
+  if (!els.levelupModal) return;
+  if (els.levelupTitle) {
+    els.levelupTitle.textContent = `Szintlépés: ${level.id}!`;
+  }
+  if (els.levelupCopy) {
+    els.levelupCopy.textContent = `Mostantól ${level.id} · ${level.name} vagy. Új szavak és mondatok nyíltak meg.`;
+  }
+  els.levelupModal.classList.remove("hidden");
+  els.levelupModal.classList.add("flex");
+}
+
+function hideLevelUp() {
+  if (!els.levelupModal) return;
+  els.levelupModal.classList.add("hidden");
+  els.levelupModal.classList.remove("flex");
+}
+
 function greeting() {
   if (state.name) return `Szia, ${state.name}! Folytasd a mai utat.`;
   if (state.todayCount > 0) return "Szép ritmus. Még egy kártya?";
@@ -535,8 +738,7 @@ function renderHeader() {
   els.profileAvatar.textContent = remoteUser ? "🙂" : state.name ? "🙂" : "🌱";
   els.learnerName.value = state.name;
   if (els.learnerEmail && !els.learnerEmail.value) els.learnerEmail.value = state.email || remoteUser?.email || "";
-  if (els.profileLevel) els.profileLevel.textContent = `${state.currentLevel || "A0"} – A1 kezdő`;
-  if (els.profilePoints) els.profilePoints.textContent = `${state.points || 0} pont`;
+  renderLevel();
 }
 
 function renderAuth() {
@@ -580,10 +782,12 @@ function mondayOfWeek(date = new Date()) {
 }
 
 function renderProgress() {
-  const knownCount = Object.keys(state.known).length;
-  const practiceCount = Object.keys(state.practicing).length;
-  const percent = Math.round((knownCount / VOCABULARY.length) * 100);
-  const sentenceCount = Object.keys(state.solvedSentences || {}).length;
+  const unlockedV = unlockedVocabulary();
+  const unlockedS = unlockedSentences();
+  const knownCount = unlockedV.filter((card) => state.known[card.id]).length;
+  const practiceCount = unlockedV.filter((card) => state.practicing[card.id]).length;
+  const percent = unlockedV.length ? Math.round((knownCount / unlockedV.length) * 100) : 0;
+  const sentenceCount = unlockedS.filter((sentence) => state.solvedSentences[sentence.id]).length;
   els.statKnown.textContent = String(knownCount);
   els.statPractice.textContent = String(practiceCount);
   els.statSentences.textContent = String(sentenceCount);
@@ -607,6 +811,7 @@ function renderProgress() {
       <span class="week-dot h-7 w-7 rounded-full ${active ? "bg-teal-600 text-white" : "bg-slate-100 text-slate-400"} ${isToday ? "is-today" : ""} grid place-items-center text-[11px] font-bold">${active ? "✓" : "·"}</span>
     </div>`;
   }).join("");
+  renderLevel();
 }
 
 function showTab(targetBtn) {
@@ -741,6 +946,10 @@ els.builderRestart.addEventListener("click", restartBuilder);
 els.profileBtn.addEventListener("click", openProfile);
 els.profileClose.addEventListener("click", closeProfile);
 els.saveProfile.addEventListener("click", saveProfile);
+els.levelupClose?.addEventListener("click", hideLevelUp);
+els.levelupModal?.addEventListener("click", (event) => {
+  if (event.target === els.levelupModal) hideLevelUp();
+});
 els.authPrimary?.addEventListener("click", () => syncQuiet(handleSignIn));
 els.authRegister?.addEventListener("click", () => syncQuiet(handleRegister));
 els.authSignout?.addEventListener("click", () => syncQuiet(handleSignOut));
@@ -797,6 +1006,7 @@ if (window.speechSynthesis) {
   window.speechSynthesis.onvoiceschanged = () => {};
 }
 
+refreshUnlockedDecks();
 renderHeader();
 renderCard();
 startSentence();
