@@ -193,8 +193,6 @@
     cameras: [],
     camBusy: false,
     camAt: 0,
-    floatMarks: [],
-    distMark: null,
     floatKey: "",
     searchTimer: 0,
     car: null,
@@ -1532,8 +1530,8 @@
           color: sky,
           "high-color": sky,
           "space-color": sky,
-          "horizon-blend": 0.12,
-          range: [0.8, 12]
+          "horizon-blend": 0.08,
+          range: [0.5, 5.5]
         });
       }
     } catch (_e2) {}
@@ -1579,6 +1577,7 @@
         }
       });
     }
+    ensureMarkLayer();
     if (state.coords.length) drawRoute();
     paintCar();
     applyRouteStyle();
@@ -1638,15 +1637,16 @@
 
   function lookAhead(from, heading) {
     if (!from) return from;
-    const m = lookAheadMeters();
-    if (state.navigating && state.coords.length) {
-      const p = alongLine(state.coords, (state.traveled || 0) + m);
-      if (p) return p;
-    }
-    return offsetLngLat(from, heading, m);
+    return offsetLngLat(from, heading, lookAheadMeters());
   }
 
+  let padCache = { t: 0, nav: false, ar: false, pad: { top: 8, bottom: 8, left: 8, right: 8 } };
+
   function camPad() {
+    const now = typeof performance !== "undefined" ? performance.now() : Date.now();
+    if (now - padCache.t < 400 && padCache.nav === state.navigating && padCache.ar === state.ar) {
+      return padCache.pad;
+    }
     const box = state.map ? state.map.getContainer() : null;
     const h = box ? box.clientHeight : window.innerHeight;
     const fabs = $("fabBar");
@@ -1655,12 +1655,16 @@
       const r = fabs.getBoundingClientRect();
       if (r.left > 0) right = Math.max(8, Math.round(window.innerWidth - r.left + 6));
     }
-    if (state.ar) {
-      return { top: 6, bottom: 10, left: 6, right: 6 };
-    }
-    const top = Math.round(h * (state.navigating ? 0.46 : 0.18));
-    const bottom = Math.round(h * (state.navigating ? 0.14 : 0.22));
-    return { top: top, bottom: bottom, left: 8, right: right };
+    const pad = state.ar
+      ? { top: 6, bottom: 10, left: 6, right: 6 }
+      : {
+          top: Math.round(h * (state.navigating ? 0.42 : 0.16)),
+          bottom: Math.round(h * (state.navigating ? 0.16 : 0.22)),
+          left: 8,
+          right: right
+        };
+    padCache = { t: now, nav: state.navigating, ar: state.ar, pad: pad };
+    return pad;
   }
 
   function placePuck(ll, heading) {
@@ -1696,36 +1700,33 @@
     const dt = smoothTs ? Math.min(0.08, (ts - smoothTs) / 1000) : 0.016;
     smoothTs = ts;
     if (!state.view) state.view = copyPose(state.target);
-    const k = 1 - Math.exp(-dt * 5.2);
+    const k = 1 - Math.exp(-dt * 8.4);
+    const hk = 1 - Math.exp(-dt * 7.2);
     const v = state.view;
     const t = state.target;
     v.lng += (t.lng - v.lng) * k;
     v.lat += (t.lat - v.lat) * k;
     const kmh = (state.speed || 0) * 3.6;
-    const remain = haversine(v, t);
-    const turn = Number.isFinite(t.heading) ? Math.abs(angDelta(v.heading, t.heading)) : 0;
-    const headingOk = (kmh >= 2 || state.navigating) && Number.isFinite(t.heading);
-    if (headingOk && (remain >= 0.35 || turn > 3 || kmh >= 2)) {
-      v.heading = mixHeading(v.heading, t.heading, Math.min(1, k * 1.35));
+    if (Number.isFinite(t.heading) && (kmh >= 2 || state.navigating)) {
+      v.heading = mixHeading(v.heading, t.heading, Math.min(1, hk));
       state.camHeading = v.heading;
     } else if (!Number.isFinite(state.camHeading)) {
       state.camHeading = v.heading || t.heading || 0;
     }
     placePuck(v, v.heading);
     if (!state.follow) return;
-    if (state.lastCam && ts - state.lastCam < 32) return;
     state.lastCam = ts;
     const zoom = state.ar
       ? kmh > 90 ? 15.8 : 16.4
       : state.navigating
-        ? kmh > 110 ? 17.8 : kmh > 70 ? 18.35 : kmh > 40 ? 18.8 : 19.15
+        ? kmh > 110 ? 17.6 : kmh > 70 ? 18.15 : kmh > 40 ? 18.55 : 18.9
         : kmh > 110 ? 16.4 : kmh > 70 ? 16.9 : 17.4;
     const ahead = lookAhead(v, v.heading);
     try {
       state.map.jumpTo({
         center: [ahead.lng, ahead.lat],
         zoom: zoom,
-        pitch: state.ar ? 52 : state.navigating ? 78 : 56,
+        pitch: state.ar ? 48 : state.navigating ? 65 : 52,
         bearing: state.camHeading || 0,
         padding: camPad()
       });
@@ -1909,42 +1910,145 @@
     maybeSpeakRoad();
   }
 
-  function clearFloatMarks() {
-    (state.floatMarks || []).forEach(function (m) {
-      try {
-        m.remove();
-      } catch (_e) {}
-    });
-    state.floatMarks = [];
-    state.distMark = null;
-    state.floatKey = "";
+  function canvasIcon(w, h, draw) {
+    const c = document.createElement("canvas");
+    c.width = w;
+    c.height = h;
+    const g = c.getContext("2d");
+    g.clearRect(0, 0, w, h);
+    draw(g, w, h);
+    return {
+      width: w,
+      height: h,
+      data: new Uint8Array(g.getImageData(0, 0, w, h).data)
+    };
   }
 
-  function makeFloatEl(kind, text) {
-    const wrap = document.createElement("div");
-    wrap.className = "float-mark";
+  function markIconId(kind, label) {
+    return "nav-" + kind + "-" + String(label || "").replace(/\s+/g, "_").slice(0, 24);
+  }
+
+  function ensureMarkIcon(kind, label) {
+    if (!state.map) return "";
+    const id = kind === "cam" ? "nav-cam" : markIconId(kind, label);
+    if (state.map.hasImage(id)) return id;
+    let img = null;
     if (kind === "cam") {
-      wrap.innerHTML = '<span class="float-cam" aria-hidden="true">◉</span>';
+      img = canvasIcon(128, 128, function (g, w) {
+        g.beginPath();
+        g.arc(w / 2, w / 2, w * 0.42, 0, Math.PI * 2);
+        g.fillStyle = "#fff";
+        g.fill();
+        g.lineWidth = w * 0.08;
+        g.strokeStyle = "#111";
+        g.stroke();
+        g.beginPath();
+        g.arc(w / 2, w / 2, w * 0.14, 0, Math.PI * 2);
+        g.strokeStyle = "#111";
+        g.lineWidth = w * 0.06;
+        g.stroke();
+        g.fillStyle = "#111";
+        g.beginPath();
+        g.arc(w * 0.38, w * 0.4, w * 0.045, 0, Math.PI * 2);
+        g.fill();
+      });
     } else if (kind === "limit") {
-      wrap.innerHTML = '<span class="float-limit">' + String(text || "") + "</span>";
+      img = canvasIcon(128, 128, function (g, w) {
+        g.beginPath();
+        g.arc(w / 2, w / 2, w * 0.42, 0, Math.PI * 2);
+        g.fillStyle = "#fff";
+        g.fill();
+        g.lineWidth = w * 0.12;
+        g.strokeStyle = "#e11d2e";
+        g.stroke();
+        g.fillStyle = "#111";
+        g.font = "700 " + Math.round(w * 0.34) + "px sans-serif";
+        g.textAlign = "center";
+        g.textBaseline = "middle";
+        g.fillText(String(label || ""), w / 2, w / 2 + 1);
+      });
     } else {
-      wrap.innerHTML = '<span class="float-dist">' + String(text || "") + "</span>";
+      const text = String(label || "");
+      img = canvasIcon(256, 96, function (g, w, h) {
+        const x = 8;
+        const y = 10;
+        const rw = w - 16;
+        const rh = h - 20;
+        const r = rh / 2;
+        g.beginPath();
+        g.moveTo(x + r, y);
+        g.lineTo(x + rw - r, y);
+        g.arcTo(x + rw, y, x + rw, y + r, r);
+        g.arcTo(x + rw, y + rh, x + rw - r, y + rh, r);
+        g.lineTo(x + r, y + rh);
+        g.arcTo(x, y + rh, x, y + r, r);
+        g.arcTo(x, y, x + r, y, r);
+        g.closePath();
+        g.fillStyle = "#fff";
+        g.fill();
+        g.lineWidth = 6;
+        g.strokeStyle = "#111";
+        g.stroke();
+        g.fillStyle = "#111";
+        g.font = "800 36px sans-serif";
+        g.textAlign = "center";
+        g.textBaseline = "middle";
+        g.fillText(text, w / 2, h / 2 + 1);
+      });
     }
-    return wrap;
+    try {
+      state.map.addImage(id, img);
+    } catch (_e) {
+      return "";
+    }
+    return id;
   }
 
-  function addFloatMark(ll, kind, text) {
-    if (!state.map || !ll) return null;
-    const mark = new maplibregl.Marker({
-      element: makeFloatEl(kind, text),
-      anchor: "bottom",
-      pitchAlignment: "viewport",
-      rotationAlignment: "viewport"
-    })
-      .setLngLat([ll.lng, ll.lat])
-      .addTo(state.map);
-    state.floatMarks.push(mark);
-    return mark;
+  function ensureMarkLayer() {
+    if (!state.map || !state.map.isStyleLoaded()) return;
+    if (!state.map.getSource("nav-marks")) {
+      state.map.addSource("nav-marks", { type: "geojson", data: EMPTY });
+    }
+    if (!state.map.getLayer("nav-marks-sym")) {
+      state.map.addLayer({
+        id: "nav-marks-sym",
+        type: "symbol",
+        source: "nav-marks",
+        layout: {
+          "icon-image": ["get", "icon"],
+          "icon-size": ["match", ["get", "kind"], "dist", 0.48, 0.58],
+          "icon-anchor": "bottom",
+          "icon-pitch-alignment": "viewport",
+          "icon-rotation-alignment": "viewport",
+          "icon-allow-overlap": true,
+          "icon-ignore-placement": true
+        }
+      });
+    }
+  }
+
+  function setMarkData(features) {
+    ensureMarkLayer();
+    const src = state.map && state.map.getSource("nav-marks");
+    if (!src) return;
+    src.setData({
+      type: "FeatureCollection",
+      features: features || []
+    });
+  }
+
+  function markFeature(ll, kind, label) {
+    const icon = ensureMarkIcon(kind, label);
+    return {
+      type: "Feature",
+      geometry: { type: "Point", coordinates: [ll.lng, ll.lat] },
+      properties: { kind: kind, label: label || "", icon: icon }
+    };
+  }
+
+  function clearFloatMarks() {
+    state.floatKey = "";
+    if (state.map && state.map.getSource("nav-marks")) setMarkData([]);
   }
 
   function sampleRoute(coords, everyM, maxPts) {
@@ -2027,7 +2131,7 @@
 
   function syncFloatMarks(force) {
     if (!state.map || !state.navigating || !state.coords.length) {
-      if (state.floatMarks && state.floatMarks.length) clearFloatMarks();
+      if (state.floatKey) clearFloatMarks();
       return;
     }
     const cur = nextActionable();
@@ -2041,8 +2145,7 @@
     ].join("|");
     if (!force && key === state.floatKey) return;
     state.floatKey = key;
-    clearFloatMarks();
-    state.floatKey = key;
+    const feats = [];
     let shown = 0;
     for (let i = 0; i < state.limits.length && shown < 5; i++) {
       const seg = state.limits[i];
@@ -2052,13 +2155,13 @@
       if (!seg.limit) continue;
       const p = alongLine(state.coords, Math.max(seg.start, (state.traveled || 0) + 18));
       if (!p) continue;
-      addFloatMark(p, "limit", String(seg.limit));
+      feats.push(markFeature(p, "limit", String(seg.limit)));
       shown += 1;
     }
     (state.cameras || []).forEach(function (cam) {
       if (cam.traveled < (state.traveled || 0) - 30) return;
       if (cam.traveled > (state.traveled || 0) + 2200) return;
-      addFloatMark(cam, "cam", "");
+      feats.push(markFeature(cam, "cam", ""));
     });
     if (cur && cur.until < 1400) {
       const loc = cur.step && cur.step.maneuver && cur.step.maneuver.location;
@@ -2068,9 +2171,10 @@
           : alongLine(state.coords, (state.traveled || 0) + Math.max(24, cur.until));
       if (p) {
         const extra = nxt && nxt.dist < 220 && nxt.limit ? " · " + nxt.limit : "";
-        state.distMark = addFloatMark(p, "dist", fmtTurnDist(cur.until) + extra);
+        feats.push(markFeature(p, "dist", fmtTurnDist(cur.until) + extra));
       }
     }
+    setMarkData(feats);
   }
 
   async function loadRoadProfile(coords) {
@@ -3365,8 +3469,10 @@
       style: dark ? STYLES.dark : STYLES.light,
       center: BUDAPEST,
       zoom: 13.5,
-      pitch: 56,
+      pitch: 52,
       maxPitch: 85,
+      fadeDuration: 0,
+      renderWorldCopies: false,
       attributionControl: true
     });
     let ready = false;
@@ -3711,6 +3817,9 @@
       if (!state.map) return Promise.reject(new Error("nincs térkép"));
       setDest({ lng: lng, lat: lat }, label || "Cél");
       return plan(false);
+    },
+    pitch: function () {
+      return state.map ? Math.round(state.map.getPitch()) : 0;
     },
     road: function (limit) {
       applyRoad({ limit: Number(limit) || 70, urban: true, cls: "residential", start: 0, end: 1e9 }, true);
