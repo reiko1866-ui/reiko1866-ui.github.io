@@ -185,7 +185,7 @@
     lastSpare: 0,
     kaland: false,
     funPoi: true,
-    funPois: [],
+    poeniPois: [],
     spokenPoi: {},
     poiAt: 0,
     poiBusy: false,
@@ -1165,7 +1165,7 @@
   function maybeLoadFunPois() {
     if (!state.funPoi || !state.origin) return;
     if (state.poiBusy) return;
-    const wait = (state.funPois && state.funPois.length) ? 15000 : 8000;
+    const wait = (state.poeniPois && state.poeniPois.length) ? 15000 : 8000;
     if (Date.now() - (state.poiAt || 0) < wait) return;
     const here = (state.lastFix && state.lastFix.ll) || state.origin;
     const lat = here.lat;
@@ -1206,7 +1206,7 @@
       })
       .then(function (data) {
         const next = parseOverpassPois(data);
-        if (next.length) state.funPois = next;
+        if (next.length) state.poeniPois = next;
         state.poiBusy = false;
       })
       .catch(function () {
@@ -1214,11 +1214,14 @@
       });
   }
 
-  function maybeSpeakFunPoi() {
+  function maybeSpeakFunPoi(lat, lng) {
     if (!state.funPoi) return;
-    const here = (state.lastFix && state.lastFix.ll) || state.origin;
+    const here =
+      Number.isFinite(lat) && Number.isFinite(lng)
+        ? { lat: lat, lng: lng }
+        : (state.lastFix && state.lastFix.ll) || state.origin;
     if (!here) return;
-    const list = state.funPois || [];
+    const list = state.poeniPois || [];
     if (!list.length) return;
     let best = null;
     let bestD = 50;
@@ -1226,7 +1229,7 @@
       const p = list[i];
       if (state.spokenPoi[p.id]) continue;
       const d = haversine(here, p);
-      if (d < bestD) {
+      if (d <= 50 && d < bestD) {
         best = p;
         bestD = d;
       }
@@ -1397,7 +1400,7 @@
     watchPark(raw, state.speed);
     paintCar();
     maybeLoadFunPois();
-    maybeSpeakFunPoi();
+    maybeSpeakFunPoi(raw.lat, raw.lng);
     if (state.navigating) syncFloatMarks();
   }
 
@@ -2398,7 +2401,8 @@
       (r.legs || []).forEach(function (leg) {
         steps += (leg.steps || []).length;
       });
-      const score = dist / straight + steps * 0.015;
+      const pts = (r.geometry && r.geometry.coordinates && r.geometry.coordinates.length) || 0;
+      const score = dist / straight + steps * 0.02 + pts * 0.0004;
       if (score > bestScore) {
         best = r;
         bestScore = score;
@@ -2410,8 +2414,10 @@
   async function fetchOsrm(from, to, extraQs) {
     const rad = Math.max(25, Math.min(80, Math.round((state.gpsAcc || 35) + 8)));
     const baseSnap = (state.kaland ? "" : "&continue_straight=true") + "&radiuses=" + rad + ";" + rad;
-    const altQs = state.kaland ? "&alternatives=true" : "";
     function pathWith(snapQs) {
+      const kalandQs = state.kaland
+        ? "?geometries=geojson&overview=full&alternatives=true&steps=true"
+        : "?overview=full&geometries=geojson&steps=true";
       return (
         from.lng +
         "," +
@@ -2420,8 +2426,7 @@
         to.lng +
         "," +
         to.lat +
-        "?overview=full&geometries=geojson&steps=true" +
-        altQs +
+        kalandQs +
         snapQs +
         (extraQs || "")
       );
@@ -2771,7 +2776,6 @@
       setStatus("Megérkeztél");
     }
     paintArHud();
-    state.funPois = [];
     state.spokenPoi = {};
     state.funChipUntil = 0;
     state.cameras = [];
@@ -2821,7 +2825,7 @@
     if (spd == null || isNaN(spd) || spd < 0) spd = state.speed || 0;
     setOrigin(raw, c.heading, spd);
     maybeLoadFunPois();
-    maybeSpeakFunPoi();
+    maybeSpeakFunPoi(c.latitude, c.longitude);
     if (state.navigating && acc > 50) {
       state.gpsHits += 1;
       if (state.gpsHits >= 3 && Date.now() - state.lastGpsWarn > 40000) {
@@ -3094,7 +3098,7 @@
     const check = $("funPoiCheck");
     if (check) check.checked = state.funPoi;
     if (!state.funPoi) {
-      state.funPois = [];
+      state.poeniPois = [];
       state.funChipUntil = 0;
     } else if (state.funPoi) {
       state.poiAt = 0;
@@ -3874,14 +3878,14 @@
       const h = (state.lastFix && state.lastFix.ll) || state.origin;
       if (!h) return false;
       state.funPoi = true;
-      state.funPois.push({
+      state.poeniPois.push({
         id: "test/" + Date.now(),
         lat: h.lat,
         lng: h.lng,
         kind: "pub",
         name: "Teszt kocsma"
       });
-      maybeSpeakFunPoi();
+      maybeSpeakFunPoi(h.lat, h.lng);
       return true;
     },
     kaland: function (on) {
