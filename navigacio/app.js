@@ -232,6 +232,9 @@
     voiceOff: {},
     voiceMap: {},
     packFilter: "start",
+    packPut: true,
+    sortName: "",
+    sortIndex: 0,
     lastStraightAt: 0,
     cameras: [],
     camBusy: false,
@@ -973,7 +976,7 @@
     { id: "gps", label: "GPS gyenge" },
     { id: "speed", label: "Túllépés" },
     { id: "straight", label: "Egyenesen" },
-    { id: "start", label: "Poén vezetés közben" }
+    { id: "start", label: "Poén / pakolás" }
   ];
 
   function defaultVoiceCats() {
@@ -1090,7 +1093,101 @@
     saveVoicePrefs();
     applyVoiceMap();
     fillPoen();
-    paintVoiceCats();
+  }
+
+  function mappedCount() {
+    return Object.keys(state.voiceMap || {}).length;
+  }
+
+  function updatePackCount() {
+    const nv = navVoice();
+    const cat = state.packFilter || "start";
+    const files = nv && nv.filesFor ? nv.filesFor(cat) : [];
+    const count = $("poenCount");
+    const on = files.filter(voiceFileOn).length;
+    const moved = mappedCount();
+    if (!count) return;
+    if (!files.length) {
+      count.textContent = "A hangcsomag még töltődik…";
+      return;
+    }
+    const drive = voiceCatOn(cat)
+      ? on + " / " + files.length + " mehet vezetés közben"
+      : "ki a vezetésből · " + on + " / " + files.length + " be van pipálva";
+    count.textContent =
+      catLabel(cat) +
+      ": " +
+      files.length +
+      " klip · " +
+      drive +
+      (moved ? " · " + moved + " átrakva" : "");
+  }
+
+  function markSortRow(name) {
+    const list = $("poenList");
+    if (!list) return;
+    const rows = list.children;
+    for (let i = 0; i < rows.length; i++) {
+      rows[i].classList.toggle("is-sort", rows[i].getAttribute("data-clip") === name);
+    }
+  }
+
+  function playSortAt(i) {
+    const files = poenFiles();
+    if (!files.length) {
+      state.sortName = "";
+      setPoenNow("", 0, 0);
+      return;
+    }
+    const idx = Math.max(0, Math.min(files.length - 1, i || 0));
+    const name = files[idx];
+    state.sortName = name;
+    state.sortIndex = idx;
+    const mgr = navVoice();
+    if (!mgr) return setStatus("A hangmodul nem töltődött be.", true);
+    armVoice();
+    if (typeof mgr.playOne === "function") mgr.playOne(name);
+    else mgr.playNow(mgr.hrefsForName(name));
+    setPoenNow(name, idx + 1, files.length);
+    markSortRow(name);
+  }
+
+  function putCurrent(dest) {
+    const name = state.sortName;
+    if (!name) {
+      setStatus("Előbb hallgasd meg a klipet, aztán rakd a helyére");
+      return;
+    }
+    if (!dest) return;
+    const files = poenFiles();
+    const i = files.indexOf(name);
+    const from = state.packFilter;
+    if (dest === from) {
+      skipStay();
+      return;
+    }
+    moveClip(name, dest);
+    setStatus(clipLabel(name) + " → " + catLabel(dest));
+    const nextFiles = poenFiles();
+    if (!nextFiles.length) {
+      state.sortName = "";
+      setPoenNow("", 0, 0);
+      return;
+    }
+    playSortAt(Math.min(Math.max(i, 0), nextFiles.length - 1));
+  }
+
+  function skipStay() {
+    const files = poenFiles();
+    if (!files.length) return;
+    const i = files.indexOf(state.sortName);
+    const next = i < 0 ? 0 : i + 1;
+    if (next >= files.length) {
+      setStatus("Ez volt az utolsó ebben a mappában");
+      playSortAt(files.length - 1);
+      return;
+    }
+    playSortAt(next);
   }
 
   function voiceCatOn(cat) {
@@ -1126,13 +1223,21 @@
   }
 
   function setPoenNow(name, played, total) {
+    if (name) {
+      state.sortName = name;
+      markSortRow(name);
+    }
     const el = $("poenNow");
     if (!el) return;
-    if (!played || !total) {
-      el.textContent = name ? "Szól" : "Koppints: lejátszás vagy pipa";
+    if (name && played && total) {
+      el.textContent = clipLabel(name) + " · " + played + " / " + total + " — koppints: hová tartozik";
       return;
     }
-    el.textContent = "Szól: " + played + " / " + total;
+    if (state.sortName) {
+      el.textContent = "Rakd ide: " + clipLabel(state.sortName);
+      return;
+    }
+    el.textContent = "Hallgasd, aztán koppints: hová tartozik";
   }
 
   function paintVoiceCats() {
@@ -1161,25 +1266,26 @@
 
   function paintPackCats() {
     const bar = $("packCats");
-    if (!bar) return;
-    bar.innerHTML = "";
-    VOICE_CATS.forEach(function (c) {
-      const btn = document.createElement("button");
-      btn.type = "button";
-      btn.className =
-        "pack-cat" +
-        (c.id === state.packFilter ? " is-on" : "") +
-        (voiceCatOn(c.id) ? "" : " is-muted");
-      const nv = navVoice();
-      const n = nv && nv.filesFor ? nv.filesFor(c.id).length : 0;
-      btn.textContent = c.label + " (" + n + ")";
-      btn.addEventListener("click", function () {
-        state.packFilter = c.id;
-        fillPoen();
-        paintPackCats();
+    if (bar) {
+      bar.innerHTML = "";
+      VOICE_CATS.forEach(function (c) {
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className =
+          "pack-cat" +
+          (c.id === state.packFilter ? " is-on" : "") +
+          (voiceCatOn(c.id) ? "" : " is-muted");
+        const nv = navVoice();
+        const n = nv && nv.filesFor ? nv.filesFor(c.id).length : 0;
+        btn.textContent = c.label + " (" + n + ")";
+        btn.addEventListener("click", function () {
+          state.packFilter = c.id;
+          state.sortName = "";
+          fillPoen();
+        });
+        bar.appendChild(btn);
       });
-      bar.appendChild(btn);
-    });
+    }
     const drive = $("packCatDrive");
     if (drive) {
       drive.checked = voiceCatOn(state.packFilter);
@@ -1190,6 +1296,36 @@
         fillPoen();
       };
     }
+    const putOn = $("packPutOn");
+    if (putOn) {
+      putOn.checked = state.packPut !== false;
+      putOn.onchange = function () {
+        state.packPut = putOn.checked;
+      };
+    }
+    paintPackDest();
+  }
+
+  function paintPackDest() {
+    const box = $("packDest");
+    if (!box) return;
+    box.innerHTML = "";
+    VOICE_CATS.forEach(function (c) {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "pack-put" + (c.id === state.packFilter ? " is-here" : "");
+      btn.textContent = c.label;
+      btn.addEventListener("click", function () {
+        if (state.packPut === false) {
+          state.packFilter = c.id;
+          state.sortName = "";
+          fillPoen();
+          return;
+        }
+        putCurrent(c.id);
+      });
+      box.appendChild(btn);
+    });
   }
 
   function fillPoen() {
@@ -1197,34 +1333,23 @@
     const cat = state.packFilter || "start";
     const files = nv && nv.filesFor ? nv.filesFor(cat) : [];
     const list = $("poenList");
-    const count = $("poenCount");
-    const on = files.filter(voiceFileOn).length;
-    if (count) {
-      if (!files.length) {
-        count.textContent = "A hangcsomag még töltődik…";
-      } else if (!voiceCatOn(cat)) {
-        count.textContent =
-          catLabel(cat) + ": ki a vezetésből · " + on + " / " + files.length + " fájl be van pipálva";
-      } else {
-        count.textContent =
-          catLabel(cat) + ": " + on + " / " + files.length + " klip mehet vezetés közben";
-      }
-    }
+    updatePackCount();
     paintPackCats();
     if (!list) return;
     list.innerHTML = "";
     files.forEach(function (name, i) {
       const li = document.createElement("li");
-      li.className = "pack-item" + (voiceFileOn(name) ? "" : " is-off");
+      li.className =
+        "pack-item" +
+        (voiceFileOn(name) ? "" : " is-off") +
+        (name === state.sortName ? " is-sort" : "");
+      li.setAttribute("data-clip", name);
       const play = document.createElement("button");
       play.type = "button";
       play.className = "pack-play";
       play.textContent = clipLabel(name);
       play.addEventListener("click", function () {
-        const mgr = navVoice();
-        if (!mgr) return setStatus("A hangmodul nem töltődött be.", true);
-        armVoice();
-        mgr.playJokes(files, i);
+        playSortAt(i);
       });
       const tog = document.createElement("button");
       tog.type = "button";
@@ -1235,24 +1360,14 @@
         if (state.voiceOff[name]) delete state.voiceOff[name];
         else state.voiceOff[name] = true;
         saveVoicePrefs();
-        fillPoen();
-      });
-      const where = document.createElement("select");
-      where.className = "pack-where";
-      where.setAttribute("aria-label", "Hol szóljon");
-      VOICE_CATS.forEach(function (c) {
-        const opt = document.createElement("option");
-        opt.value = c.id;
-        opt.textContent = c.label;
-        if (c.id === cat) opt.selected = true;
-        where.appendChild(opt);
-      });
-      where.addEventListener("change", function () {
-        moveClip(name, where.value);
+        li.classList.toggle("is-off", !voiceFileOn(name));
+        tog.classList.toggle("is-on", voiceFileOn(name));
+        tog.setAttribute("aria-pressed", voiceFileOn(name) ? "true" : "false");
+        tog.textContent = voiceFileOn(name) ? "Be" : "Ki";
+        updatePackCount();
       });
       li.appendChild(play);
       li.appendChild(tog);
-      li.appendChild(where);
       list.appendChild(li);
     });
   }
@@ -1273,10 +1388,13 @@
     }
     if (next) {
       next.addEventListener("click", function () {
-        const nv = navVoice();
-        if (!nv) return;
-        armVoice();
-        nv.skipJoke(state.packFilter);
+        skipStay();
+      });
+    }
+    const keep = $("packKeep");
+    if (keep) {
+      keep.addEventListener("click", function () {
+        skipStay();
       });
     }
     if (stop) {
@@ -4716,6 +4834,7 @@
         setStatus(err && err.message ? err.message : "A térkép nem töltődött be.", true);
         try {
           bind();
+          initVoice();
         } catch (_e) {}
       });
   }

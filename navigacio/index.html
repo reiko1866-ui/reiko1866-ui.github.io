@@ -118,20 +118,24 @@
 
     <section id="poen" class="page">
       <h1>Hangcsomag</h1>
-      <p>Te döntöd el, melyik hang hol szól. Kategória: mikor mehet vezetés közben. Fájl: Be/Ki, vagy átrakod másik helyzetre. A lejátszás mindig megy — a pipa csak a vezetésre vonatkozik.</p>
+      <p>Hallgasd meg a klipet, aztán koppints, hová tartozik. A fájlnév nem számít — te rakod a helyére. A Be/Ki csak annyi, hogy mehet-e vezetés közben.</p>
       <p id="poenCount">—</p>
       <div class="pack-cats" id="packCats"></div>
-      <label class="check pack-drive-row"><input type="checkbox" id="packCatDrive"> Ez a kategória mehet vezetés közben</label>
+      <label class="check pack-drive-row"><input type="checkbox" id="packCatDrive"> Ez a mappa mehet vezetés közben</label>
+      <label class="check pack-drive-row"><input type="checkbox" id="packPutOn" checked> Amit hallok, azt rakom a gombra</label>
       <div class="poen-bar pack-toolbar">
         <button type="button" id="poenPlay">Mind megy</button>
         <button type="button" id="poenNext">Következő</button>
+        <button type="button" id="packKeep">Marad itt</button>
         <button type="button" id="poenStop">Állj</button>
       </div>
       <div class="row pack-toolbar">
         <button type="button" id="packAllOn">Mind be a vezetésbe</button>
         <button type="button" id="packAllOff">Mind ki a vezetésből</button>
       </div>
-      <p id="poenNow">Koppints: lejátszás, Be/Ki, vagy hol szóljon</p>
+      <p id="poenNow">Hallgasd, aztán koppints: hová tartozik</p>
+      <p class="hint pack-put-label">Rakd ide</p>
+      <div class="pack-dest" id="packDest"></div>
       <ul id="poenList"></ul>
     </section>
 
@@ -144,7 +148,7 @@
         <li>Arcade 3D nézet: éjszakai vektoros aszfalt, 78° kamera, égbolt/köd. A Garázsban low-poly chibi mini autók, kártyán forgó 3D előnézet. Kanyarban a karosszéria megdől. Jobbra három gomb: térkép, útvonal, hang.</li>
         <li>Kaland mód: OSRM alternatives, a kanyargósabb út, arany neon, autópálya nélkül. Poénos hang: csak körforgalomnál, éles kanyarnál, meredek utcán vagy túllépéskor — az OSRM útvonalra illesztve.</li>
         <li>Előrejelzés, következő kanyar, kijárat, sávrajz, sebesség.</li>
-        <li>A 698 klipet te osztod be: a Hangcsomag oldalon kategória, Be/Ki, és hogy hol szóljon. Alapból a kanyarhangok mennek, a poén és az egyenes ki van kapcsolva, amíg be nem pipálod.</li>
+        <li>A 698 klipet te pakolod: hallgasd, aztán koppints, hová tartozik. A Be/Ki a vezetés. Alapból a kanyarmappák mennek, a poén és az egyenes ki van kapcsolva.</li>
         <li>Otthon és munka a menüből. Az autó helye mentődik: keresőben Autó, sárga pont a térképen.</li>
       </ul>
     </section>
@@ -214,7 +218,7 @@
       <label class="check"><input type="checkbox" id="avoidToll"> Fizetős utak elkerülése</label>
       <p class="hint">A pipák megmaradnak. Ha van cél, az útvonal azonnal újraterveződik autópálya / fizető nélkül. A telefon vissza gombja a menüt zárja, nem az appot.</p>
       <label class="check"><input type="checkbox" id="voiceCheck" checked> Hang</label>
-      <p class="hint">Vezetés közben melyik kategória szólhat. A fájlok és az áthelyezés a Hangcsomag oldalon.</p>
+      <p class="hint">Vezetés közben melyik mappa szólhat. A klipeket a Hangcsomag oldalon rakod a helyükre.</p>
       <div class="voice-cats" id="voiceCatBox"></div>
       <label class="check"><input type="checkbox" id="dark" checked> Sötét térkép</label>
       <label class="check"><input type="checkbox" id="kalandCheck"> Kaland mód</label>
