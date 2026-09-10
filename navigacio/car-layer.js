@@ -3,8 +3,8 @@
 
   var GARAGE_KEY = "nav2_car_model";
   var LAYER_ID = "ego-car-3d";
-  var TARGET_METERS = 3.6;
-  var CHIBI_SCALE = 1.38;
+  var TARGET_METERS = 5.6;
+  var CHIBI_SCALE = 1.42;
   var THREE_LOCAL = "./vendor/three.min.js";
   var GLTF_LOCAL = "./vendor/GLTFLoader.js";
   var THREE_CDN = "https://cdn.jsdelivr.net/npm/three@0.147.0/build/three.min.js";
@@ -590,8 +590,8 @@
         disc.position.y = 0.01;
         garage.scene.add(disc);
         garage.camera = new THREE.PerspectiveCamera(32, 1.6, 0.1, 20);
-        garage.camera.position.set(1.55, 1.22, 2.15);
-        garage.camera.lookAt(0, 0.48, 0);
+        garage.camera.position.set(1.45, 1.38, 2.05);
+        garage.camera.lookAt(0, 0.58, 0);
         garage.yaw = 0.85;
         var ids = [];
         for (var i = 0; i < canvases.length; i++) ids.push(canvases[i].getAttribute("data-car-preview"));
