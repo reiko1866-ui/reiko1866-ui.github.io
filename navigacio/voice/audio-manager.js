@@ -329,6 +329,14 @@
       return this.playNow(this.hrefsForName(name));
     }
 
+    playOne(name) {
+      if (!name) return false;
+      this.clearQueue();
+      this.started = true;
+      hushSpeech();
+      return this.playNow(this.hrefsForName(name));
+    }
+
     skipJoke(cat) {
       if (this.queueOn) return this.playNextJoke();
       const key = cat || "start";
