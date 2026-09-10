@@ -185,7 +185,7 @@
     lastSpare: 0,
     kaland: false,
     funPoi: true,
-    funPois: [],
+    poeniPois: [],
     spokenPoi: {},
     poiAt: 0,
     poiBusy: false,
@@ -206,8 +206,11 @@
     warnCtx: null,
     hazards: [],
     spokenHazard: "",
-    mapOffline: false
+    mapOffline: false,
+    lastOsrmUrl: ""
   };
+
+  const POI_RANGE_M = 50;
 
   function setStatus(msg, err) {
     const el = $("status");
@@ -1165,7 +1168,7 @@
   function maybeLoadFunPois() {
     if (!state.funPoi || !state.origin) return;
     if (state.poiBusy) return;
-    const wait = (state.funPois && state.funPois.length) ? 15000 : 8000;
+    const wait = (state.poeniPois && state.poeniPois.length) ? 15000 : 8000;
     if (Date.now() - (state.poiAt || 0) < wait) return;
     const here = (state.lastFix && state.lastFix.ll) || state.origin;
     const lat = here.lat;
@@ -1206,7 +1209,7 @@
       })
       .then(function (data) {
         const next = parseOverpassPois(data);
-        if (next.length) state.funPois = next;
+        if (next.length) state.poeniPois = next;
         state.poiBusy = false;
       })
       .catch(function () {
@@ -1214,19 +1217,22 @@
       });
   }
 
-  function maybeSpeakFunPoi() {
+  function maybeSpeakFunPoi(lat, lng) {
     if (!state.funPoi) return;
-    const here = (state.lastFix && state.lastFix.ll) || state.origin;
+    const here =
+      Number.isFinite(lat) && Number.isFinite(lng)
+        ? { lat: lat, lng: lng }
+        : (state.lastFix && state.lastFix.ll) || state.origin;
     if (!here) return;
-    const list = state.funPois || [];
+    const list = state.poeniPois || [];
     if (!list.length) return;
     let best = null;
-    let bestD = 50;
+    let bestD = POI_RANGE_M;
     for (let i = 0; i < list.length; i++) {
       const p = list[i];
       if (state.spokenPoi[p.id]) continue;
-      const d = haversine(here, p);
-      if (d < bestD) {
+      const d = haversine(here, { lat: Number(p.lat), lng: Number(p.lng) });
+      if (d <= POI_RANGE_M && (!best || d < bestD)) {
         best = p;
         bestD = d;
       }
@@ -1351,6 +1357,7 @@
     const raw = { lng: lngLat.lng, lat: lngLat.lat };
     if (!plausibleJump(state.lastFix, { ll: raw, t: now, speed: speed || 0 }, acc)) {
       state.fixRejects = (state.fixRejects || 0) + 1;
+      maybeSpeakFunPoi(raw.lat, raw.lng);
       if (state.fixRejects < 3) return;
     }
     state.fixRejects = 0;
@@ -1397,7 +1404,7 @@
     watchPark(raw, state.speed);
     paintCar();
     maybeLoadFunPois();
-    maybeSpeakFunPoi();
+    maybeSpeakFunPoi(raw.lat, raw.lng);
     if (state.navigating) syncFloatMarks();
   }
 
@@ -2363,6 +2370,7 @@
   }
 
   function osrmExcludeQs() {
+    if (state.kaland) return "";
     const parts = [];
     const o = routeOpts();
     if (o.avoidMotorway) parts.push("motorway");
@@ -2398,7 +2406,15 @@
       (r.legs || []).forEach(function (leg) {
         steps += (leg.steps || []).length;
       });
-      const score = dist / straight + steps * 0.015;
+      let motor = 0;
+      (r.legs || []).forEach(function (leg) {
+        (leg.steps || []).forEach(function (s) {
+          const hint = String(s.name || "") + " " + String(s.ref || "");
+          if (/motorway|autópálya|\bM\d/i.test(hint)) motor += Number(s.distance) || 0;
+        });
+      });
+      const pts = (r.geometry && r.geometry.coordinates && r.geometry.coordinates.length) || 0;
+      const score = dist / straight + steps * 0.02 + pts * 0.0004 - motor / Math.max(dist, 1);
       if (score > bestScore) {
         best = r;
         bestScore = score;
@@ -2409,9 +2425,15 @@
 
   async function fetchOsrm(from, to, extraQs) {
     const rad = Math.max(25, Math.min(80, Math.round((state.gpsAcc || 35) + 8)));
-    const baseSnap = (state.kaland ? "" : "&continue_straight=true") + "&radiuses=" + rad + ";" + rad;
-    const altQs = state.kaland ? "&alternatives=true" : "";
+    const baseSnap = state.kaland
+      ? ""
+      : "&continue_straight=true&radiuses=" + rad + ";" + rad;
+    let qs = extraQs || "";
+    if (state.kaland) qs = qs.replace(/&?exclude=[^&]*/gi, "");
     function pathWith(snapQs) {
+      const kalandQs = state.kaland
+        ? "?geometries=geojson&overview=full&alternatives=true&steps=true"
+        : "?overview=full&geometries=geojson&steps=true";
       return (
         from.lng +
         "," +
@@ -2420,16 +2442,17 @@
         to.lng +
         "," +
         to.lat +
-        "?overview=full&geometries=geojson&steps=true" +
-        altQs +
+        kalandQs +
         snapQs +
-        (extraQs || "")
+        qs
       );
     }
     function tryPath(snapQs) {
       const path = pathWith(snapQs);
       const jobs = OSRM.map(function (base) {
-        return fetchJson(base + "/" + path, null, 6500).then(function (res) {
+        const url = base + "/" + path;
+        state.lastOsrmUrl = url;
+        return fetchJson(url, null, 6500).then(function (res) {
           if (!res.ok) throw new Error("HTTP " + res.status);
           return res.json();
         }).then(function (data) {
@@ -2440,7 +2463,7 @@
       return Promise.any(jobs);
     }
     try {
-      if (state.navigating && Number.isFinite(state.heading) && (state.speed || 0) > 3) {
+      if (!state.kaland && state.navigating && Number.isFinite(state.heading) && (state.speed || 0) > 3) {
         const range = (state.speed || 0) > 8 ? 35 : 60;
         try {
           return await tryPath(baseSnap + "&bearings=" + Math.round(state.heading) + "," + range + ";");
@@ -2597,7 +2620,7 @@
       let last = null;
       const tries = state.kaland
         ? [
-            function () { return fetchOsrm(state.origin, state.dest, exclude); },
+            function () { return fetchOsrm(state.origin, state.dest, ""); },
             function () { return fetchValhalla(state.origin, state.dest); }
           ]
         : exclude
@@ -2771,7 +2794,6 @@
       setStatus("Megérkeztél");
     }
     paintArHud();
-    state.funPois = [];
     state.spokenPoi = {};
     state.funChipUntil = 0;
     state.cameras = [];
@@ -2821,7 +2843,7 @@
     if (spd == null || isNaN(spd) || spd < 0) spd = state.speed || 0;
     setOrigin(raw, c.heading, spd);
     maybeLoadFunPois();
-    maybeSpeakFunPoi();
+    maybeSpeakFunPoi(c.latitude, c.longitude);
     if (state.navigating && acc > 50) {
       state.gpsHits += 1;
       if (state.gpsHits >= 3 && Date.now() - state.lastGpsWarn > 40000) {
@@ -3094,7 +3116,7 @@
     const check = $("funPoiCheck");
     if (check) check.checked = state.funPoi;
     if (!state.funPoi) {
-      state.funPois = [];
+      state.poeniPois = [];
       state.funChipUntil = 0;
     } else if (state.funPoi) {
       state.poiAt = 0;
@@ -3874,18 +3896,21 @@
       const h = (state.lastFix && state.lastFix.ll) || state.origin;
       if (!h) return false;
       state.funPoi = true;
-      state.funPois.push({
+      state.poeniPois.push({
         id: "test/" + Date.now(),
         lat: h.lat,
         lng: h.lng,
         kind: "pub",
         name: "Teszt kocsma"
       });
-      maybeSpeakFunPoi();
+      maybeSpeakFunPoi(h.lat, h.lng);
       return true;
     },
     kaland: function (on) {
       applyKaland(!!on);
+    },
+    osrm: function () {
+      return state.lastOsrmUrl || "";
     },
     road: function (limit) {
       applyRoad({ limit: Number(limit) || 70, urban: true, cls: "residential", start: 0, end: 1e9 }, true);
