@@ -135,7 +135,7 @@
         <li>Felül a kanyartábla: táv, utasítás, utca, alatta a következő kanyar.</li>
         <li>A kereső címlistája: név felül, város/utca alatta. Koppints a találatra — nem az elsőt indítja.</li>
         <li>A kanyarnál a feltöltött hangcsomag szól, egyszerre csak egy hang. Letéréskor újratervez.</li>
-        <li>Arcade 3D nézet: éjszakai vektoros aszfalt, 78° kamera, égbolt/köd, hátulnézeti fehér autó. Jobbra három gomb: térkép, útvonal, hang.</li>
+        <li>Arcade 3D nézet: éjszakai vektoros aszfalt, 78° kamera, égbolt/köd, Three.js gLTF autó a sávban. A Garázsban típus választás. Jobbra három gomb: térkép, útvonal, hang.</li>
         <li>Kaland mód: OSRM alternatives, a kanyargósabb út, arany neon, autópálya nélkül. Poénos POI: nyers GPS, 50 méteren belül egy poén — egyszerre csak egy hang.</li>
         <li>Előrejelzés, következő kanyar, kijárat, sávrajz, sebesség.</li>
         <li>A 698 feltöltött klip mind szól: kanyarnál az utasítás, utána a poén. A Poén fülön külön is hallgathatók.</li>
@@ -199,6 +199,11 @@
         <button type="button" id="homeSet">Otthon = cél</button>
         <button type="button" id="workSet">Munka = cél</button>
       </div>
+      <section id="garageBox" class="garage">
+        <h2 id="garageTitle">Garázs</h2>
+        <p class="hint">Valódi 3D modell a sávban, a haladási irányba. Koppints egy típusra — a választás megmarad.</p>
+        <div id="garageGrid" class="garage-grid" role="list"></div>
+      </section>
       <label class="check"><input type="checkbox" id="avoidMotorway"> Autópálya elkerülése</label>
       <label class="check"><input type="checkbox" id="avoidToll"> Fizetős utak elkerülése</label>
       <p class="hint">A pipák megmaradnak. Ha van cél, az útvonal azonnal újraterveződik autópálya / fizető nélkül. A telefon vissza gombja a menüt zárja, nem az appot.</p>
@@ -244,6 +249,7 @@
   <noscript>A navigációhoz JavaScript kell.</noscript>
   <audio id="navVoiceEl" playsinline preload="auto"></audio>
   <script src="./voice/audio-manager.js"></script>
+  <script src="./car-layer.js"></script>
   <script src="./app.js"></script>
 </body>
 </html>

@@ -207,7 +207,11 @@
     hazards: [],
     spokenHazard: "",
     mapOffline: false,
-    lastOsrmUrl: ""
+    lastOsrmUrl: "",
+    carModel: "verso",
+    carLean: 0,
+    leanHeading: null,
+    leanAt: 0
   };
 
   const POI_RANGE_M = 50;
@@ -1715,6 +1719,7 @@
     paintCar();
     applyRouteStyle();
     if (state.navigating) syncFloatMarks(true);
+    if (window.NavCar3D) window.NavCar3D.ensure(state.map);
   }
 
   function routeColors() {
@@ -1801,8 +1806,41 @@
 
   function paintCompass() {}
 
+  function updateCarLean(heading) {
+    const now = performance.now();
+    const h = Number(heading);
+    if (!Number.isFinite(h)) return state.carLean || 0;
+    if (state.leanHeading == null) {
+      state.leanHeading = h;
+      state.leanAt = now;
+      return state.carLean || 0;
+    }
+    const dt = Math.max(0.016, (now - (state.leanAt || now)) / 1000);
+    state.leanAt = now;
+    const dh = angDelta(state.leanHeading, h);
+    state.leanHeading = h;
+    const yawRate = dh / dt;
+    const want = Math.max(-9.5, Math.min(9.5, yawRate * 0.16));
+    state.carLean = (state.carLean || 0) * 0.82 + want * 0.18;
+    if (Math.abs(state.carLean) < 0.08) state.carLean = 0;
+    return state.carLean;
+  }
+
   function placePuck(ll, heading) {
     if (!state.map || !ll) return;
+    const lean = updateCarLean(heading);
+    if (window.NavCar3D) {
+      window.NavCar3D.setPose(ll.lng, ll.lat, heading, lean);
+      if (window.NavCar3D.ready) {
+        if (state.puck) {
+          try {
+            state.puck.remove();
+          } catch (_e) {}
+          state.puck = null;
+        }
+        return;
+      }
+    }
     if (!state.puck) {
       state.puck = new maplibregl.Marker({ element: makeCarEl(), anchor: "center" })
         .setLngLat([ll.lng, ll.lat])
@@ -3940,6 +3978,52 @@
         setStatus(state.funPoi ? "Poénos POI be" : "Poénos POI ki");
       });
     }
+    bindGarage();
+  }
+
+  function paintGarage() {
+    const grid = $("garageGrid");
+    if (!grid || !window.NavCar3D) return;
+    const models = window.NavCar3D.carModels || {};
+    const cur = window.NavCar3D.id();
+    state.carModel = cur;
+    grid.innerHTML = "";
+    Object.keys(models).forEach(function (id) {
+      const spec = models[id];
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "garage-card" + (id === cur ? " is-on" : "");
+      btn.setAttribute("data-car", id);
+      btn.setAttribute("aria-pressed", id === cur ? "true" : "false");
+      btn.innerHTML =
+        '<span class="garage-swatch"><span class="garage-car" style="--paint:' +
+        spec.color +
+        '"></span></span><span class="garage-name">' +
+        spec.name +
+        '</span><span class="garage-hint">' +
+        (spec.hint || "") +
+        "</span>";
+      btn.addEventListener("click", function () {
+        chooseCar(id);
+      });
+      grid.appendChild(btn);
+    });
+  }
+
+  function chooseCar(id) {
+    if (!window.NavCar3D) return;
+    const next = window.NavCar3D.setModel(id);
+    state.carModel = next;
+    paintGarage();
+    const spec = window.NavCar3D.carModels[next];
+    setStatus(spec ? spec.name : next);
+    if (state.view) placePuck(state.view, state.view.heading);
+    else if (state.origin) placePuck(state.origin, state.heading);
+    if (state.map) state.map.triggerRepaint();
+  }
+
+  function bindGarage() {
+    paintGarage();
   }
 
   function loadScript(src) {
@@ -4026,6 +4110,7 @@
   function boot() {
     loadPlaces();
     loadNavOpts();
+    if (window.NavCar3D) state.carModel = window.NavCar3D.id();
     loadMapLibre()
       .then(() => {
         initMap();
@@ -4086,6 +4171,10 @@
     },
     road: function (limit) {
       applyRoad({ limit: Number(limit) || 70, urban: true, cls: "residential", start: 0, end: 1e9 }, true);
+    },
+    garage: function (id) {
+      chooseCar(id);
+      return state.carModel;
     }
   };
 
