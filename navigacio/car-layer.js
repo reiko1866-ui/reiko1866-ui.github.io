@@ -126,7 +126,7 @@
 
   function savedId() {
     try {
-      var id = String(localStorage.getItem(GARAGE_KEY) || "");
+      var id = String(localStorage.getItem("selectedCar") || localStorage.getItem(GARAGE_KEY) || "");
       if (carModels[id]) return id;
     } catch (_e) {}
     return "verso";
@@ -135,6 +135,7 @@
   function persist(id) {
     try {
       localStorage.setItem(GARAGE_KEY, id);
+      localStorage.setItem("selectedCar", id);
     } catch (_e) {}
   }
 
@@ -476,6 +477,11 @@
 
   global.NavCar3D = api;
   api.currentId = savedId();
+  global.addEventListener("carModelChanged", function (ev) {
+    var id = ev && ev.detail;
+    if (!id || id === api.currentId) return;
+    api.setModel(id);
+  });
   loadThree().catch(function (err) {
     console.warn("[NavCar3D] three", err);
     showFallback();
