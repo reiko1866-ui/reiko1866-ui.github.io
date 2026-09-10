@@ -1854,7 +1854,8 @@
     }
     placePuck(v, v.heading);
     paintCompass();
-    if (!state.follow) return;
+    const lockHeading = state.follow || state.navigating;
+    if (!lockHeading) return;
     const kmh = (state.speed || 0) * 3.6;
     const wantZoom = state.navigating
         ? kmh > 110 ? 17.15 : kmh > 70 ? 17.55 : 17.95
@@ -2143,6 +2144,32 @@
     return id;
   }
 
+  function markIconSize() {
+    const w = window.innerWidth || 400;
+    const h = window.innerHeight || 800;
+    const vmin = Math.min(w, h);
+    const portrait = h > w * 1.12;
+    const base = Math.max(0.24, Math.min(0.5, vmin / 1500));
+    return {
+      dist: portrait ? base * 0.72 : base * 0.84,
+      sign: portrait ? base * 0.82 : base
+    };
+  }
+
+  function applyMarkSize() {
+    if (!state.map || !state.map.getLayer("nav-marks-sym")) return;
+    const s = markIconSize();
+    try {
+      state.map.setLayoutProperty("nav-marks-sym", "icon-size", [
+        "match",
+        ["get", "kind"],
+        "dist",
+        s.dist,
+        s.sign
+      ]);
+    } catch (_e) {}
+  }
+
   function ensureMarkLayer() {
     if (!state.map || !state.map.isStyleLoaded()) return;
     if (!state.map.getSource("nav-marks")) {
@@ -2155,7 +2182,7 @@
         source: "nav-marks",
         layout: {
           "icon-image": ["get", "icon"],
-          "icon-size": ["match", ["get", "kind"], "dist", 0.48, 0.58],
+          "icon-size": ["match", ["get", "kind"], "dist", markIconSize().dist, markIconSize().sign],
           "icon-anchor": "bottom",
           "icon-pitch-alignment": "viewport",
           "icon-rotation-alignment": "viewport",
@@ -2164,6 +2191,7 @@
         }
       });
     }
+    applyMarkSize();
   }
 
   function setMarkData(features) {
@@ -2285,29 +2313,31 @@
     if (!force && key === state.floatKey) return;
     state.floatKey = key;
     const feats = [];
+    const here = state.traveled || 0;
+    const nearM = 90;
     let shown = 0;
     for (let i = 0; i < state.limits.length && shown < 5; i++) {
       const seg = state.limits[i];
-      if (seg.start < (state.traveled || 0) - 15) continue;
-      if (seg.start > (state.traveled || 0) + 2600) break;
+      if (seg.start < here + nearM) continue;
+      if (seg.start > here + 2600) break;
       if (i > 0 && state.limits[i - 1].limit === seg.limit) continue;
       if (!seg.limit) continue;
-      const p = alongLine(state.coords, Math.max(seg.start, (state.traveled || 0) + 18));
+      const p = alongLine(state.coords, seg.start);
       if (!p) continue;
       feats.push(markFeature(p, "limit", String(seg.limit)));
       shown += 1;
     }
     (state.cameras || []).forEach(function (cam) {
-      if (cam.traveled < (state.traveled || 0) - 30) return;
-      if (cam.traveled > (state.traveled || 0) + 2200) return;
+      if (cam.traveled < here + nearM) return;
+      if (cam.traveled > here + 2200) return;
       feats.push(markFeature(cam, "cam", ""));
     });
-    if (cur && cur.until < 1400) {
+    if (cur && cur.until > 70 && cur.until < 1400) {
       const loc = cur.step && cur.step.maneuver && cur.step.maneuver.location;
       const p =
         loc && Number.isFinite(loc[0])
           ? { lng: loc[0], lat: loc[1] }
-          : alongLine(state.coords, (state.traveled || 0) + Math.max(24, cur.until));
+          : alongLine(state.coords, here + Math.max(nearM, cur.until));
       if (p) {
         const extra = nxt && nxt.dist < 220 && nxt.limit ? " · " + nxt.limit : "";
         feats.push(markFeature(p, "dist", fmtTurnDist(cur.until) + extra));
@@ -3647,6 +3677,9 @@
       return;
     }
     registerPmtiles();
+    try {
+      if (!localStorage.getItem(THEME_KEY)) localStorage.setItem(THEME_KEY, "dark");
+    } catch (_e) {}
     const dark = localStorage.getItem(THEME_KEY) !== "light";
     document.documentElement.classList.toggle("dark", dark);
     if ($("dark")) $("dark").checked = dark;
@@ -3681,8 +3714,13 @@
       if (msg) setStatus("Térkép: " + msg, true);
     });
     state.map.on("load", addLayers);
-    state.map.on("style.load", addLayers);
+    state.map.on("style.load", function () {
+      addLayers();
+      applyMarkSize();
+    });
+    window.addEventListener("resize", applyMarkSize);
     state.map.on("dragstart", () => {
+      if (state.navigating) return;
       state.follow = false;
       $("follow").classList.remove("is-on");
       $("follow").setAttribute("aria-pressed", "false");
