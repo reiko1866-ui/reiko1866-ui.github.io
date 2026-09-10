@@ -1799,12 +1799,7 @@
     return pad;
   }
 
-  function paintCompass() {
-    const el = $("compassN");
-    if (!el) return;
-    const hdg = Number.isFinite(state.camHeading) ? state.camHeading : state.heading || 0;
-    el.style.setProperty("--compass", (-hdg) + "deg");
-  }
+  function paintCompass() {}
 
   function placePuck(ll, heading) {
     if (!state.map || !ll) return;

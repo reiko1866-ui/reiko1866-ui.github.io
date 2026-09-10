@@ -1778,7 +1778,6 @@ noscript {
   inset: 0.32rem;
   border-radius: 50%;
   background: repeating-conic-gradient(#111 0 1.4deg, transparent 1.4deg 30deg);
-  transform: rotate(var(--compass, 0deg));
 }
 
 .compass-n {
