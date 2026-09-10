@@ -193,9 +193,8 @@
     cameras: [],
     camBusy: false,
     camAt: 0,
-    floatMarks: [],
-    distMark: null,
     floatKey: "",
+    markIcons: false,
     searchTimer: 0,
     car: null,
     carMark: null,
@@ -1532,8 +1531,8 @@
           color: sky,
           "high-color": sky,
           "space-color": sky,
-          "horizon-blend": 0.12,
-          range: [0.8, 12]
+          "horizon-blend": 0.08,
+          range: [0.5, 5.5]
         });
       }
     } catch (_e2) {}
@@ -1579,6 +1578,8 @@
         }
       });
     }
+    state.markIcons = false;
+    ensureMarkLayer();
     if (state.coords.length) drawRoute();
     paintCar();
     applyRouteStyle();
@@ -1638,15 +1639,16 @@
 
   function lookAhead(from, heading) {
     if (!from) return from;
-    const m = lookAheadMeters();
-    if (state.navigating && state.coords.length) {
-      const p = alongLine(state.coords, (state.traveled || 0) + m);
-      if (p) return p;
-    }
-    return offsetLngLat(from, heading, m);
+    return offsetLngLat(from, heading, lookAheadMeters());
   }
 
+  let padCache = { t: 0, nav: false, ar: false, pad: { top: 8, bottom: 8, left: 8, right: 8 } };
+
   function camPad() {
+    const now = typeof performance !== "undefined" ? performance.now() : Date.now();
+    if (now - padCache.t < 400 && padCache.nav === state.navigating && padCache.ar === state.ar) {
+      return padCache.pad;
+    }
     const box = state.map ? state.map.getContainer() : null;
     const h = box ? box.clientHeight : window.innerHeight;
     const fabs = $("fabBar");
@@ -1655,12 +1657,16 @@
       const r = fabs.getBoundingClientRect();
       if (r.left > 0) right = Math.max(8, Math.round(window.innerWidth - r.left + 6));
     }
-    if (state.ar) {
-      return { top: 6, bottom: 10, left: 6, right: 6 };
-    }
-    const top = Math.round(h * (state.navigating ? 0.46 : 0.18));
-    const bottom = Math.round(h * (state.navigating ? 0.14 : 0.22));
-    return { top: top, bottom: bottom, left: 8, right: right };
+    const pad = state.ar
+      ? { top: 6, bottom: 10, left: 6, right: 6 }
+      : {
+          top: Math.round(h * (state.navigating ? 0.42 : 0.16)),
+          bottom: Math.round(h * (state.navigating ? 0.16 : 0.22)),
+          left: 8,
+          right: right
+        };
+    padCache = { t: now, nav: state.navigating, ar: state.ar, pad: pad };
+    return pad;
   }
 
   function placePuck(ll, heading) {
@@ -1696,36 +1702,33 @@
     const dt = smoothTs ? Math.min(0.08, (ts - smoothTs) / 1000) : 0.016;
     smoothTs = ts;
     if (!state.view) state.view = copyPose(state.target);
-    const k = 1 - Math.exp(-dt * 5.2);
+    const k = 1 - Math.exp(-dt * 8.4);
+    const hk = 1 - Math.exp(-dt * 7.2);
     const v = state.view;
     const t = state.target;
     v.lng += (t.lng - v.lng) * k;
     v.lat += (t.lat - v.lat) * k;
     const kmh = (state.speed || 0) * 3.6;
-    const remain = haversine(v, t);
-    const turn = Number.isFinite(t.heading) ? Math.abs(angDelta(v.heading, t.heading)) : 0;
-    const headingOk = (kmh >= 2 || state.navigating) && Number.isFinite(t.heading);
-    if (headingOk && (remain >= 0.35 || turn > 3 || kmh >= 2)) {
-      v.heading = mixHeading(v.heading, t.heading, Math.min(1, k * 1.35));
+    if (Number.isFinite(t.heading) && (kmh >= 2 || state.navigating)) {
+      v.heading = mixHeading(v.heading, t.heading, Math.min(1, hk));
       state.camHeading = v.heading;
     } else if (!Number.isFinite(state.camHeading)) {
       state.camHeading = v.heading || t.heading || 0;
     }
     placePuck(v, v.heading);
     if (!state.follow) return;
-    if (state.lastCam && ts - state.lastCam < 32) return;
     state.lastCam = ts;
     const zoom = state.ar
       ? kmh > 90 ? 15.8 : 16.4
       : state.navigating
-        ? kmh > 110 ? 17.8 : kmh > 70 ? 18.35 : kmh > 40 ? 18.8 : 19.15
+        ? kmh > 110 ? 17.6 : kmh > 70 ? 18.15 : kmh > 40 ? 18.55 : 18.9
         : kmh > 110 ? 16.4 : kmh > 70 ? 16.9 : 17.4;
     const ahead = lookAhead(v, v.heading);
     try {
       state.map.jumpTo({
         center: [ahead.lng, ahead.lat],
         zoom: zoom,
-        pitch: state.ar ? 52 : state.navigating ? 78 : 56,
+        pitch: state.ar ? 48 : state.navigating ? 65 : 52,
         bearing: state.camHeading || 0,
         padding: camPad()
       });
@@ -1909,42 +1912,172 @@
     maybeSpeakRoad();
   }
 
-  function clearFloatMarks() {
-    (state.floatMarks || []).forEach(function (m) {
-      try {
-        m.remove();
-      } catch (_e) {}
-    });
-    state.floatMarks = [];
-    state.distMark = null;
-    state.floatKey = "";
+  function canvasIcon(size, draw) {
+    const c = document.createElement("canvas");
+    c.width = size;
+    c.height = size;
+    const g = c.getContext("2d");
+    g.clearRect(0, 0, size, size);
+    draw(g, size);
+    return {
+      width: size,
+      height: size,
+      data: new Uint8Array(g.getImageData(0, 0, size, size).data)
+    };
   }
 
-  function makeFloatEl(kind, text) {
-    const wrap = document.createElement("div");
-    wrap.className = "float-mark";
-    if (kind === "cam") {
-      wrap.innerHTML = '<span class="float-cam" aria-hidden="true">◉</span>';
-    } else if (kind === "limit") {
-      wrap.innerHTML = '<span class="float-limit">' + String(text || "") + "</span>";
-    } else {
-      wrap.innerHTML = '<span class="float-dist">' + String(text || "") + "</span>";
+  function ensureMarkIcons() {
+    if (!state.map || state.markIcons) return;
+    try {
+      if (!state.map.hasImage("nav-limit")) {
+        state.map.addImage(
+          "nav-limit",
+          canvasIcon(128, function (g, s) {
+            g.beginPath();
+            g.arc(s / 2, s / 2, s * 0.42, 0, Math.PI * 2);
+            g.fillStyle = "#fff";
+            g.fill();
+            g.lineWidth = s * 0.12;
+            g.strokeStyle = "#e11d2e";
+            g.stroke();
+          })
+        );
+      }
+      if (!state.map.hasImage("nav-cam")) {
+        state.map.addImage(
+          "nav-cam",
+          canvasIcon(128, function (g, s) {
+            g.beginPath();
+            g.arc(s / 2, s / 2, s * 0.42, 0, Math.PI * 2);
+            g.fillStyle = "#fff";
+            g.fill();
+            g.lineWidth = s * 0.08;
+            g.strokeStyle = "#111";
+            g.stroke();
+            g.beginPath();
+            g.arc(s / 2, s / 2, s * 0.14, 0, Math.PI * 2);
+            g.strokeStyle = "#111";
+            g.lineWidth = s * 0.06;
+            g.stroke();
+            g.fillStyle = "#111";
+            g.beginPath();
+            g.arc(s * 0.38, s * 0.4, s * 0.045, 0, Math.PI * 2);
+            g.fill();
+          })
+        );
+      }
+      if (!state.map.hasImage("nav-dist")) {
+        state.map.addImage(
+          "nav-dist",
+          canvasIcon(256, function (g, s) {
+            const x = s * 0.08;
+            const y = s * 0.28;
+            const w = s * 0.84;
+            const h = s * 0.44;
+            const r = h / 2;
+            g.beginPath();
+            g.moveTo(x + r, y);
+            g.lineTo(x + w - r, y);
+            g.arcTo(x + w, y, x + w, y + r, r);
+            g.arcTo(x + w, y + h, x + w - r, y + h, r);
+            g.lineTo(x + r, y + h);
+            g.arcTo(x, y + h, x, y + r, r);
+            g.arcTo(x, y, x + r, y, r);
+            g.closePath();
+            g.fillStyle = "#fff";
+            g.fill();
+            g.lineWidth = s * 0.035;
+            g.strokeStyle = "#111";
+            g.stroke();
+          })
+        );
+      }
+      state.markIcons = true;
+    } catch (_e) {
+      state.markIcons = false;
     }
-    return wrap;
   }
 
-  function addFloatMark(ll, kind, text) {
-    if (!state.map || !ll) return null;
-    const mark = new maplibregl.Marker({
-      element: makeFloatEl(kind, text),
-      anchor: "bottom",
-      pitchAlignment: "viewport",
-      rotationAlignment: "viewport"
-    })
-      .setLngLat([ll.lng, ll.lat])
-      .addTo(state.map);
-    state.floatMarks.push(mark);
-    return mark;
+  function markSymbolLayout(icon, textOffset) {
+    return {
+      "icon-image": icon,
+      "icon-size": icon === "nav-dist" ? 0.42 : 0.55,
+      "icon-anchor": "bottom",
+      "icon-pitch-alignment": "viewport",
+      "icon-rotation-alignment": "viewport",
+      "icon-allow-overlap": true,
+      "icon-ignore-placement": true,
+      "text-field": ["get", "label"],
+      "text-size": icon === "nav-dist" ? 13 : 12,
+      "text-anchor": "center",
+      "text-offset": textOffset,
+      "text-pitch-alignment": "viewport",
+      "text-rotation-alignment": "viewport",
+      "text-allow-overlap": true,
+      "text-ignore-placement": true,
+      "text-optional": true
+    };
+  }
+
+  function ensureMarkLayer() {
+    if (!state.map || !state.map.isStyleLoaded()) return;
+    ensureMarkIcons();
+    if (!state.map.getSource("nav-marks")) {
+      state.map.addSource("nav-marks", { type: "geojson", data: EMPTY });
+    }
+    if (!state.map.getLayer("nav-marks-limit")) {
+      state.map.addLayer({
+        id: "nav-marks-limit",
+        type: "symbol",
+        source: "nav-marks",
+        filter: ["==", ["get", "kind"], "limit"],
+        layout: markSymbolLayout("nav-limit", [0, -1.35]),
+        paint: { "text-color": "#111111", "text-halo-color": "#ffffff", "text-halo-width": 0.2 }
+      });
+    }
+    if (!state.map.getLayer("nav-marks-cam")) {
+      state.map.addLayer({
+        id: "nav-marks-cam",
+        type: "symbol",
+        source: "nav-marks",
+        filter: ["==", ["get", "kind"], "cam"],
+        layout: markSymbolLayout("nav-cam", [0, 0]),
+        paint: { "text-color": "#111111" }
+      });
+    }
+    if (!state.map.getLayer("nav-marks-dist")) {
+      state.map.addLayer({
+        id: "nav-marks-dist",
+        type: "symbol",
+        source: "nav-marks",
+        filter: ["==", ["get", "kind"], "dist"],
+        layout: markSymbolLayout("nav-dist", [0, -1.15]),
+        paint: { "text-color": "#111111" }
+      });
+    }
+  }
+
+  function setMarkData(features) {
+    ensureMarkLayer();
+    const src = state.map && state.map.getSource("nav-marks");
+    if (!src) return;
+    src.setData({
+      type: "FeatureCollection",
+      features: features || []
+    });
+  }
+
+  function markFeature(ll, kind, label) {
+    return {
+      type: "Feature",
+      geometry: { type: "Point", coordinates: [ll.lng, ll.lat] },
+      properties: { kind: kind, label: label || "" }
+    };
+  }
+
+  function clearFloatMarks() {
+    state.floatKey = "";
+    if (state.map && state.map.getSource("nav-marks")) setMarkData([]);
   }
 
   function sampleRoute(coords, everyM, maxPts) {
@@ -2027,7 +2160,7 @@
 
   function syncFloatMarks(force) {
     if (!state.map || !state.navigating || !state.coords.length) {
-      if (state.floatMarks && state.floatMarks.length) clearFloatMarks();
+      if (state.floatKey) clearFloatMarks();
       return;
     }
     const cur = nextActionable();
@@ -2041,8 +2174,7 @@
     ].join("|");
     if (!force && key === state.floatKey) return;
     state.floatKey = key;
-    clearFloatMarks();
-    state.floatKey = key;
+    const feats = [];
     let shown = 0;
     for (let i = 0; i < state.limits.length && shown < 5; i++) {
       const seg = state.limits[i];
@@ -2052,13 +2184,13 @@
       if (!seg.limit) continue;
       const p = alongLine(state.coords, Math.max(seg.start, (state.traveled || 0) + 18));
       if (!p) continue;
-      addFloatMark(p, "limit", String(seg.limit));
+      feats.push(markFeature(p, "limit", String(seg.limit)));
       shown += 1;
     }
     (state.cameras || []).forEach(function (cam) {
       if (cam.traveled < (state.traveled || 0) - 30) return;
       if (cam.traveled > (state.traveled || 0) + 2200) return;
-      addFloatMark(cam, "cam", "");
+      feats.push(markFeature(cam, "cam", ""));
     });
     if (cur && cur.until < 1400) {
       const loc = cur.step && cur.step.maneuver && cur.step.maneuver.location;
@@ -2068,9 +2200,10 @@
           : alongLine(state.coords, (state.traveled || 0) + Math.max(24, cur.until));
       if (p) {
         const extra = nxt && nxt.dist < 220 && nxt.limit ? " · " + nxt.limit : "";
-        state.distMark = addFloatMark(p, "dist", fmtTurnDist(cur.until) + extra);
+        feats.push(markFeature(p, "dist", fmtTurnDist(cur.until) + extra));
       }
     }
+    setMarkData(feats);
   }
 
   async function loadRoadProfile(coords) {
@@ -3365,8 +3498,10 @@
       style: dark ? STYLES.dark : STYLES.light,
       center: BUDAPEST,
       zoom: 13.5,
-      pitch: 56,
+      pitch: 52,
       maxPitch: 85,
+      fadeDuration: 0,
+      renderWorldCopies: false,
       attributionControl: true
     });
     let ready = false;
