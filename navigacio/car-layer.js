@@ -3,8 +3,8 @@
 
   var GARAGE_KEY = "nav2_car_model";
   var LAYER_ID = "ego-car-3d";
-  var TARGET_METERS = 4.6;
-  var DASH_SCALE = 2.5;
+  var TARGET_METERS = 5.6;
+  var CHIBI_SCALE = 1.42;
   var THREE_LOCAL = "./vendor/three.min.js";
   var GLTF_LOCAL = "./vendor/GLTFLoader.js";
   var THREE_CDN = "https://cdn.jsdelivr.net/npm/three@0.147.0/build/three.min.js";
@@ -14,55 +14,55 @@
     verso: {
       url: "./models/verso.glb",
       brand: "Toyota",
-      type: "Corolla Verso",
-      name: "Toyota Corolla Verso",
-      hint: "Saját modell",
-      color: "#c8ccd1",
+      type: "Mini Verso",
+      name: "Mini Verso",
+      hint: "Zömök mini MPV",
+      color: "#d4d7de",
       lamp: "#e11d48"
     },
     scross: {
       url: "./models/scross.glb",
       brand: "Suzuki",
-      type: "SX4 S-Cross",
-      name: "Suzuki SX4 S-Cross",
-      hint: "Króm hűtőmaszk és lámpák",
-      color: "#f3f1ea",
+      type: "Mini SX4 S-Cross",
+      name: "Mini SX4 S-Cross",
+      hint: "Króm rács, nagy kerekek",
+      color: "#f3efe6",
       lamp: "#fb7185"
     },
     bmw3: {
       url: "./models/bmw3.glb",
       brand: "BMW",
-      type: "3-as sorozat",
-      name: "BMW 3-as sorozat",
-      hint: "Dupla vese-rács és hátsó lámpák",
-      color: "#bec5ce",
+      type: "Mini 3er / M3",
+      name: "Mini 3er / M3",
+      hint: "Dupla vese, sportos far",
+      color: "#b7c0cb",
       lamp: "#ef4444"
     },
     merc_e: {
       url: "./models/merc_e.glb",
       brand: "Mercedes-Benz",
-      type: "E-Class",
-      name: "Mercedes-Benz E-Class",
+      type: "Mini E-Class",
+      name: "Mini E-Class",
       hint: "Csillag-rács, LED-sáv",
-      color: "#2c3038",
+      color: "#1c1f26",
       lamp: "#f87171"
     },
     korando: {
       url: "./models/korando.glb",
       brand: "SsangYong",
-      type: "Korando",
-      name: "SsangYong Korando",
-      hint: "Magas SUV karosszéria",
+      type: "Mini Korando",
+      name: "Mini Korando",
+      hint: "Magas mini SUV",
       color: "#6a7180",
       lamp: "#dc2626"
     },
     golf: {
       url: "./models/golf.glb",
       brand: "Volkswagen",
-      type: "Golf VII",
-      name: "Volkswagen Golf VII",
-      hint: "Kompakt ferdehátú",
-      color: "#8f1d22",
+      type: "Mini Golf",
+      name: "Mini Golf",
+      hint: "Pufi ferdehátú",
+      color: "#b91c1c",
       lamp: "#fecaca"
     }
   };
@@ -270,7 +270,7 @@
     var box = new THREE.Box3().setFromObject(model);
     var size = box.getSize(new THREE.Vector3());
     var longest = Math.max(size.x, size.y, size.z, 0.001);
-    var s = (TARGET_METERS / longest) * DASH_SCALE;
+    var s = (TARGET_METERS / longest) * CHIBI_SCALE;
     model.scale.setScalar(s);
     model.updateMatrixWorld(true);
     box.setFromObject(model);
@@ -414,7 +414,7 @@
           .makeTranslation(mc.x, mc.y, mc.z)
           .scale(new THREE.Vector3(scale, -scale, scale))
           .multiply(new THREE.Matrix4().makeRotationAxis(new THREE.Vector3(0, 0, 1), headingRad))
-          .multiply(new THREE.Matrix4().makeRotationAxis(new THREE.Vector3(1, 0, 0), -leanRad));
+          .multiply(new THREE.Matrix4().makeRotationAxis(new THREE.Vector3(0, 1, 0), leanRad));
         this.camera.projectionMatrix = m.multiply(l);
         this.renderer.render(this.scene, this.camera);
         this.map.triggerRepaint();
@@ -474,6 +474,170 @@
 
   api.iconSvg = iconSvg;
   api.garageKey = GARAGE_KEY;
+  api.chibiScale = CHIBI_SCALE;
+
+  var garage = {
+    raf: 0,
+    renderer: null,
+    scene: null,
+    camera: null,
+    light: null,
+    yaw: 0.85,
+    last: 0,
+    items: [],
+    root: null,
+    carSlot: null
+  };
+
+  function stopGarage() {
+    if (garage.raf) {
+      cancelAnimationFrame(garage.raf);
+      garage.raf = 0;
+    }
+    garage.items = [];
+    if (garage.root && garage.root.parentNode) garage.root.removeChild(garage.root);
+    if (garage.renderer) {
+      try {
+        garage.renderer.dispose();
+      } catch (_e) {}
+    }
+    garage.renderer = null;
+    garage.scene = null;
+    garage.camera = null;
+    garage.root = null;
+    garage.carSlot = null;
+  }
+
+  function fitPreview(model) {
+    var THREE = api.THREE;
+    model.rotation.set(0, 0, 0);
+    model.position.set(0, 0, 0);
+    model.scale.set(1, 1, 1);
+    model.updateMatrixWorld(true);
+    var box = new THREE.Box3().setFromObject(model);
+    var size = box.getSize(new THREE.Vector3());
+    var longest = Math.max(size.x, size.y, size.z, 0.001);
+    model.scale.setScalar(1.42 / longest);
+    model.updateMatrixWorld(true);
+    box.setFromObject(model);
+    var c = box.getCenter(new THREE.Vector3());
+    model.position.set(-c.x, -box.min.y, -c.z);
+  }
+
+  function tickGarage(now) {
+    if (!garage.renderer || !garage.items.length) return;
+    if (now - garage.last < 40) {
+      garage.raf = requestAnimationFrame(tickGarage);
+      return;
+    }
+    garage.last = now;
+    garage.yaw += 0.01;
+    garage.items.forEach(function (item) {
+      if (!item.mesh || !item.ctx || !item.canvas) return;
+      while (garage.carSlot.children.length) garage.carSlot.remove(garage.carSlot.children[0]);
+      item.mesh.rotation.y = garage.yaw;
+      garage.carSlot.add(item.mesh);
+      var w = item.canvas.width;
+      var h = item.canvas.height;
+      garage.camera.aspect = w / Math.max(1, h);
+      garage.camera.updateProjectionMatrix();
+      garage.renderer.setSize(w, h, false);
+      garage.renderer.render(garage.scene, garage.camera);
+      item.ctx.clearRect(0, 0, w, h);
+      item.ctx.drawImage(garage.renderer.domElement, 0, 0, w, h);
+    });
+    garage.raf = requestAnimationFrame(tickGarage);
+  }
+
+  api.stopGarage = stopGarage;
+
+  api.mountGarage = function (grid) {
+    stopGarage();
+    if (!grid) return;
+    loadThree()
+      .then(function () {
+        var THREE = api.THREE;
+        var canvases = grid.querySelectorAll("canvas[data-car-preview]");
+        if (!canvases.length) return;
+        var host = document.createElement("div");
+        host.style.cssText = "position:absolute;left:-999px;top:-999px;width:4px;height:4px;overflow:hidden;";
+        document.body.appendChild(host);
+        garage.root = host;
+        garage.renderer = new THREE.WebGLRenderer({
+          alpha: true,
+          antialias: true,
+          preserveDrawingBuffer: true
+        });
+        garage.renderer.setClearColor(0x000000, 0);
+        garage.renderer.setPixelRatio(1);
+        host.appendChild(garage.renderer.domElement);
+        garage.scene = new THREE.Scene();
+        garage.scene.add(new THREE.AmbientLight(0xf2f6ff, 0.9));
+        garage.scene.add(new THREE.HemisphereLight(0xb8d4ff, 0x1a1c22, 0.75));
+        var key = new THREE.DirectionalLight(0xffffff, 1.4);
+        key.position.set(2.4, 3.2, 2.8);
+        garage.scene.add(key);
+        var rim = new THREE.DirectionalLight(0xffe4c8, 0.6);
+        rim.position.set(-2.2, 1.4, -1.6);
+        garage.scene.add(rim);
+        garage.carSlot = new THREE.Group();
+        garage.scene.add(garage.carSlot);
+        var disc = new THREE.Mesh(
+          new THREE.CircleGeometry(0.95, 28),
+          new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.38 })
+        );
+        disc.rotation.x = -Math.PI / 2;
+        disc.position.y = 0.01;
+        garage.scene.add(disc);
+        garage.camera = new THREE.PerspectiveCamera(32, 1.6, 0.1, 20);
+        garage.camera.position.set(1.45, 1.38, 2.05);
+        garage.camera.lookAt(0, 0.58, 0);
+        garage.yaw = 0.85;
+        var ids = [];
+        for (var i = 0; i < canvases.length; i++) ids.push(canvases[i].getAttribute("data-car-preview"));
+        return Promise.all(
+          ids.map(function (id, idx) {
+            return fetchModel(id).then(function (src) {
+              var mesh = cloneGltf(src);
+              fitPreview(mesh);
+              mesh.traverse(function (node) {
+                if (!node.isMesh) return;
+                var mats = Array.isArray(node.material) ? node.material : [node.material];
+                mats.forEach(function (m) {
+                  if (!m) return;
+                  m.side = THREE.DoubleSide;
+                });
+              });
+              var canvas = canvases[idx];
+              var dpr = Math.min(2, window.devicePixelRatio || 1);
+              var w = Math.max(160, Math.round((canvas.clientWidth || 160) * dpr));
+              var h = Math.max(100, Math.round((canvas.clientHeight || 100) * dpr));
+              canvas.width = w;
+              canvas.height = h;
+              garage.camera.aspect = w / h;
+              garage.camera.updateProjectionMatrix();
+              var wrap = canvas.parentNode;
+              if (wrap) wrap.classList.add("is-3d");
+              garage.items.push({
+                id: id,
+                mesh: mesh,
+                canvas: canvas,
+                ctx: canvas.getContext("2d")
+              });
+            });
+          })
+        );
+      })
+      .then(function () {
+        if (!garage.items.length || !garage.renderer) return;
+        garage.last = 0;
+        garage.raf = requestAnimationFrame(tickGarage);
+      })
+      .catch(function (err) {
+        console.warn("[NavCar3D] garage", err);
+        stopGarage();
+      });
+  };
 
   global.NavCar3D = api;
   api.currentId = savedId();

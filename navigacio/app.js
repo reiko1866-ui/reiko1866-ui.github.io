@@ -57,6 +57,12 @@
     $("hamburgerBtn") && $("hamburgerBtn").setAttribute("aria-expanded", "true");
     document.body.style.overflow = "hidden";
     armBack();
+    paintGarage();
+    window.requestAnimationFrame(function () {
+      if (window.NavCar3D && typeof window.NavCar3D.mountGarage === "function") {
+        window.NavCar3D.mountGarage($("garageGrid"));
+      }
+    });
   }
 
   function drawerOpen() {
@@ -104,6 +110,9 @@
   }
 
   function closeDrawer(fromPop) {
+    if (window.NavCar3D && typeof window.NavCar3D.stopGarage === "function") {
+      window.NavCar3D.stopGarage();
+    }
     $("mobileDrawer").classList.remove("open");
     $("drawerOverlay").classList.remove("open");
     if ($("hamburgerBtn")) $("hamburgerBtn").setAttribute("aria-expanded", "false");
@@ -1958,8 +1967,8 @@
     const dh = angDelta(state.leanHeading, h);
     state.leanHeading = h;
     const yawRate = dh / dt;
-    const want = Math.max(-9.5, Math.min(9.5, yawRate * 0.16));
-    state.carLean = (state.carLean || 0) * 0.82 + want * 0.18;
+    const want = Math.max(-18, Math.min(18, yawRate * 0.34));
+    state.carLean = (state.carLean || 0) * 0.76 + want * 0.24;
     if (Math.abs(state.carLean) < 0.08) state.carLean = 0;
     return state.carLean;
   }
@@ -4217,9 +4226,13 @@
       btn.setAttribute("data-car", id);
       btn.setAttribute("aria-pressed", id === cur ? "true" : "false");
       btn.innerHTML =
+        '<span class="garage-preview">' +
+        '<canvas data-car-preview="' +
+        id +
+        '" width="320" height="200" aria-hidden="true"></canvas>' +
         '<span class="garage-swatch">' +
         carIconHtml(id, "g-" + id) +
-        '</span><span class="garage-brand">' +
+        "</span></span><span class=\"garage-brand\">" +
         (spec.brand || "") +
         '</span><span class="garage-type">' +
         (spec.type || spec.name || id) +
@@ -4243,7 +4256,16 @@
       localStorage.setItem(GARAGE_LS_KEY, id);
     } catch (_e) {}
     window.dispatchEvent(new CustomEvent("carModelChanged", { detail: id }));
-    paintGarage();
+    const grid = $("garageGrid");
+    if (grid && grid.querySelector(".garage-card")) {
+      grid.querySelectorAll(".garage-card").forEach(function (btn) {
+        const on = btn.getAttribute("data-car") === id;
+        btn.classList.toggle("is-on", on);
+        btn.setAttribute("aria-pressed", on ? "true" : "false");
+      });
+    } else {
+      paintGarage();
+    }
     paintPuckIcon();
     const spec = models[id];
     if (!state.navigating) setStatus(spec ? spec.brand + " " + spec.type : id);
@@ -4443,6 +4465,15 @@
     garage: function (id) {
       chooseCar(id);
       return state.carModel;
+    },
+    lean: function (deg) {
+      const pose = state.origin || {
+        lng: AppState.currentPos.lng,
+        lat: AppState.currentPos.lat
+      };
+      const n = Number(deg) || 0;
+      if (window.NavCar3D && pose) window.NavCar3D.setPose(pose.lng, pose.lat, state.heading || 0, n);
+      return n;
     }
   };
 

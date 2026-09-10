@@ -1258,7 +1258,7 @@ html.dark #results button.is-shortcut .result-title {
 .garage-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 0.45rem;
+  gap: 0.5rem;
 }
 
 .garage-card {
@@ -1278,6 +1278,34 @@ html.dark #results button.is-shortcut .result-title {
 .garage-card.is-on {
   border-color: #00ff66;
   box-shadow: 0 0 0 1px rgba(0, 255, 102, 0.35);
+}
+
+.garage-preview {
+  position: relative;
+  height: 7.4rem;
+  border-radius: 10px;
+  overflow: hidden;
+  background:
+    radial-gradient(ellipse at 50% 88%, rgba(0, 255, 102, 0.16), transparent 58%),
+    linear-gradient(180deg, #2a3b55 0%, #0b1220 72%);
+}
+
+.garage-preview canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.garage-preview .garage-swatch {
+  position: absolute;
+  inset: 0;
+  height: auto;
+  border-radius: 0;
+  background: transparent;
+}
+
+.garage-preview.is-3d .garage-swatch {
+  display: none;
 }
 
 .garage-swatch {
