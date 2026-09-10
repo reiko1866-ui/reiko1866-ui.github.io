@@ -352,7 +352,7 @@ body:has(#app.is-ar),
 }
 
 #app.is-ar #speed {
-  background: #0b1220ee;
+  background: radial-gradient(circle at 35% 30%, #fff, #e8edf4);
 }
 
 #app.is-ar #placeChip {
@@ -373,23 +373,19 @@ body:has(#app.is-ar),
   right: var(--pad);
   left: auto;
   bottom: auto;
-  width: min(16.5rem, 46vw);
+  width: min(11rem, 42vw);
+  min-width: 0;
   border-radius: 16px;
-  grid-template-columns: 1fr 1fr auto;
-  gap: 0.3rem;
-  padding: 0.4rem 0.5rem;
+  padding: 0.45rem 0.7rem 0.55rem;
   background: #0b1220ee;
   box-shadow: var(--shadow);
-}
-
-#app.is-ar #trip > div:nth-child(2) {
-  display: none;
 }
 
 #app.is-ar #fabBar,
 #app.is-ar.is-nav #fabBar {
   top: auto;
   bottom: calc(var(--pad) + var(--safe-bottom));
+  transform: none;
   z-index: 23;
 }
 
@@ -451,12 +447,67 @@ body:has(#app.is-ar),
 }
 
 .puck {
-  width: 0;
-  height: 0;
-  border-left: 11px solid transparent;
-  border-right: 11px solid transparent;
-  border-bottom: 28px solid var(--cyan);
-  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.4));
+  display: none;
+}
+
+.car3d {
+  width: 58px;
+  height: 98px;
+  transform-origin: 50% 68%;
+  pointer-events: none;
+  filter: drop-shadow(0 12px 14px rgba(0, 0, 0, 0.48));
+}
+
+.car3d svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  transform: perspective(260px) rotateX(16deg);
+}
+
+.float-mark {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  pointer-events: none;
+  filter: drop-shadow(0 8px 12px rgba(0, 0, 0, 0.38));
+  transform: translateY(-6px);
+}
+
+.float-cam {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: #fff;
+  border: 3px solid #111;
+  color: #111;
+  display: grid;
+  place-items: center;
+  font-size: 15px;
+  font-weight: 900;
+}
+
+.float-limit {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: #fff;
+  border: 4px solid #e11d2e;
+  color: #111;
+  display: grid;
+  place-items: center;
+  font-weight: 900;
+  font-size: 13px;
+}
+
+.float-dist {
+  background: #fff;
+  color: #111;
+  border-radius: 999px;
+  padding: 0.22rem 0.62rem;
+  font-weight: 900;
+  font-size: 0.92rem;
+  border: 2px solid #111;
 }
 
 .pin {
@@ -793,7 +844,12 @@ html.dark #results button.is-shortcut .result-title {
 }
 
 #app.is-nav #infoCard {
-  top: calc(7.4rem + var(--safe-top));
+  top: calc(11.6rem + var(--safe-top));
+  max-width: min(16rem, calc(100% - 96px));
+}
+
+#app.is-nav #infoCard:not(:has(#status.is-err)) {
+  display: none;
 }
 
 #app.is-nav:has(#thenRow:not([hidden])) #infoCard {
@@ -814,31 +870,32 @@ html.dark #results button.is-shortcut .result-title {
   bottom: calc(var(--pad) + var(--safe-bottom));
   z-index: 18;
   display: flex;
-  align-items: flex-end;
-  gap: 0.45rem;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.55rem;
 }
 
 #app.is-nav #speedBox {
-  bottom: calc(5.6rem + var(--safe-bottom));
+  bottom: calc(1.2rem + var(--safe-bottom));
 }
 
 #speed {
-  width: 4.4rem;
-  height: 4.4rem;
+  width: 4.6rem;
+  height: 4.6rem;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   border-radius: 50%;
-  background: var(--ink);
-  color: #fff;
-  border: 3px solid #fff;
+  background: radial-gradient(circle at 35% 30%, #fff, #e8edf4);
+  color: #111;
+  border: 6px solid #e11d2e;
   box-shadow: var(--shadow);
 }
 
 #speed.is-over {
   border-color: #ff4d4f;
-  background: #7f1d1d;
+  background: radial-gradient(circle at 35% 30%, #fff5f5, #fecaca);
   box-shadow: 0 0 0 3px rgba(255, 77, 79, 0.35);
 }
 
@@ -846,33 +903,69 @@ html.dark #results button.is-shortcut .result-title {
 #limitSign[hidden],
 #placeChip[hidden],
 #roadThen[hidden],
-#hazardThen[hidden] {
+#hazardThen[hidden],
+#compassN[hidden] {
   display: none !important;
 }
 
 #limitSign {
-  width: 3.35rem;
-  height: 3.35rem;
+  width: 4.35rem;
+  min-height: 4.7rem;
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
-  border-radius: 50%;
-  background: #fff;
-  color: #111;
-  border: 0.38rem solid #e11d48;
-  box-shadow: var(--shadow);
+  gap: 0.08rem;
+  padding: 0.32rem 0.2rem 0.4rem;
+  border-radius: 0.4rem;
+  background: #111;
+  color: #fff;
+  border: 0;
+  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.38);
+}
+
+#limitSign small {
+  display: block;
+  font-size: 0.48rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  line-height: 1.05;
+  opacity: 0.92;
 }
 
 #limitVal {
-  font-size: 1.15rem;
-  line-height: 1;
+  font-size: 1.85rem;
+  line-height: 0.95;
   font-weight: 800;
+  letter-spacing: -0.04em;
+}
+
+#compassN {
+  position: absolute;
+  left: calc(var(--pad) + 0.15rem);
+  top: 50%;
+  z-index: 18;
+  transform: translateY(-50%);
+  width: 2.15rem;
+  height: 2.15rem;
+  border-radius: 50%;
+  background: #fff;
+  color: #111;
+  display: none;
+  place-items: center;
+  font-weight: 900;
+  font-size: 0.92rem;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.22);
+}
+
+#app.is-nav #compassN {
+  display: grid;
 }
 
 #placeChip {
   position: absolute;
   left: var(--pad);
-  bottom: calc(5.15rem + var(--safe-bottom));
+  bottom: calc(6.4rem + var(--safe-bottom));
   z-index: 18;
   max-width: 12rem;
   padding: 0.28rem 0.65rem;
@@ -885,7 +978,7 @@ html.dark #results button.is-shortcut .result-title {
 }
 
 #app.is-nav #placeChip {
-  bottom: calc(10.15rem + var(--safe-bottom));
+  bottom: calc(12.4rem + var(--safe-bottom));
 }
 
 #placeChip.is-town {
@@ -916,6 +1009,7 @@ html.dark #results button.is-shortcut .result-title {
 #kmh {
   font-size: 1.45rem;
   line-height: 1;
+  color: #111;
 }
 
 #speed span {
@@ -928,41 +1022,60 @@ html.dark #results button.is-shortcut .result-title {
 
 #trip {
   position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 0;
+  left: var(--pad);
+  right: auto;
+  bottom: auto;
+  top: calc(var(--pad) + var(--safe-top));
   z-index: 22;
-  display: grid;
-  grid-template-columns: 1fr 1fr 1fr auto;
-  gap: 0.4rem;
-  align-items: center;
-  padding: 0.55rem 0.75rem calc(0.55rem + var(--safe-bottom));
-  background: var(--ink);
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.12rem;
+  min-width: 7.4rem;
+  padding: 0.55rem 0.85rem 0.65rem;
+  border-radius: 1.05rem;
+  background: rgba(8, 12, 20, 0.72);
   color: #fff;
-  text-align: center;
+  text-align: left;
+  box-shadow: var(--shadow);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+#app.is-nav #trip {
+  top: calc(5.7rem + var(--safe-top));
 }
 
 #trip strong {
   display: block;
-  font-size: 1.15rem;
+  font-size: 1.55rem;
+  line-height: 1;
+  letter-spacing: -0.03em;
 }
 
-#trip small {
-  color: #9aa0a6;
-  font-size: 0.62rem;
-  font-weight: 800;
-  text-transform: uppercase;
+#tripMeta {
+  font-size: 0.78rem;
+  font-weight: 700;
+  opacity: 0.9;
+}
+
+#tripMeta em {
+  font-style: normal;
 }
 
 #stop {
-  width: 2.6rem;
-  height: 2.6rem;
+  position: absolute;
+  top: -0.35rem;
+  right: -0.35rem;
+  width: 1.7rem;
+  height: 1.7rem;
   border: 0;
   border-radius: 50%;
-  background: var(--red);
+  background: #111;
   color: #fff;
-  font-size: 0.7rem;
+  font-size: 0.78rem;
   font-weight: 800;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35);
 }
 
 /* Gombok */
@@ -973,33 +1086,43 @@ html.dark #results button.is-shortcut .result-title {
   z-index: 19;
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  padding: 6px;
-  border-radius: 22px;
-  background: var(--glass);
-  box-shadow: var(--shadow);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
+  gap: 0.55rem;
+  padding: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
 }
 
 #app.is-nav #fabBar {
-  bottom: calc(5.6rem + var(--safe-bottom));
+  top: 50%;
+  bottom: auto;
+  transform: translateY(-38%);
   z-index: 23;
 }
 
 .fab {
-  width: 2.75rem;
-  height: 2.75rem;
+  width: 3.15rem;
+  height: 3.15rem;
   border: 0;
   border-radius: 50%;
-  background: transparent;
-  color: #E2E8F0;
-  font-size: 1.15rem;
+  background: #fff;
+  color: #111;
+  font-size: 1.05rem;
+  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.24);
+  display: grid;
+  place-items: center;
+}
+
+.fab svg {
+  display: block;
 }
 
 .fab.is-on {
-  background: var(--blue);
-  color: #fff;
+  background: #fff;
+  color: #111;
+  box-shadow: 0 0 0 3px rgba(0, 255, 102, 0.35), 0 8px 18px rgba(15, 23, 42, 0.24);
 }
 
 /* Fiók */
@@ -1292,7 +1415,7 @@ noscript {
 
 /* Autós fejegység (9–10" Android, ~70 cm-ről) */
 #app.is-nav #searchBtn {
-  display: none;
+  display: grid;
 }
 
 @media (min-width: 720px) {
@@ -1324,9 +1447,9 @@ noscript {
   }
 
   #speed {
-    width: 5.8rem;
-    height: 5.8rem;
-    border-width: 4px;
+    width: 5.9rem;
+    height: 5.9rem;
+    border-width: 7px;
   }
 
   #kmh {
@@ -1334,41 +1457,55 @@ noscript {
   }
 
   #limitSign {
-    width: 4.4rem;
-    height: 4.4rem;
-    border-width: 0.48rem;
+    width: 5.4rem;
+    min-height: 5.8rem;
+  }
+
+  #limitSign small {
+    font-size: 0.58rem;
   }
 
   #limitVal {
-    font-size: 1.45rem;
+    font-size: 2.25rem;
+  }
+
+  #trip {
+    min-width: 9rem;
+    padding: 0.7rem 1rem 0.8rem;
   }
 
   #trip strong {
-    font-size: 1.45rem;
+    font-size: 2rem;
   }
 
-  #trip small {
-    font-size: 0.72rem;
+  #tripMeta {
+    font-size: 0.92rem;
   }
 
   #stop {
-    width: 3.4rem;
-    height: 3.4rem;
-    font-size: 0.82rem;
+    width: 1.9rem;
+    height: 1.9rem;
+    font-size: 0.85rem;
   }
 
   .fab {
-    width: 3.35rem;
-    height: 3.35rem;
-    font-size: 1.35rem;
+    width: 3.7rem;
+    height: 3.7rem;
+    font-size: 1.2rem;
+  }
+
+  #compassN {
+    width: 2.6rem;
+    height: 2.6rem;
+    font-size: 1.05rem;
   }
 
   #app.is-nav #fabBar {
-    bottom: calc(6.6rem + var(--safe-bottom));
+    bottom: auto;
   }
 
   #app.is-nav #speedBox {
-    bottom: calc(6.6rem + var(--safe-bottom));
+    bottom: calc(1.4rem + var(--safe-bottom));
   }
 
   #placeChip {
@@ -1412,8 +1549,9 @@ noscript {
   }
 
   #speed {
-    width: 7.2rem;
-    height: 7.2rem;
+    width: 7.1rem;
+    height: 7.1rem;
+    border-width: 8px;
   }
 
   #kmh {
@@ -1425,34 +1563,39 @@ noscript {
   }
 
   #limitSign {
-    width: 5.4rem;
-    height: 5.4rem;
+    width: 6.4rem;
+    min-height: 6.8rem;
+  }
+
+  #limitSign small {
+    font-size: 0.68rem;
   }
 
   #limitVal {
-    font-size: 1.75rem;
+    font-size: 2.7rem;
   }
 
   #trip {
-    padding: 0.7rem 1rem calc(0.7rem + var(--safe-bottom));
+    min-width: 10.5rem;
+    padding: 0.8rem 1.1rem 0.9rem;
   }
 
   #trip strong {
-    font-size: 1.7rem;
+    font-size: 2.35rem;
   }
 
   #stop {
-    width: 4rem;
-    height: 4rem;
+    width: 2rem;
+    height: 2rem;
     font-size: 0.9rem;
   }
 
   #app.is-nav #fabBar {
-    bottom: calc(7.4rem + var(--safe-bottom));
+    bottom: auto;
   }
 
   #app.is-nav #speedBox {
-    bottom: calc(7.4rem + var(--safe-bottom));
+    bottom: calc(1.6rem + var(--safe-bottom));
   }
 }
 
