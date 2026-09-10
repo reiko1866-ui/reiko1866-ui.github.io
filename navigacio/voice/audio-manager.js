@@ -1,5 +1,5 @@
 /**
- * Hangnavigáció — a feltöltött csomag. Kanyar, aztán poén. Soha nem két hang egyszerre.
+ * Hangnavigáció — a feltöltött csomag. Kanyarnál az utasítás. Soha nem két hang egyszerre.
  */
 (function (global) {
   "use strict";
@@ -373,7 +373,7 @@
           this.log(
             "Kész, " +
               n +
-              "+ klip. Kanyarnál a csomag, utána a poén. Egyszerre egy hang."
+              "+ klip. Kanyarnál a csomag. Egyszerre egy hang."
           );
           return files;
         } catch (_e) {}
