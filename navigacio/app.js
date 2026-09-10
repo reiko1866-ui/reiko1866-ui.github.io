@@ -1769,7 +1769,8 @@
 
   function lookAheadMeters() {
     const kmh = (state.speed || 0) * 3.6;
-    return Math.max(16, Math.min(40, 16 + kmh * 0.18));
+    if (state.navigating) return Math.max(44, Math.min(82, 48 + kmh * 0.28));
+    return Math.max(32, Math.min(62, 36 + kmh * 0.22));
   }
 
   function lookAhead(from, heading) {
@@ -1795,8 +1796,8 @@
     const pad = state.ar
       ? { top: 6, bottom: 10, left: 6, right: 6 }
       : {
-          top: Math.round(h * (state.navigating ? 0.08 : 0.12)),
-          bottom: Math.round(h * (state.navigating ? 0.2 : 0.2)),
+          top: Math.round(h * (state.navigating ? 0.05 : 0.07)),
+          bottom: Math.round(h * (state.navigating ? 0.28 : 0.26)),
           left: 8,
           right: right
         };
@@ -1896,8 +1897,8 @@
     if (!lockHeading) return;
     const kmh = (state.speed || 0) * 3.6;
     const wantZoom = state.navigating
-        ? kmh > 110 ? 17.15 : kmh > 70 ? 17.55 : 17.95
-        : kmh > 90 ? 16.5 : 17.0;
+        ? kmh > 110 ? 17.85 : kmh > 70 ? 18.2 : 18.5
+        : kmh > 90 ? 17.6 : 18.15;
     v.zoom = lerp(Number.isFinite(v.zoom) ? v.zoom : wantZoom, wantZoom, 0.04);
     const ahead = lookAhead(v, v.heading);
     try {

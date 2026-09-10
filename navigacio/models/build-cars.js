@@ -387,9 +387,10 @@ function buildCar(id, car) {
     dark.addBox(0, 0.52, noseZ + 0.01, W * 1.2, 0.16, 0.03);
     lightA.addBox(W * 0.62, 0.52, noseZ + 0.02, 0.38, 0.12, 0.05);
     lightA.addBox(-W * 0.62, 0.52, noseZ + 0.02, 0.38, 0.12, 0.05);
-    lightR.addBox(W * 0.72, 0.78, tailZ, 0.16, 0.42, 0.06);
-    lightR.addBox(-W * 0.72, 0.78, tailZ, 0.16, 0.42, 0.06);
+    lightR.addBox(W * 0.72, 0.78, tailZ, 0.22, 0.52, 0.08);
+    lightR.addBox(-W * 0.72, 0.78, tailZ, 0.22, 0.52, 0.08);
     chrome.addBox(0, 0.92, tailZ, W * 0.4, 0.04, 0.03);
+    chrome.addBox(0, 0.4, tailZ, 0.42, 0.14, 0.04);
     paint.addBox(0, roof - 0.02, -L * 0.05, W * 0.9, 0.04, L * 0.5);
   } else if (id === "scross") {
     chrome.addBox(0, 0.48, noseZ, W * 1.5, 0.07, 0.05);
@@ -399,9 +400,10 @@ function buildCar(id, car) {
     lightA.addBox(W * 0.68, 0.55, noseZ + 0.02, 0.32, 0.14, 0.06);
     lightA.addBox(-W * 0.68, 0.55, noseZ + 0.02, 0.32, 0.14, 0.06);
     dark.addBox(0, 0.22, 0, W * 1.78, 0.18, L * 0.78);
-    lightR.addBox(W * 0.7, 0.72, tailZ, 0.28, 0.16, 0.06);
-    lightR.addBox(-W * 0.7, 0.72, tailZ, 0.28, 0.16, 0.06);
-    chrome.addBox(0, 0.7, tailZ, W * 1.05, 0.025, 0.03);
+    lightR.addBox(W * 0.7, 0.74, tailZ, 0.38, 0.2, 0.08);
+    lightR.addBox(-W * 0.7, 0.74, tailZ, 0.38, 0.2, 0.08);
+    chrome.addBox(0, 0.7, tailZ, W * 1.15, 0.03, 0.04);
+    chrome.addBox(0, 0.4, tailZ, 0.4, 0.13, 0.04);
   } else if (id === "bmw3") {
     const ky = 0.48;
     chrome.addBox(0.16, ky, noseZ, 0.28, 0.22, 0.06, 0, 0, 0.18);
@@ -411,13 +413,14 @@ function buildCar(id, car) {
     lightA.addBox(W * 0.7, 0.5, noseZ + 0.02, 0.38, 0.1, 0.05);
     lightA.addBox(-W * 0.7, 0.5, noseZ + 0.02, 0.38, 0.1, 0.05);
     chrome.addBox(0, 0.38, noseZ, W * 1.4, 0.03, 0.04);
-    lightR.addBox(W * 0.72, 0.68, tailZ, 0.32, 0.12, 0.05);
-    lightR.addBox(-W * 0.72, 0.68, tailZ, 0.32, 0.12, 0.05);
-    lightR.addBox(W * 0.82, 0.62, tailZ, 0.08, 0.22, 0.04);
-    lightR.addBox(-W * 0.82, 0.62, tailZ, 0.08, 0.22, 0.04);
+    lightR.addBox(W * 0.72, 0.7, tailZ, 0.42, 0.16, 0.07);
+    lightR.addBox(-W * 0.72, 0.7, tailZ, 0.42, 0.16, 0.07);
+    lightR.addBox(W * 0.84, 0.62, tailZ, 0.1, 0.28, 0.05);
+    lightR.addBox(-W * 0.84, 0.62, tailZ, 0.1, 0.28, 0.05);
     paint.addBox(0, 0.95, spec.z1 + 0.22, W * 1.2, 0.06, 0.18);
     chrome.addBox(W * 0.28, 0.18, spec.z1 + 0.08, 0.08, 0.05, 0.08);
     chrome.addBox(-W * 0.28, 0.18, spec.z1 + 0.08, 0.08, 0.05, 0.08);
+    chrome.addBox(0, 0.4, tailZ, 0.4, 0.13, 0.04);
   } else if (id === "merc_e") {
     chrome.addBox(0, 0.5, noseZ, W * 1.15, 0.28, 0.05);
     dark.addBox(0, 0.5, noseZ + 0.02, W * 1.02, 0.22, 0.03);
@@ -425,10 +428,11 @@ function buildCar(id, car) {
     chrome.addBox(0, 0.62, noseZ + 0.03, 0.12, 0.12, 0.03);
     lightA.addBox(W * 0.72, 0.5, noseZ + 0.02, 0.34, 0.1, 0.05);
     lightA.addBox(-W * 0.72, 0.5, noseZ + 0.02, 0.34, 0.1, 0.05);
-    lightR.addBox(0, 0.7, tailZ, W * 1.55, 0.07, 0.04);
-    lightR.addBox(W * 0.72, 0.7, tailZ, 0.32, 0.14, 0.05);
-    lightR.addBox(-W * 0.72, 0.7, tailZ, 0.32, 0.14, 0.05);
+    lightR.addBox(0, 0.72, tailZ, W * 1.62, 0.1, 0.06);
+    lightR.addBox(W * 0.74, 0.72, tailZ, 0.38, 0.18, 0.07);
+    lightR.addBox(-W * 0.74, 0.72, tailZ, 0.38, 0.18, 0.07);
     chrome.addBox(0, 0.64, tailZ, W * 1.5, 0.02, 0.03);
+    chrome.addBox(0, 0.4, tailZ, 0.42, 0.14, 0.04);
     chrome.addBox(0, belt + 0.02, 0, W * 1.74, 0.012, L * 0.62);
   } else if (id === "korando") {
     dark.addBox(0, 0.58, noseZ, W * 1.25, 0.22, 0.04);
@@ -437,9 +441,10 @@ function buildCar(id, car) {
     lightA.addBox(W * 0.7, 0.58, noseZ + 0.02, 0.3, 0.16, 0.06);
     lightA.addBox(-W * 0.7, 0.58, noseZ + 0.02, 0.3, 0.16, 0.06);
     dark.addBox(0, 0.22, 0, W * 1.86, 0.22, L * 0.82);
-    lightR.addBox(W * 0.7, 0.82, tailZ, 0.26, 0.2, 0.06);
-    lightR.addBox(-W * 0.7, 0.82, tailZ, 0.26, 0.2, 0.06);
+    lightR.addBox(W * 0.7, 0.86, tailZ, 0.34, 0.26, 0.08);
+    lightR.addBox(-W * 0.7, 0.86, tailZ, 0.34, 0.26, 0.08);
     dark.addBox(0, 0.55, tailZ, W * 0.5, 0.28, 0.04);
+    chrome.addBox(0, 0.42, tailZ, 0.4, 0.13, 0.04);
     paint.addBox(0, roof - 0.01, -0.05, W * 0.95, 0.05, L * 0.48);
   } else if (id === "golf") {
     dark.addBox(0, 0.5, noseZ, W * 1.2, 0.2, 0.04);
@@ -447,9 +452,10 @@ function buildCar(id, car) {
     for (let i = -2; i <= 2; i++) chrome.addBox(0, 0.5 + i * 0.028, noseZ + 0.02, W * 0.72, 0.012, 0.02);
     lightA.addBox(W * 0.68, 0.5, noseZ + 0.02, 0.34, 0.13, 0.05);
     lightA.addBox(-W * 0.68, 0.5, noseZ + 0.02, 0.34, 0.13, 0.05);
-    lightR.addBox(W * 0.68, 0.72, tailZ, 0.38, 0.14, 0.05);
-    lightR.addBox(-W * 0.68, 0.72, tailZ, 0.38, 0.14, 0.05);
-    lightR.addBox(0, 0.72, tailZ, W * 1.15, 0.04, 0.03);
+    lightR.addBox(W * 0.68, 0.74, tailZ, 0.48, 0.18, 0.07);
+    lightR.addBox(-W * 0.68, 0.74, tailZ, 0.48, 0.18, 0.07);
+    lightR.addBox(0, 0.74, tailZ, W * 1.22, 0.06, 0.04);
+    chrome.addBox(0, 0.4, tailZ, 0.4, 0.13, 0.04);
     paint.addBox(0, 0.98, spec.z1 + 0.18, W * 1.15, 0.05, 0.16, 0.35, 0, 0);
   }
 
@@ -463,8 +469,8 @@ function buildCar(id, car) {
     mat("chrome", [0.86, 0.88, 0.92, 1], 0.48, 0.22),
     mat("trim", hexRgb(car.trim).concat([1]), 0.12, 0.55),
     mat("rubber", [0.05, 0.05, 0.05, 1], 0.05, 0.85),
-    Object.assign(mat("tail", [0.55, 0.04, 0.05, 1], 0.3, 0.25), { emissiveFactor: [0.85, 0.04, 0.04] }),
-    Object.assign(mat("head", [0.95, 0.96, 0.9, 1], 0.4, 0.12), { emissiveFactor: [0.95, 0.92, 0.75] })
+    Object.assign(mat("tail", [0.7, 0.05, 0.06, 1], 0.25, 0.22), { emissiveFactor: [1, 0.08, 0.05] }),
+    Object.assign(mat("head", [0.95, 0.96, 0.9, 1], 0.4, 0.12), { emissiveFactor: [1, 0.96, 0.82] })
   ];
 
   return assemble(id, car.name, [paint, glass, chrome, dark, rubber, lightR, lightA], materials);

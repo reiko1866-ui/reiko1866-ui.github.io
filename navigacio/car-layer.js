@@ -13,7 +13,7 @@
       url: "./models/verso.glb",
       name: "Toyota Corolla Verso",
       hint: "Saját modell",
-      scale: 12.4,
+      scale: 9.4,
       yaw: Math.PI,
       color: "#c8ccd1"
     },
@@ -21,7 +21,7 @@
       url: "./models/scross.glb",
       name: "Suzuki SX4 S-Cross",
       hint: "Króm hűtőmaszk és lámpák",
-      scale: 12.2,
+      scale: 9.2,
       yaw: Math.PI,
       color: "#f3f1ea"
     },
@@ -29,7 +29,7 @@
       url: "./models/bmw3.glb",
       name: "BMW 3-as sorozat",
       hint: "Dupla vese-rács és hátsó lámpák",
-      scale: 12.8,
+      scale: 9.6,
       yaw: Math.PI,
       color: "#bec5ce"
     },
@@ -37,7 +37,7 @@
       url: "./models/merc_e.glb",
       name: "Mercedes-Benz E-Class",
       hint: "Csillag-rács, LED-sáv",
-      scale: 13.2,
+      scale: 9.8,
       yaw: Math.PI,
       color: "#2c3038"
     },
@@ -45,7 +45,7 @@
       url: "./models/korando.glb",
       name: "SsangYong Korando",
       hint: "Magas SUV karosszéria",
-      scale: 12.5,
+      scale: 9.5,
       yaw: Math.PI,
       color: "#6a7180"
     },
@@ -53,7 +53,7 @@
       url: "./models/golf.glb",
       name: "Volkswagen Golf VII",
       hint: "Kompakt ferdehátú",
-      scale: 12.0,
+      scale: 9.1,
       yaw: Math.PI,
       color: "#8f1d22"
     }
@@ -220,13 +220,18 @@
       onAdd: function (map, gl) {
         this.camera = new THREE.Camera();
         this.scene = new THREE.Scene();
-        this.scene.add(new THREE.AmbientLight(0xf2f5ff, 1.15));
-        var sun = new THREE.DirectionalLight(0xffffff, 1.85);
-        sun.position.set(8, 22, 12);
+        this.scene.add(new THREE.AmbientLight(0xe8eef8, 0.72));
+        var hemi = new THREE.HemisphereLight(0x9ec9ff, 0x1a1c22, 0.55);
+        this.scene.add(hemi);
+        var sun = new THREE.DirectionalLight(0xffffff, 1.7);
+        sun.position.set(5, 18, -16);
         this.scene.add(sun);
-        var fill = new THREE.DirectionalLight(0xb8d4ff, 0.55);
-        fill.position.set(-10, 8, -6);
+        var fill = new THREE.DirectionalLight(0xffd8c0, 0.4);
+        fill.position.set(-8, 6, 8);
         this.scene.add(fill);
+        var rim = new THREE.DirectionalLight(0xffffff, 0.85);
+        rim.position.set(0, 10, -22);
+        this.scene.add(rim);
         this.carRoot = new THREE.Group();
         this.scene.add(this.carRoot);
         this.map = map;
