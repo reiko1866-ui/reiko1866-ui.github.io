@@ -23,6 +23,30 @@
     light: "https://tiles.openfreemap.org/styles/liberty",
     dark: "https://tiles.openfreemap.org/styles/dark"
   };
+  const OFF_ROUTE_M = 35;
+  const POS_LERP = 0.1;
+  const CAR_LS_KEY = "selectedCar";
+  const GARAGE_LS_KEY = "nav2_car_model";
+
+  function readSelectedCar() {
+    try {
+      const id = String(localStorage.getItem(CAR_LS_KEY) || localStorage.getItem(GARAGE_LS_KEY) || "verso");
+      return id || "verso";
+    } catch (_e) {
+      return "verso";
+    }
+  }
+
+  const AppState = {
+    currentPos: { lat: BUDAPEST[1], lng: BUDAPEST[0], bearing: 0 },
+    targetPos: { lat: BUDAPEST[1], lng: BUDAPEST[0], bearing: 0 },
+    activeRoute: null,
+    selectedCar: readSelectedCar(),
+    triggeredPois: new Set(),
+    speed: 0,
+    accuracy: 0
+  };
+  window.AppState = AppState;
 
   const $ = (id) => document.getElementById(id);
 
@@ -208,7 +232,7 @@
     spokenHazard: "",
     mapOffline: false,
     lastOsrmUrl: "",
-    carModel: "verso",
+    carModel: readSelectedCar(),
     carLean: 0,
     leanHeading: null,
     leanAt: 0
@@ -1226,7 +1250,9 @@
     const here =
       Number.isFinite(lat) && Number.isFinite(lng)
         ? { lat: lat, lng: lng }
-        : (state.lastFix && state.lastFix.ll) || state.origin;
+        : AppState.currentPos.lat
+          ? { lat: AppState.currentPos.lat, lng: AppState.currentPos.lng }
+          : (state.lastFix && state.lastFix.ll) || state.origin;
     if (!here) return;
     const list = state.poeniPois || [];
     if (!list.length) return;
@@ -1234,7 +1260,8 @@
     let bestD = POI_RANGE_M;
     for (let i = 0; i < list.length; i++) {
       const p = list[i];
-      if (state.spokenPoi[p.id]) continue;
+      if (!p || !p.id) continue;
+      if (AppState.triggeredPois.has(p.id) || state.spokenPoi[p.id]) continue;
       const d = haversine(here, { lat: Number(p.lat), lng: Number(p.lng) });
       if (d <= POI_RANGE_M && (!best || d < bestD)) {
         best = p;
@@ -1245,13 +1272,15 @@
     const line = poiGag(best.kind, best.name);
     showFunChip(line);
     if (!state.voice) {
+      AppState.triggeredPois.add(best.id);
       state.spokenPoi[best.id] = true;
       return;
     }
     const nv = navVoice();
     if (nv && nv.isBusy()) return;
+    AppState.triggeredPois.add(best.id);
     state.spokenPoi[best.id] = true;
-    if (nv) {
+    if (nv && typeof nv.playCat === "function") {
       nv.playCat("start");
       state.lastSpare = Date.now();
     }
@@ -1356,24 +1385,17 @@
   }
 
   function setOrigin(lngLat, heading, speed) {
-    const now = Date.now();
-    const acc = state.gpsAcc || 0;
-    const raw = { lng: lngLat.lng, lat: lngLat.lat };
-    if (!plausibleJump(state.lastFix, { ll: raw, t: now, speed: speed || 0 }, acc)) {
-      state.fixRejects = (state.fixRejects || 0) + 1;
-      maybeSpeakFunPoi(raw.lat, raw.lng);
-      if (state.fixRejects < 3) return;
+    if (Number.isFinite(speed) && speed >= 0) {
+      state.speed = speed;
+      AppState.speed = speed;
     }
-    state.fixRejects = 0;
-    state.lastFix = { ll: raw, t: now, speed: speed || 0 };
-
-    if (Number.isFinite(speed) && speed >= 0) state.speed = speed;
     const kmh = (state.speed || 0) * 3.6;
     if (Number.isFinite(heading) && kmh >= 2) state.heading = heading;
+    else if (Number.isFinite(heading) && !Number.isFinite(state.heading)) state.heading = heading;
 
-    let display = raw;
+    let display = { lng: lngLat.lng, lat: lngLat.lat };
     if (state.coords.length) {
-      const snap = nearest(state.coords, raw);
+      const snap = nearest(state.coords, display);
       state.lastSnap = snap;
       const onRoad = snap.dist < snapLimit();
       if (onRoad) {
@@ -1402,13 +1424,9 @@
       locateRoad();
     }
 
-    setTarget(display, state.heading);
     $("speed").hidden = false;
     $("kmh").textContent = String(Math.round(kmh));
-    watchPark(raw, state.speed);
     paintCar();
-    maybeLoadFunPois();
-    maybeSpeakFunPoi(raw.lat, raw.lng);
     if (state.navigating) syncFloatMarks();
   }
 
@@ -1714,7 +1732,9 @@
     applyRouteStyle();
     if (state.navigating) syncFloatMarks(true);
     if (window.NavCar3D) window.NavCar3D.ensure(state.map);
-    if (!state.target) setTarget({ lng: BUDAPEST[0], lat: BUDAPEST[1] }, 0);
+    AppState.targetPos.lat = BUDAPEST[1];
+    AppState.targetPos.lng = BUDAPEST[0];
+    startSmooth();
   }
 
   function routeColors() {
@@ -1850,6 +1870,8 @@
 
   const CAM_LERP = 0.05;
   const CAM_PITCH_NAV = 78;
+  let lastPoiTick = 0;
+  let lastOffTick = 0;
 
   function lerp(start, end, amt) {
     if (!Number.isFinite(start)) return end;
@@ -1861,47 +1883,75 @@
 
   function startSmooth() {
     if (smoothRaf) return;
-    smoothRaf = requestAnimationFrame(animateCamera);
+    smoothRaf = requestAnimationFrame(animateFrame);
   }
 
   function setTarget(ll, heading) {
     if (!ll) return;
-    state.target = copyPose(ll, heading);
-    if (!state.view) {
-      state.view = copyPose(state.target);
-      state.view.zoom = undefined;
+    if (Number.isFinite(ll.lat) && Number.isFinite(ll.lng)) {
+      AppState.targetPos.lat = ll.lat;
+      AppState.targetPos.lng = ll.lng;
     }
+    if (Number.isFinite(heading)) AppState.targetPos.bearing = heading;
     startSmooth();
   }
 
-  function animateCamera() {
-    smoothRaf = requestAnimationFrame(animateCamera);
-    if (!state.map || !state.target) return;
-    if (!state.view) state.view = copyPose(state.target);
-    const v = state.view;
-    const t = state.target;
-    v.lat = lerp(v.lat, t.lat, CAM_LERP);
-    v.lng = lerp(v.lng, t.lng, CAM_LERP);
-    if (Number.isFinite(t.heading)) {
-      v.heading = mixHeading(v.heading, t.heading, CAM_LERP);
-      state.camHeading = v.heading;
-    } else if (!Number.isFinite(state.camHeading)) {
-      state.camHeading = v.heading || 0;
+  function animateFrame() {
+    smoothRaf = requestAnimationFrame(animateFrame);
+    const tgt = AppState.targetPos;
+    const cur = AppState.currentPos;
+    if (Number.isFinite(tgt.lat) && Number.isFinite(tgt.lng)) {
+      if (!cur.lat && !cur.lng) {
+        cur.lat = tgt.lat;
+        cur.lng = tgt.lng;
+        cur.bearing = tgt.bearing || 0;
+      } else {
+        cur.lat = lerp(cur.lat, tgt.lat, POS_LERP);
+        cur.lng = lerp(cur.lng, tgt.lng, POS_LERP);
+        cur.bearing = mixHeading(cur.bearing || 0, tgt.bearing || 0, POS_LERP);
+      }
+      if (state.map) {
+        setOrigin({ lng: cur.lng, lat: cur.lat }, cur.bearing, AppState.speed);
+        placePuck(state.origin || { lng: cur.lng, lat: cur.lat }, state.heading || cur.bearing);
+      }
     }
-    placePuck(v, v.heading);
+    const now = Date.now();
+    if (now - lastPoiTick > 400) {
+      lastPoiTick = now;
+      maybeLoadFunPois();
+      maybeSpeakFunPoi(cur.lat, cur.lng);
+    }
+    if (now - lastOffTick > 400) {
+      lastOffTick = now;
+      if (state.pendingPlan && state.dest && state.origin && !state.route && !state.planning) {
+        state.pendingPlan = false;
+        fetchRoute(false);
+      } else {
+        maybeReroute();
+      }
+    }
+    if (!state.map) return;
     paintCompass();
     const lockHeading = state.follow || state.navigating;
     if (!lockHeading) return;
-    const kmh = (state.speed || 0) * 3.6;
+    const pose = state.origin || { lng: cur.lng, lat: cur.lat };
+    const heading = state.heading || cur.bearing || 0;
+    if (!state.view) state.view = copyPose(pose, heading);
+    const v = state.view;
+    v.lat = pose.lat;
+    v.lng = pose.lng;
+    v.heading = heading;
+    state.camHeading = heading;
+    const kmh = (state.speed || AppState.speed || 0) * 3.6;
     const wantZoom = state.navigating
         ? kmh > 110 ? 17.85 : kmh > 70 ? 18.2 : 18.5
         : kmh > 90 ? 17.6 : 18.15;
     v.zoom = lerp(Number.isFinite(v.zoom) ? v.zoom : wantZoom, wantZoom, 0.04);
-    const ahead = lookAhead(v, v.heading);
+    const ahead = lookAhead(v, heading);
     try {
       state.map.jumpTo({
         center: [ahead.lng, ahead.lat],
-        bearing: v.heading || 0,
+        bearing: heading || 0,
         pitch: CAM_PITCH_NAV,
         zoom: v.zoom,
         padding: camPad()
@@ -1910,16 +1960,16 @@
   }
 
   function updateCamera(force) {
-    if (!state.origin) return;
-    setTarget(state.origin, state.heading);
-    if (force && state.target) {
-      state.view = copyPose(state.target);
-      if (Number.isFinite(state.target.heading)) {
-        state.camHeading = state.target.heading;
-        state.view.heading = state.camHeading;
-      }
-      placePuck(state.view, state.view.heading);
+    const cur = AppState.currentPos;
+    if (!state.origin && !(cur.lat || cur.lng)) return;
+    if (force) {
+      const pose = state.origin || { lng: cur.lng, lat: cur.lat };
+      const heading = state.heading || cur.bearing || 0;
+      state.view = copyPose(pose, heading);
+      state.camHeading = heading;
+      placePuck(pose, heading);
     }
+    startSmooth();
   }
 
   function remaining() {
@@ -2827,6 +2877,7 @@
       if (!route) throw last || new Error("Az útvonal nem jött össze.");
       state.route = route;
       state.coords = (route.geometry && route.geometry.coordinates) || [];
+      AppState.activeRoute = { coords: state.coords, distance: Number(route.distance) || 0 };
       state.steps = [];
       state.limits = [];
       state.snapI = 1;
@@ -2878,6 +2929,10 @@
     }
   }
 
+  function fetchRoute(reroute) {
+    return plan(reroute);
+  }
+
   function startNav() {
     if (!state.route) return;
     state.pendingPlan = false;
@@ -2903,6 +2958,7 @@
     }
     state.spoken = {};
     state.spokenPoi = {};
+    AppState.triggeredPois = new Set();
     state.poiAt = 0;
     armVoice();
     hushSpeech();
@@ -2978,6 +3034,7 @@
     }
     paintArHud();
     state.spokenPoi = {};
+    AppState.activeRoute = null;
     state.funChipUntil = 0;
     state.cameras = [];
     clearFloatMarks();
@@ -2994,11 +3051,17 @@
   }
 
   function maybeReroute() {
-    if (!state.navigating || !state.origin || !state.dest || state.planning) return;
-    if (!state.coords.length) return plan(true);
-    const snap = state.lastSnap || nearest(state.coords, state.origin);
-    const limit = offRouteLimit();
-    if (snap.dist < limit) {
+    if (!state.navigating || !state.dest || state.planning) return;
+    const coords =
+      (AppState.activeRoute && AppState.activeRoute.coords) || state.coords || [];
+    if (!coords.length) return;
+    const here = {
+      lat: AppState.currentPos.lat,
+      lng: AppState.currentPos.lng
+    };
+    if (!Number.isFinite(here.lat) || !Number.isFinite(here.lng)) return;
+    const snap = nearest(coords, here);
+    if (!(snap.dist > OFF_ROUTE_M)) {
       state.offHits = 0;
       return;
     }
@@ -3010,23 +3073,34 @@
     hushSpeech();
     const nv = navVoice();
     if (state.voice && nv) nv.playCat("recompute");
-    plan(true);
+    fetchRoute(true);
   }
 
-  function onPos(pos) {
+  function ingestGps(pos) {
     const c = pos.coords;
     const acc = Number(c.accuracy);
+    AppState.accuracy = acc;
     state.gpsAcc = acc;
     const raw = { lat: c.latitude, lng: c.longitude };
+    const now = Date.now();
     let spd = c.speed;
     if ((spd == null || isNaN(spd) || spd < 0) && state.lastFix) {
-      const dt = (Date.now() - state.lastFix.t) / 1000;
+      const dt = (now - state.lastFix.t) / 1000;
       if (dt > 0.4 && dt < 8) spd = haversine(state.lastFix.ll, raw) / dt;
     }
-    if (spd == null || isNaN(spd) || spd < 0) spd = state.speed || 0;
-    setOrigin(raw, c.heading, spd);
-    maybeLoadFunPois();
-    maybeSpeakFunPoi(c.latitude, c.longitude);
+    if (spd == null || isNaN(spd) || spd < 0) spd = AppState.speed || state.speed || 0;
+    if (!plausibleJump(state.lastFix, { ll: raw, t: now, speed: spd || 0 }, acc)) {
+      state.fixRejects = (state.fixRejects || 0) + 1;
+      if (state.fixRejects < 3) return;
+    }
+    state.fixRejects = 0;
+    state.lastFix = { ll: raw, t: now, speed: spd || 0 };
+    AppState.speed = spd;
+    AppState.targetPos.lat = raw.lat;
+    AppState.targetPos.lng = raw.lng;
+    const kmh = (spd || 0) * 3.6;
+    if (Number.isFinite(c.heading) && kmh >= 2) AppState.targetPos.bearing = c.heading;
+    watchPark(raw, spd);
     if (state.navigating && acc > 50) {
       state.gpsHits += 1;
       if (state.gpsHits >= 3 && Date.now() - state.lastGpsWarn > 40000) {
@@ -3038,16 +3112,16 @@
     } else {
       state.gpsHits = 0;
     }
-    if (state.pendingPlan && state.dest && !state.route && !state.planning) {
-      state.pendingPlan = false;
-      plan(false);
-    }
-    maybeReroute();
     if (state.navigating) {
       if (state.gpsHits === 0) paintRoadUi();
     } else if (!state.arrived) {
       setStatus("GPS kész");
     }
+    startSmooth();
+  }
+
+  function onPos(pos) {
+    ingestGps(pos);
   }
 
   function uniqueBits(list) {
@@ -3983,7 +4057,7 @@
     const grid = $("garageGrid");
     if (!grid || !window.NavCar3D) return;
     const models = window.NavCar3D.carModels || {};
-    const cur = window.NavCar3D.id();
+    const cur = AppState.selectedCar || (window.NavCar3D && window.NavCar3D.id());
     state.carModel = cur;
     grid.innerHTML = "";
     Object.keys(models).forEach(function (id) {
@@ -4011,18 +4085,24 @@
   }
 
   function chooseCar(id) {
-    if (!window.NavCar3D) return;
-    const next = window.NavCar3D.setModel(id);
-    state.carModel = next;
+    const models = (window.NavCar3D && window.NavCar3D.carModels) || {};
+    if (!models[id]) id = "verso";
+    AppState.selectedCar = id;
+    state.carModel = id;
     try {
-      localStorage.setItem(window.NavCar3D.garageKey || "nav2_car_model", next);
+      localStorage.setItem(CAR_LS_KEY, id);
+      localStorage.setItem(GARAGE_LS_KEY, id);
     } catch (_e) {}
+    window.dispatchEvent(new CustomEvent("carModelChanged", { detail: id }));
     paintGarage();
     paintPuckIcon();
-    const spec = window.NavCar3D.carModels[next];
-    setStatus(spec ? spec.brand + " " + spec.type : next);
-    if (state.view) placePuck(state.view, state.view.heading);
-    else if (state.origin) placePuck(state.origin, state.heading);
+    const spec = models[id];
+    setStatus(spec ? spec.brand + " " + spec.type : id);
+    const pose = state.origin || {
+      lng: AppState.currentPos.lng,
+      lat: AppState.currentPos.lat
+    };
+    if (pose && Number.isFinite(pose.lng)) placePuck(pose, state.heading || AppState.currentPos.bearing);
     if (state.map) state.map.triggerRepaint();
   }
 
@@ -4114,7 +4194,10 @@
   function boot() {
     loadPlaces();
     loadNavOpts();
-    if (window.NavCar3D) state.carModel = window.NavCar3D.id();
+    if (window.NavCar3D) {
+      state.carModel = window.NavCar3D.id();
+      AppState.selectedCar = state.carModel;
+    }
     loadMapLibre()
       .then(() => {
         initMap();
@@ -4143,7 +4226,12 @@
     },
     poke: function (lng, lat, heading, speed) {
       state.gpsAcc = 8;
-      setOrigin({ lng: lng, lat: lat }, heading, speed);
+      AppState.accuracy = 8;
+      if (Number.isFinite(speed)) AppState.speed = speed;
+      AppState.targetPos.lat = lat;
+      AppState.targetPos.lng = lng;
+      if (Number.isFinite(heading)) AppState.targetPos.bearing = heading;
+      startSmooth();
     },
     go: function (lng, lat, label) {
       if (!state.map) return Promise.reject(new Error("nincs térkép"));
