@@ -29,7 +29,7 @@
   function openDrawer() {
     $("mobileDrawer").classList.add("open");
     $("drawerOverlay").classList.add("open");
-    $("hamburgerBtn").setAttribute("aria-expanded", "true");
+    $("hamburgerBtn") && $("hamburgerBtn").setAttribute("aria-expanded", "true");
     document.body.style.overflow = "hidden";
     armBack();
   }
@@ -81,7 +81,7 @@
   function closeDrawer(fromPop) {
     $("mobileDrawer").classList.remove("open");
     $("drawerOverlay").classList.remove("open");
-    $("hamburgerBtn").setAttribute("aria-expanded", "false");
+    if ($("hamburgerBtn")) $("hamburgerBtn").setAttribute("aria-expanded", "false");
     document.body.style.overflow = "";
     if (fromPop !== "keep") syncBack(fromPop);
   }
@@ -1313,19 +1313,28 @@
     el.className = "car3d";
     el.setAttribute("aria-hidden", "true");
     el.innerHTML =
-      '<svg viewBox="0 0 90 120" xmlns="http://www.w3.org/2000/svg">' +
-      '<ellipse cx="45" cy="112" rx="26" ry="5" fill="rgba(0,0,0,.4)"/>' +
-      '<path d="M16 78c1 18 8 26 29 26s28-8 29-26l2-24c1-14-7-24-31-24S14 40 14 54z" fill="#f8fafc" stroke="#0f172a" stroke-width="1.7"/>' +
-      '<path d="M24 52c1-8 7-13 21-13s20 5 21 13l1 16H23z" fill="#111827"/>' +
-      '<path d="M20 74h50l-1 9c-2 10-10 14-24 14s-22-4-24-14z" fill="#e5e7eb"/>' +
-      '<rect x="32" y="78" width="26" height="5" rx="1.3" fill="#111"/>' +
-      '<rect x="19" y="70" width="12" height="6" rx="1.8" fill="#ef4444"/>' +
-      '<rect x="59" y="70" width="12" height="6" rx="1.8" fill="#ef4444"/>' +
-      '<path d="M18 62h10v12H19z" fill="#fff"/>' +
-      '<path d="M62 62h10v12h-9z" fill="#fff"/>' +
-      '<path d="M33 40h24c3 0 5 2 5 4v3H28v-3c0-2 2-4 5-4z" fill="#94a3b8"/>' +
-      '<circle cx="22" cy="58" r="2.1" fill="#fbbf24"/>' +
-      '<circle cx="68" cy="58" r="2.1" fill="#fbbf24"/>' +
+      '<svg viewBox="0 0 140 180" xmlns="http://www.w3.org/2000/svg">' +
+      '<defs><linearGradient id="body" x1="0" y1="0" x2="0" y2="1">' +
+      '<stop offset="0" stop-color="#f8fafc"/><stop offset="1" stop-color="#cbd5e1"/></linearGradient>' +
+      '<linearGradient id="glass" x1="0" y1="0" x2="0" y2="1">' +
+      '<stop offset="0" stop-color="#64748b"/><stop offset="1" stop-color="#0f172a"/></linearGradient></defs>' +
+      '<ellipse cx="70" cy="168" rx="40" ry="7" fill="rgba(0,0,0,.45)"/>' +
+      '<path d="M38 150c2 8 10 12 32 12s30-4 32-12l8-28c2-8-4-14-40-14s-42 6-40 14z" fill="#0f172a"/>' +
+      '<path d="M32 118l10 32c2 7 10 11 28 11s26-4 28-11l10-32c2-10-8-16-38-16s-40 6-38 16z" fill="url(#body)" stroke="#0f172a" stroke-width="1.6"/>' +
+      '<path d="M44 78c2-10 8-16 26-16s24 6 26 16l8 34H36z" fill="url(#body)" stroke="#0f172a" stroke-width="1.4"/>' +
+      '<path d="M52 62c3-8 8-12 18-12s15 4 18 12l6 22H46z" fill="#e2e8f0"/>' +
+      '<path d="M50 84c1-10 7-16 20-16s19 6 20 16l1 18H49z" fill="url(#glass)" opacity=".92"/>' +
+      '<path d="M36 112h68l-2 10H38z" fill="#e2e8f0"/>' +
+      '<rect x="34" y="118" width="20" height="9" rx="2.2" fill="#ef4444"/>' +
+      '<rect x="86" y="118" width="20" height="9" rx="2.2" fill="#ef4444"/>' +
+      '<rect x="56" y="128" width="28" height="9" rx="1.6" fill="#111"/>' +
+      '<rect x="60" y="130" width="20" height="5" rx="1" fill="#eab308"/>' +
+      '<ellipse cx="28" cy="108" rx="8" ry="4.5" fill="#f1f5f9" stroke="#0f172a" stroke-width="1.2"/>' +
+      '<ellipse cx="112" cy="108" rx="8" ry="4.5" fill="#f1f5f9" stroke="#0f172a" stroke-width="1.2"/>' +
+      '<path d="M26 96h12v18H28z" fill="#fff" opacity=".7"/>' +
+      '<path d="M102 96h12v18h-10z" fill="#fff" opacity=".7"/>' +
+      '<circle cx="40" cy="148" r="5" fill="#111"/><circle cx="100" cy="148" r="5" fill="#111"/>' +
+      '<circle cx="44" cy="92" r="2.2" fill="#fbbf24"/><circle cx="96" cy="92" r="2.2" fill="#fbbf24"/>' +
       "</svg>";
     return el;
   }
@@ -1477,77 +1486,189 @@
     showShortcuts();
   }
 
-  function satTileUrl() {
-    return "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}";
+  function stripRaster() {
+    if (!state.map || !state.map.isStyleLoaded()) return;
+    const st = state.map.getStyle() || {};
+    (st.layers || []).slice().forEach(function (ly) {
+      if (ly && ly.type === "raster") {
+        try {
+          state.map.removeLayer(ly.id);
+        } catch (_e) {}
+      }
+    });
+    Object.keys(st.sources || {}).forEach(function (id) {
+      const src = st.sources[id];
+      if (src && src.type === "raster") {
+        try {
+          state.map.removeSource(id);
+        } catch (_e2) {}
+      }
+    });
   }
 
   function syncSatellite() {
-    if (!state.map || !state.map.isStyleLoaded()) return;
-    const want = !!(state.ar && !state.mapOffline);
-    if (want && !state.map.getSource("sat")) {
-      state.map.addSource("sat", {
-        type: "raster",
-        tiles: [satTileUrl()],
-        tileSize: 256,
-        maxzoom: 19,
-        attribution: "Esri"
-      });
-      const layers = (state.map.getStyle() && state.map.getStyle().layers) || [];
-      let beforeId = null;
-      for (let i = 0; i < layers.length; i++) {
-        if (layers[i].type !== "background" && layers[i].id !== "sat") {
-          beforeId = layers[i].id;
+    stripRaster();
+  }
+
+  function addArcadeExtras() {
+    if (!state.map) return;
+    const layers = (state.map.getStyle() && state.map.getStyle().layers) || [];
+    let bSrc = null;
+    let bLayer = null;
+    let tSrc = null;
+    let tLayer = null;
+    layers.forEach(function (ly) {
+      const sl = ly["source-layer"] || "";
+      if (!bSrc && (sl === "building" || sl === "buildings")) {
+        bSrc = ly.source;
+        bLayer = sl;
+      }
+      if (!tSrc && (sl === "transportation" || sl === "roads")) {
+        tSrc = ly.source;
+        tLayer = sl;
+      }
+    });
+    function insert(spec) {
+      if (state.map.getLayer(spec.id)) return;
+      let before;
+      const all = (state.map.getStyle() && state.map.getStyle().layers) || [];
+      for (let i = 0; i < all.length; i++) {
+        if (all[i].type === "symbol" || all[i].id === "route-outline") {
+          before = all[i].id;
           break;
         }
       }
-      const layer = {
-        id: "sat",
-        type: "raster",
-        source: "sat",
-        paint: { "raster-opacity": 0.76 }
-      };
       try {
-        if (beforeId) state.map.addLayer(layer, beforeId);
-        else state.map.addLayer(layer);
-      } catch (_e) {
-        try {
-          state.map.addLayer(layer);
-        } catch (_e2) {}
-      }
-    }
-    if (!want) {
-      try {
-        if (state.map.getLayer("sat")) state.map.removeLayer("sat");
-        if (state.map.getSource("sat")) state.map.removeSource("sat");
+        if (before) state.map.addLayer(spec, before);
+        else state.map.addLayer(spec);
       } catch (_e) {}
     }
+    if (bSrc) {
+      try {
+        if (state.map.getLayer("building")) {
+          state.map.setLayoutProperty("building", "visibility", "none");
+        }
+      } catch (_e2) {}
+      insert({
+        id: "arcade-buildings",
+        type: "fill-extrusion",
+        source: bSrc,
+        "source-layer": bLayer,
+        minzoom: 13,
+        paint: {
+          "fill-extrusion-color": "#1a1e28",
+          "fill-extrusion-height": [
+            "coalesce",
+            ["to-number", ["get", "render_height"]],
+            ["to-number", ["get", "height"]],
+            14
+          ],
+          "fill-extrusion-base": [
+            "coalesce",
+            ["to-number", ["get", "render_min_height"]],
+            ["to-number", ["get", "min_height"]],
+            0
+          ],
+          "fill-extrusion-opacity": 0.9
+        }
+      });
+    }
+    if (tSrc) {
+      insert({
+        id: "arcade-lanes",
+        type: "line",
+        source: tSrc,
+        "source-layer": tLayer,
+        minzoom: 15,
+        layout: { "line-cap": "butt", "line-join": "round" },
+        paint: {
+          "line-color": ["match", ["get", "class"], "motorway", "#f5c518", "trunk", "#f5c518", "#e8edf5"],
+          "line-width": ["interpolate", ["linear"], ["zoom"], 15, 0.55, 18, 1.55],
+          "line-dasharray": [2, 2],
+          "line-opacity": 0.72
+        }
+      });
+    }
+  }
+
+  function paintArcadeNight() {
+    if (!state.map || !state.map.isStyleLoaded()) return;
+    stripRaster();
+    const dark = document.documentElement.classList.contains("dark") || localStorage.getItem(THEME_KEY) !== "light";
+    if (!dark) {
+      applySky();
+      return;
+    }
+    function setPaint(id, prop, val) {
+      try {
+        if (state.map.getLayer(id)) state.map.setPaintProperty(id, prop, val);
+      } catch (_e) {}
+    }
+    setPaint("background", "background-color", "#06101f");
+    setPaint("water", "fill-color", "#0b2748");
+    setPaint("waterway", "line-color", "#12365c");
+    setPaint("landuse_residential", "fill-color", "#0d1524");
+    setPaint("landuse_park", "fill-color", "#0b1710");
+    setPaint("landcover_wood", "fill-color", "#0a140e");
+    const asphalt = "#3e4450";
+    const asphaltHi = "#4b5160";
+    const casing = "#161920";
+    setPaint("highway_path", "line-color", "#2c313c");
+    setPaint("highway_minor", "line-color", asphalt);
+    setPaint("highway_major_inner", "line-color", asphaltHi);
+    setPaint("highway_major_casing", "line-color", casing);
+    setPaint("highway_major_subtle", "line-color", "#2a303a");
+    setPaint("highway_motorway_inner", "line-color", "#555c6c");
+    setPaint("highway_motorway_casing", "line-color", casing);
+    setPaint("highway_motorway_subtle", "line-color", "#323844");
+    setPaint("building", "fill-opacity", 0);
+    const layers = (state.map.getStyle() && state.map.getStyle().layers) || [];
+    layers.forEach(function (ly) {
+      if (!ly) return;
+      const sl = ly["source-layer"] || "";
+      if (ly.type === "line" && (sl === "transportation" || sl === "roads")) {
+        if (/casing|case/i.test(ly.id)) setPaint(ly.id, "line-color", casing);
+        else if (/motorway|trunk/i.test(ly.id)) setPaint(ly.id, "line-color", "#555c6c");
+        else if (!/rail|dash/i.test(ly.id)) setPaint(ly.id, "line-color", asphalt);
+      }
+      if (ly.type === "background") setPaint(ly.id, "background-color", "#06101f");
+      if (ly.type === "fill" && (sl === "earth" || sl === "landcover" || ly.id === "bg")) {
+        if (/water/i.test(ly.id)) setPaint(ly.id, "fill-color", "#0b2748");
+        else if (/park|wood|forest/i.test(ly.id)) setPaint(ly.id, "fill-color", "#0b1710");
+        else setPaint(ly.id, "fill-color", "#0d1524");
+      }
+    });
+    addArcadeExtras();
+    applySky();
   }
 
   function applySky() {
     if (!state.map) return;
     const dark = document.documentElement.classList.contains("dark") || localStorage.getItem(THEME_KEY) !== "light";
-    const sky = dark ? "#0B1220" : "#64748b";
-    const horizon = dark ? "#0F172A" : "#94a3b8";
+    const zenith = dark ? "#020617" : "#64748b";
+    const horizon = dark ? "#1d4a7a" : "#94a3b8";
+    const fog = dark ? "#0b1b33" : "#64748b";
     try {
       if (typeof state.map.setSky === "function") {
         state.map.setSky({
-          "sky-color": sky,
+          "sky-color": zenith,
           "horizon-color": horizon,
-          "fog-color": sky,
-          "sky-horizon-blend": 0.5,
-          "horizon-fog-blend": 0.85,
-          "fog-ground-blend": 0.45
+          "fog-color": fog,
+          "sky-horizon-blend": 0.62,
+          "horizon-fog-blend": 0.92,
+          "fog-ground-blend": 0.38,
+          "atmosphere-blend": 0.72
         });
       }
     } catch (_e) {}
     try {
       if (typeof state.map.setFog === "function") {
         state.map.setFog({
-          color: sky,
-          "high-color": sky,
-          "space-color": sky,
-          "horizon-blend": 0.08,
-          range: [0.5, 5.5]
+          color: fog,
+          "high-color": zenith,
+          "space-color": dark ? "#01030a" : "#94a3b8",
+          "horizon-blend": 0.14,
+          range: [0.35, 5.8]
         });
       }
     } catch (_e2) {}
@@ -1555,8 +1676,7 @@
 
   function addLayers() {
     if (!state.map || !state.map.isStyleLoaded()) return;
-    applySky();
-    syncSatellite();
+    paintArcadeNight();
     if (!state.map.getSource("route")) {
       state.map.addSource("route", { type: "geojson", data: EMPTY, lineMetrics: true });
       state.map.addLayer({
@@ -1647,8 +1767,7 @@
 
   function lookAheadMeters() {
     const kmh = (state.speed || 0) * 3.6;
-    if (state.ar) return Math.max(22, Math.min(56, 22 + kmh * 0.28));
-    return Math.max(3, Math.min(10, 3 + kmh * 0.06));
+    return Math.max(8, Math.min(22, 8 + kmh * 0.1));
   }
 
   function lookAhead(from, heading) {
@@ -1695,7 +1814,7 @@
   }
 
   const CAM_LERP = 0.05;
-  const CAM_PITCH_NAV = 68;
+  const CAM_PITCH_NAV = 78;
 
   function lerp(start, end, amt) {
     if (!Number.isFinite(start)) return end;
@@ -1737,18 +1856,16 @@
     placePuck(v, v.heading);
     if (!state.follow) return;
     const kmh = (state.speed || 0) * 3.6;
-    const wantZoom = state.ar
-      ? kmh > 90 ? 15.8 : 16.4
-      : state.navigating
-        ? kmh > 110 ? 17.5 : kmh > 70 ? 18.05 : 18.4
-        : kmh > 90 ? 16.6 : 17.2;
+    const wantZoom = state.navigating
+        ? kmh > 110 ? 16.9 : kmh > 70 ? 17.35 : 17.7
+        : kmh > 90 ? 16.4 : 16.9;
     v.zoom = lerp(Number.isFinite(v.zoom) ? v.zoom : wantZoom, wantZoom, 0.04);
     const ahead = lookAhead(v, v.heading);
     try {
       state.map.jumpTo({
         center: [ahead.lng, ahead.lat],
         bearing: v.heading || 0,
-        pitch: state.ar ? 48 : state.navigating ? CAM_PITCH_NAV : 52,
+        pitch: CAM_PITCH_NAV,
         zoom: v.zoom,
         padding: camPad()
       });
@@ -3478,7 +3595,7 @@
       if ($("arStage")) $("arStage").hidden = true;
     }
     if (state.map) {
-      syncSatellite();
+      stripRaster();
       try {
         state.map.resize();
       } catch (_e) {}
@@ -3539,7 +3656,7 @@
       style: dark ? STYLES.dark : STYLES.light,
       center: BUDAPEST,
       zoom: 13.5,
-      pitch: 68,
+      pitch: 78,
       maxPitch: 85,
       fadeDuration: 0,
       renderWorldCopies: false,
@@ -3596,11 +3713,31 @@
     $("searchForm").addEventListener("submit", onSearch);
     $("q").addEventListener("input", onQueryInput);
     $("stop").addEventListener("click", stopNav);
-    $("follow").addEventListener("click", () => {
+    $("follow").addEventListener("click", function (ev) {
+      if (followMenu) {
+        followMenu = false;
+        ev.preventDefault();
+        return;
+      }
       state.follow = !state.follow;
       $("follow").classList.toggle("is-on", state.follow);
       $("follow").setAttribute("aria-pressed", state.follow ? "true" : "false");
       if (state.follow) updateCamera(true);
+    });
+    let followHold = 0;
+    let followMenu = false;
+    $("follow").addEventListener("pointerdown", function () {
+      followHold = window.setTimeout(function () {
+        followHold = 0;
+        followMenu = true;
+        openDrawer();
+      }, 550);
+    });
+    ["pointerup", "pointerleave", "pointercancel"].forEach(function (ev) {
+      $("follow").addEventListener(ev, function () {
+        if (followHold) clearTimeout(followHold);
+        followHold = 0;
+      });
     });
     if ($("arBtn")) {
       $("arBtn").addEventListener("click", function () {
@@ -3700,7 +3837,7 @@
     const drawerOverlay = $("drawerOverlay");
     const allNavLinks = document.querySelectorAll(".nav-link, .mobile-link");
 
-    hamburgerBtn.addEventListener("click", openDrawer);
+    if (hamburgerBtn) hamburgerBtn.addEventListener("click", openDrawer);
     closeBtn.addEventListener("click", function () {
       closeDrawer();
     });
@@ -3855,9 +3992,6 @@
       .then(() => {
         initMap();
         bind();
-        try {
-          if (localStorage.getItem(AR_KEY) === "1") applyAr(true);
-        } catch (_e) {}
         initVoice();
         initGps();
       })
