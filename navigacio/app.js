@@ -194,7 +194,6 @@
     camBusy: false,
     camAt: 0,
     floatKey: "",
-    markIcons: false,
     searchTimer: 0,
     car: null,
     carMark: null,
@@ -1578,7 +1577,6 @@
         }
       });
     }
-    state.markIcons = false;
     ensureMarkLayer();
     if (state.coords.length) drawRoute();
     paintCar();
@@ -1912,147 +1910,119 @@
     maybeSpeakRoad();
   }
 
-  function canvasIcon(size, draw) {
+  function canvasIcon(w, h, draw) {
     const c = document.createElement("canvas");
-    c.width = size;
-    c.height = size;
+    c.width = w;
+    c.height = h;
     const g = c.getContext("2d");
-    g.clearRect(0, 0, size, size);
-    draw(g, size);
+    g.clearRect(0, 0, w, h);
+    draw(g, w, h);
     return {
-      width: size,
-      height: size,
-      data: new Uint8Array(g.getImageData(0, 0, size, size).data)
+      width: w,
+      height: h,
+      data: new Uint8Array(g.getImageData(0, 0, w, h).data)
     };
   }
 
-  function ensureMarkIcons() {
-    if (!state.map || state.markIcons) return;
-    try {
-      if (!state.map.hasImage("nav-limit")) {
-        state.map.addImage(
-          "nav-limit",
-          canvasIcon(128, function (g, s) {
-            g.beginPath();
-            g.arc(s / 2, s / 2, s * 0.42, 0, Math.PI * 2);
-            g.fillStyle = "#fff";
-            g.fill();
-            g.lineWidth = s * 0.12;
-            g.strokeStyle = "#e11d2e";
-            g.stroke();
-          })
-        );
-      }
-      if (!state.map.hasImage("nav-cam")) {
-        state.map.addImage(
-          "nav-cam",
-          canvasIcon(128, function (g, s) {
-            g.beginPath();
-            g.arc(s / 2, s / 2, s * 0.42, 0, Math.PI * 2);
-            g.fillStyle = "#fff";
-            g.fill();
-            g.lineWidth = s * 0.08;
-            g.strokeStyle = "#111";
-            g.stroke();
-            g.beginPath();
-            g.arc(s / 2, s / 2, s * 0.14, 0, Math.PI * 2);
-            g.strokeStyle = "#111";
-            g.lineWidth = s * 0.06;
-            g.stroke();
-            g.fillStyle = "#111";
-            g.beginPath();
-            g.arc(s * 0.38, s * 0.4, s * 0.045, 0, Math.PI * 2);
-            g.fill();
-          })
-        );
-      }
-      if (!state.map.hasImage("nav-dist")) {
-        state.map.addImage(
-          "nav-dist",
-          canvasIcon(256, function (g, s) {
-            const x = s * 0.08;
-            const y = s * 0.28;
-            const w = s * 0.84;
-            const h = s * 0.44;
-            const r = h / 2;
-            g.beginPath();
-            g.moveTo(x + r, y);
-            g.lineTo(x + w - r, y);
-            g.arcTo(x + w, y, x + w, y + r, r);
-            g.arcTo(x + w, y + h, x + w - r, y + h, r);
-            g.lineTo(x + r, y + h);
-            g.arcTo(x, y + h, x, y + r, r);
-            g.arcTo(x, y, x + r, y, r);
-            g.closePath();
-            g.fillStyle = "#fff";
-            g.fill();
-            g.lineWidth = s * 0.035;
-            g.strokeStyle = "#111";
-            g.stroke();
-          })
-        );
-      }
-      state.markIcons = true;
-    } catch (_e) {
-      state.markIcons = false;
+  function markIconId(kind, label) {
+    return "nav-" + kind + "-" + String(label || "").replace(/\s+/g, "_").slice(0, 24);
+  }
+
+  function ensureMarkIcon(kind, label) {
+    if (!state.map) return "";
+    const id = kind === "cam" ? "nav-cam" : markIconId(kind, label);
+    if (state.map.hasImage(id)) return id;
+    let img = null;
+    if (kind === "cam") {
+      img = canvasIcon(128, 128, function (g, w) {
+        g.beginPath();
+        g.arc(w / 2, w / 2, w * 0.42, 0, Math.PI * 2);
+        g.fillStyle = "#fff";
+        g.fill();
+        g.lineWidth = w * 0.08;
+        g.strokeStyle = "#111";
+        g.stroke();
+        g.beginPath();
+        g.arc(w / 2, w / 2, w * 0.14, 0, Math.PI * 2);
+        g.strokeStyle = "#111";
+        g.lineWidth = w * 0.06;
+        g.stroke();
+        g.fillStyle = "#111";
+        g.beginPath();
+        g.arc(w * 0.38, w * 0.4, w * 0.045, 0, Math.PI * 2);
+        g.fill();
+      });
+    } else if (kind === "limit") {
+      img = canvasIcon(128, 128, function (g, w) {
+        g.beginPath();
+        g.arc(w / 2, w / 2, w * 0.42, 0, Math.PI * 2);
+        g.fillStyle = "#fff";
+        g.fill();
+        g.lineWidth = w * 0.12;
+        g.strokeStyle = "#e11d2e";
+        g.stroke();
+        g.fillStyle = "#111";
+        g.font = "700 " + Math.round(w * 0.34) + "px sans-serif";
+        g.textAlign = "center";
+        g.textBaseline = "middle";
+        g.fillText(String(label || ""), w / 2, w / 2 + 1);
+      });
+    } else {
+      const text = String(label || "");
+      img = canvasIcon(256, 96, function (g, w, h) {
+        const x = 8;
+        const y = 10;
+        const rw = w - 16;
+        const rh = h - 20;
+        const r = rh / 2;
+        g.beginPath();
+        g.moveTo(x + r, y);
+        g.lineTo(x + rw - r, y);
+        g.arcTo(x + rw, y, x + rw, y + r, r);
+        g.arcTo(x + rw, y + rh, x + rw - r, y + rh, r);
+        g.lineTo(x + r, y + rh);
+        g.arcTo(x, y + rh, x, y + r, r);
+        g.arcTo(x, y, x + r, y, r);
+        g.closePath();
+        g.fillStyle = "#fff";
+        g.fill();
+        g.lineWidth = 6;
+        g.strokeStyle = "#111";
+        g.stroke();
+        g.fillStyle = "#111";
+        g.font = "800 36px sans-serif";
+        g.textAlign = "center";
+        g.textBaseline = "middle";
+        g.fillText(text, w / 2, h / 2 + 1);
+      });
     }
-  }
-
-  function markSymbolLayout(icon, textOffset) {
-    return {
-      "icon-image": icon,
-      "icon-size": icon === "nav-dist" ? 0.42 : 0.55,
-      "icon-anchor": "bottom",
-      "icon-pitch-alignment": "viewport",
-      "icon-rotation-alignment": "viewport",
-      "icon-allow-overlap": true,
-      "icon-ignore-placement": true,
-      "text-field": ["get", "label"],
-      "text-size": icon === "nav-dist" ? 13 : 12,
-      "text-anchor": "center",
-      "text-offset": textOffset,
-      "text-pitch-alignment": "viewport",
-      "text-rotation-alignment": "viewport",
-      "text-allow-overlap": true,
-      "text-ignore-placement": true,
-      "text-optional": true
-    };
+    try {
+      state.map.addImage(id, img);
+    } catch (_e) {
+      return "";
+    }
+    return id;
   }
 
   function ensureMarkLayer() {
     if (!state.map || !state.map.isStyleLoaded()) return;
-    ensureMarkIcons();
     if (!state.map.getSource("nav-marks")) {
       state.map.addSource("nav-marks", { type: "geojson", data: EMPTY });
     }
-    if (!state.map.getLayer("nav-marks-limit")) {
+    if (!state.map.getLayer("nav-marks-sym")) {
       state.map.addLayer({
-        id: "nav-marks-limit",
+        id: "nav-marks-sym",
         type: "symbol",
         source: "nav-marks",
-        filter: ["==", ["get", "kind"], "limit"],
-        layout: markSymbolLayout("nav-limit", [0, -1.35]),
-        paint: { "text-color": "#111111", "text-halo-color": "#ffffff", "text-halo-width": 0.2 }
-      });
-    }
-    if (!state.map.getLayer("nav-marks-cam")) {
-      state.map.addLayer({
-        id: "nav-marks-cam",
-        type: "symbol",
-        source: "nav-marks",
-        filter: ["==", ["get", "kind"], "cam"],
-        layout: markSymbolLayout("nav-cam", [0, 0]),
-        paint: { "text-color": "#111111" }
-      });
-    }
-    if (!state.map.getLayer("nav-marks-dist")) {
-      state.map.addLayer({
-        id: "nav-marks-dist",
-        type: "symbol",
-        source: "nav-marks",
-        filter: ["==", ["get", "kind"], "dist"],
-        layout: markSymbolLayout("nav-dist", [0, -1.15]),
-        paint: { "text-color": "#111111" }
+        layout: {
+          "icon-image": ["get", "icon"],
+          "icon-size": ["match", ["get", "kind"], "dist", 0.48, 0.58],
+          "icon-anchor": "bottom",
+          "icon-pitch-alignment": "viewport",
+          "icon-rotation-alignment": "viewport",
+          "icon-allow-overlap": true,
+          "icon-ignore-placement": true
+        }
       });
     }
   }
@@ -2068,10 +2038,11 @@
   }
 
   function markFeature(ll, kind, label) {
+    const icon = ensureMarkIcon(kind, label);
     return {
       type: "Feature",
       geometry: { type: "Point", coordinates: [ll.lng, ll.lat] },
-      properties: { kind: kind, label: label || "" }
+      properties: { kind: kind, label: label || "", icon: icon }
     };
   }
 
@@ -3846,6 +3817,9 @@
       if (!state.map) return Promise.reject(new Error("nincs térkép"));
       setDest({ lng: lng, lat: lat }, label || "Cél");
       return plan(false);
+    },
+    pitch: function () {
+      return state.map ? Math.round(state.map.getPitch()) : 0;
     },
     road: function (limit) {
       applyRoad({ limit: Number(limit) || 70, urban: true, cls: "residential", start: 0, end: 1e9 }, true);
