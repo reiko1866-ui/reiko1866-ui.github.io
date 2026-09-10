@@ -4149,6 +4149,9 @@
     pitch: function () {
       return state.map ? Math.round(state.map.getPitch()) : 0;
     },
+    zoom: function () {
+      return state.map ? Math.round(state.map.getZoom() * 10) / 10 : 0;
+    },
     poiTest: function () {
       const h = (state.lastFix && state.lastFix.ll) || state.origin;
       if (!h) return false;

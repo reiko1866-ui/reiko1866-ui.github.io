@@ -454,6 +454,10 @@ body:has(#app.is-ar),
   display: none;
 }
 
+.car3d-canvas {
+  z-index: 2;
+}
+
 .float-mark {
   display: flex;
   align-items: center;

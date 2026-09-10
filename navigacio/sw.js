@@ -4,6 +4,8 @@ const CORE = [
   "./index.html",
   "./app.js",
   "./car-layer.js",
+  "./vendor/three.min.js",
+  "./vendor/GLTFLoader.js",
   "./style.css",
   "./voice/audio-manager.js",
   "./voice/pack.json",

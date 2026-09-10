@@ -242,7 +242,7 @@ const CARS = {
   },
   merc_e: {
     name: "Mercedes-Benz E-Class",
-    paint: "#16181c",
+    paint: "#2c3038",
     trim: "#0c0d10",
     length: 4.92,
     width: 1.85,
@@ -347,9 +347,9 @@ function buildCar(id, car) {
   const belt = spec.belt;
   const roof = spec.roof;
 
-  glass.addBox(0, belt + (roof - belt) * 0.55, -L * 0.02, W * 1.42, (roof - belt) * 0.72, L * 0.42);
-  glass.addBox(0, belt + (roof - belt) * 0.62, -L * 0.28, W * 1.22, (roof - belt) * 0.55, L * 0.12, 0.18, 0, 0);
-  glass.addBox(0, belt + (roof - belt) * 0.55, L * 0.28, W * 1.18, (roof - belt) * 0.5, car.body === "sedan" ? L * 0.1 : L * 0.14, -0.22, 0, 0);
+  glass.addBox(0, belt + (roof - belt) * 0.52, -L * 0.02, W * 1.28, (roof - belt) * 0.55, L * 0.28);
+  glass.addBox(0, belt + (roof - belt) * 0.55, -L * 0.26, W * 1.08, (roof - belt) * 0.42, L * 0.08, 0.22, 0, 0);
+  glass.addBox(0, belt + (roof - belt) * 0.5, L * 0.26, W * 1.05, (roof - belt) * 0.4, car.body === "sedan" ? L * 0.08 : L * 0.11, -0.24, 0, 0);
 
   const wb = car.wheelbase / 2;
   const track = W * 0.82;
@@ -360,9 +360,9 @@ function buildCar(id, car) {
     [track, wr, -wb],
     [-track, wr, -wb]
   ].forEach((p) => {
-    rubber.addCylinder(p[0], p[1], p[2], wr, 0.22, 20, "x");
-    chrome.addCylinder(p[0], p[1], p[2], wr * 0.62, 0.16, 16, "x");
-    dark.addCylinder(p[0], p[1], p[2], wr * 0.22, 0.18, 12, "x");
+    rubber.addCylinder(p[0], p[1], p[2], wr * 1.08, 0.28, 20, "x");
+    chrome.addCylinder(p[0], p[1], p[2], wr * 0.58, 0.18, 16, "x");
+    dark.addCylinder(p[0], p[1], p[2], wr * 0.2, 0.2, 12, "x");
   });
 
   dark.addBox(0, 0.03, 0, W * 1.7, 0.02, L * 0.92);
@@ -458,10 +458,10 @@ function buildCar(id, car) {
 
   const rgb = hexRgb(car.paint);
   const materials = [
-    mat("paint", rgb, 0.68, 0.26),
-    mat("glass", [0.12, 0.18, 0.28, 0.42], 0.15, 0.06, "BLEND"),
-    mat("chrome", [0.86, 0.88, 0.92, 1], 1, 0.1),
-    mat("trim", hexRgb(car.trim).concat([1]), 0.35, 0.55),
+    mat("paint", rgb, 0.22, 0.38),
+    mat("glass", [0.08, 0.12, 0.2, 0.62], 0.05, 0.08, "BLEND"),
+    mat("chrome", [0.86, 0.88, 0.92, 1], 0.48, 0.22),
+    mat("trim", hexRgb(car.trim).concat([1]), 0.12, 0.55),
     mat("rubber", [0.05, 0.05, 0.05, 1], 0.05, 0.85),
     Object.assign(mat("tail", [0.55, 0.04, 0.05, 1], 0.3, 0.25), { emissiveFactor: [0.85, 0.04, 0.04] }),
     Object.assign(mat("head", [0.95, 0.96, 0.9, 1], 0.4, 0.12), { emissiveFactor: [0.95, 0.92, 0.75] })
