@@ -479,8 +479,11 @@
   api.currentId = savedId();
   global.addEventListener("carModelChanged", function (ev) {
     var id = ev && ev.detail;
-    if (!id || id === api.currentId) return;
-    api.setModel(id);
+    if (!id || !carModels[id]) id = "verso";
+    if (id === api.currentId && api.ready && layer && layer.carRoot && layer.carRoot.children.length) {
+      return;
+    }
+    api.setModel(id, true);
   });
   loadThree().catch(function (err) {
     console.warn("[NavCar3D] three", err);

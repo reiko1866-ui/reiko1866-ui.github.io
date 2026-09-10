@@ -1261,7 +1261,7 @@
     for (let i = 0; i < list.length; i++) {
       const p = list[i];
       if (!p || !p.id) continue;
-      if (AppState.triggeredPois.has(p.id) || state.spokenPoi[p.id]) continue;
+      if (AppState.triggeredPois.has(p.id)) continue;
       const d = haversine(here, { lat: Number(p.lat), lng: Number(p.lng) });
       if (d <= POI_RANGE_M && (!best || d < bestD)) {
         best = p;
@@ -1269,6 +1269,7 @@
       }
     }
     if (!best) return;
+    if (AppState.triggeredPois.has(best.id)) return;
     const line = poiGag(best.kind, best.name);
     showFunChip(line);
     if (!state.voice) {
@@ -1278,9 +1279,10 @@
     }
     const nv = navVoice();
     if (nv && nv.isBusy()) return;
+    if (AppState.triggeredPois.has(best.id)) return;
     AppState.triggeredPois.add(best.id);
     state.spokenPoi[best.id] = true;
-    if (nv && typeof nv.playCat === "function") {
+    if (nv && typeof nv.playCat === "function" && AppState.triggeredPois.has(best.id)) {
       nv.playCat("start");
       state.lastSpare = Date.now();
     }
@@ -2959,7 +2961,6 @@
     }
     state.spoken = {};
     state.spokenPoi = {};
-    AppState.triggeredPois = new Set();
     state.poiAt = 0;
     armVoice();
     hushSpeech();
@@ -4248,7 +4249,10 @@
       return state.map ? Math.round(state.map.getZoom() * 10) / 10 : 0;
     },
     poiTest: function () {
-      const h = (state.lastFix && state.lastFix.ll) || state.origin;
+      const h = (state.lastFix && state.lastFix.ll) || state.origin || {
+        lat: AppState.currentPos.lat,
+        lng: AppState.currentPos.lng
+      };
       if (!h) return false;
       state.funPoi = true;
       state.poeniPois.push({
@@ -4260,6 +4264,9 @@
       });
       maybeSpeakFunPoi(h.lat, h.lng);
       return true;
+    },
+    poiTick: function () {
+      maybeSpeakFunPoi();
     },
     kaland: function (on) {
       applyKaland(!!on);
