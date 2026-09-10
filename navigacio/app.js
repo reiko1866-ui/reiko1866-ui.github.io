@@ -3682,5 +3682,16 @@
       });
   }
 
+  window.NavDrive = {
+    poke: function (lng, lat, heading, speed) {
+      state.gpsAcc = 8;
+      setOrigin({ lng: lng, lat: lat }, heading, speed);
+    },
+    go: function (lng, lat, label) {
+      setDest({ lng: lng, lat: lat }, label || "Cél");
+      return plan(false);
+    }
+  };
+
   boot();
 })();
