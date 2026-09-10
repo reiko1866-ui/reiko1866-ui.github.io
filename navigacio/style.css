@@ -1828,16 +1828,78 @@ noscript {
   bottom: calc(var(--pad) + var(--safe-bottom));
 }
 
-@media (min-width: 700px) {
+#speed {
+  width: clamp(3rem, 7.2vmin, 5.2rem);
+  height: clamp(3rem, 7.2vmin, 5.2rem);
+  border-width: clamp(4px, 0.7vmin, 7px);
+}
+
+#kmh {
+  font-size: clamp(1.05rem, 2.8vmin, 1.85rem);
+}
+
+#speed span {
+  font-size: clamp(0.42rem, 1.05vmin, 0.62rem);
+}
+
+#limitSign {
+  width: clamp(3.1rem, 7.6vmin, 5.4rem);
+  min-height: clamp(3.3rem, 8.2vmin, 5.8rem);
+}
+
+#limitSign small {
+  font-size: clamp(0.4rem, 1.05vmin, 0.62rem);
+}
+
+#limitVal {
+  font-size: clamp(1.15rem, 3.2vmin, 2.2rem);
+}
+
+#compassN {
+  width: clamp(3.1rem, 7vmin, 5rem);
+  height: clamp(3.1rem, 7vmin, 5rem);
+}
+
+.compass-n {
+  font-size: clamp(0.85rem, 1.8vmin, 1.2rem);
+}
+
+#trip {
+  min-width: clamp(6.4rem, 18vmin, 10rem);
+  padding: clamp(0.4rem, 1.1vmin, 0.8rem) clamp(0.55rem, 1.4vmin, 1rem);
+}
+
+#trip strong {
+  font-size: clamp(1.25rem, 3.4vmin, 2.1rem);
+}
+
+.fab {
+  width: clamp(2.7rem, 6.4vmin, 3.7rem);
+  height: clamp(2.7rem, 6.4vmin, 3.7rem);
+}
+
+@media (orientation: portrait), (min-height: 1000px) and (max-width: 1200px) {
+  #speed {
+    width: clamp(2.7rem, 5.6vmin, 4.2rem);
+    height: clamp(2.7rem, 5.6vmin, 4.2rem);
+  }
+
+  #limitSign {
+    width: clamp(2.8rem, 6vmin, 4.4rem);
+    min-height: clamp(3rem, 6.4vmin, 4.8rem);
+  }
+
   #compassN {
-    width: 5.1rem;
-    height: 5.1rem;
+    width: clamp(2.8rem, 5.6vmin, 4.2rem);
+    height: clamp(2.8rem, 5.6vmin, 4.2rem);
   }
-  .compass-n {
-    font-size: 1.2rem;
+
+  .car3d {
+    width: clamp(72px, 11vmin, 108px);
+    height: clamp(108px, 16.5vmin, 160px);
   }
-  .fab {
-    width: 3.8rem;
-    height: 3.8rem;
+
+  #hudLeft {
+    gap: 0.45rem;
   }
 }
