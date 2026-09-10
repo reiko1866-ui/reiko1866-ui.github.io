@@ -1923,6 +1923,7 @@
     }
     if (now - lastOffTick > 400) {
       lastOffTick = now;
+      tickGpsHud();
       if (state.pendingPlan && state.dest && state.origin && !state.route && !state.planning) {
         state.pendingPlan = false;
         fetchRoute(false);
@@ -3077,10 +3078,9 @@
   }
 
   function ingestGps(pos) {
-    const c = pos.coords;
+    const c = pos && pos.coords;
+    if (!c || !Number.isFinite(c.latitude) || !Number.isFinite(c.longitude)) return;
     const acc = Number(c.accuracy);
-    AppState.accuracy = acc;
-    state.gpsAcc = acc;
     const raw = { lat: c.latitude, lng: c.longitude };
     const now = Date.now();
     let spd = c.speed;
@@ -3088,19 +3088,26 @@
       const dt = (now - state.lastFix.t) / 1000;
       if (dt > 0.4 && dt < 8) spd = haversine(state.lastFix.ll, raw) / dt;
     }
-    if (spd == null || isNaN(spd) || spd < 0) spd = AppState.speed || state.speed || 0;
+    if (spd == null || isNaN(spd) || spd < 0) spd = AppState.speed || 0;
     if (!plausibleJump(state.lastFix, { ll: raw, t: now, speed: spd || 0 }, acc)) {
       state.fixRejects = (state.fixRejects || 0) + 1;
       if (state.fixRejects < 3) return;
     }
     state.fixRejects = 0;
     state.lastFix = { ll: raw, t: now, speed: spd || 0 };
+    AppState.accuracy = acc;
+    state.gpsAcc = acc;
     AppState.speed = spd;
     AppState.targetPos.lat = raw.lat;
     AppState.targetPos.lng = raw.lng;
     const kmh = (spd || 0) * 3.6;
     if (Number.isFinite(c.heading) && kmh >= 2) AppState.targetPos.bearing = c.heading;
-    watchPark(raw, spd);
+  }
+
+  function tickGpsHud() {
+    const raw = state.lastFix && state.lastFix.ll;
+    if (raw) watchPark(raw, AppState.speed);
+    const acc = AppState.accuracy || 0;
     if (state.navigating && acc > 50) {
       state.gpsHits += 1;
       if (state.gpsHits >= 3 && Date.now() - state.lastGpsWarn > 40000) {
@@ -3111,13 +3118,9 @@
       }
     } else {
       state.gpsHits = 0;
+      if (!state.arrived && raw) setStatus("GPS kész");
     }
-    if (state.navigating) {
-      if (state.gpsHits === 0) paintRoadUi();
-    } else if (!state.arrived) {
-      setStatus("GPS kész");
-    }
-    startSmooth();
+    if (state.navigating && state.gpsHits === 0) paintRoadUi();
   }
 
   function onPos(pos) {
