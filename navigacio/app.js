@@ -1300,19 +1300,19 @@
     el.className = "car3d";
     el.setAttribute("aria-hidden", "true");
     el.innerHTML =
-      '<svg viewBox="0 0 80 128" xmlns="http://www.w3.org/2000/svg">' +
-      '<ellipse cx="40" cy="118" rx="22" ry="5" fill="rgba(0,0,0,.35)"/>' +
-      '<path d="M18 96c2 12 10 18 22 18s20-6 22-18l3-38c1-16-8-28-25-28S15 42 16 58z" fill="#f4f6f8" stroke="#1f2937" stroke-width="1.6"/>' +
-      '<path d="M24 58c1-10 6-16 16-16s15 6 16 16l1 18H23z" fill="#1e293b" opacity=".88"/>' +
-      '<path d="M22 88h36l-1 10c-2 8-8 12-17 12s-15-4-17-12z" fill="#e5e7eb"/>' +
-      '<rect x="28" y="92" width="24" height="5" rx="1.4" fill="#111"/>' +
-      '<path d="M20 78h8l-1 12h-6z" fill="#f8fafc"/>' +
-      '<path d="M52 78h8l-1 12h-7z" fill="#f8fafc"/>' +
-      '<rect x="21" y="80" width="9" height="5" rx="1.6" fill="#ef4444"/>' +
-      '<rect x="50" y="80" width="9" height="5" rx="1.6" fill="#ef4444"/>' +
-      '<path d="M30 46h20c3 0 5 2 5 5v4H25v-4c0-3 2-5 5-5z" fill="#cbd5e1"/>' +
-      '<circle cx="22" cy="70" r="2" fill="#fbbf24"/>' +
-      '<circle cx="58" cy="70" r="2" fill="#fbbf24"/>' +
+      '<svg viewBox="0 0 90 120" xmlns="http://www.w3.org/2000/svg">' +
+      '<ellipse cx="45" cy="112" rx="26" ry="5" fill="rgba(0,0,0,.4)"/>' +
+      '<path d="M16 78c1 18 8 26 29 26s28-8 29-26l2-24c1-14-7-24-31-24S14 40 14 54z" fill="#f8fafc" stroke="#0f172a" stroke-width="1.7"/>' +
+      '<path d="M24 52c1-8 7-13 21-13s20 5 21 13l1 16H23z" fill="#111827"/>' +
+      '<path d="M20 74h50l-1 9c-2 10-10 14-24 14s-22-4-24-14z" fill="#e5e7eb"/>' +
+      '<rect x="32" y="78" width="26" height="5" rx="1.3" fill="#111"/>' +
+      '<rect x="19" y="70" width="12" height="6" rx="1.8" fill="#ef4444"/>' +
+      '<rect x="59" y="70" width="12" height="6" rx="1.8" fill="#ef4444"/>' +
+      '<path d="M18 62h10v12H19z" fill="#fff"/>' +
+      '<path d="M62 62h10v12h-9z" fill="#fff"/>' +
+      '<path d="M33 40h24c3 0 5 2 5 4v3H28v-3c0-2 2-4 5-4z" fill="#94a3b8"/>' +
+      '<circle cx="22" cy="58" r="2.1" fill="#fbbf24"/>' +
+      '<circle cx="68" cy="58" r="2.1" fill="#fbbf24"/>' +
       "</svg>";
     return el;
   }
@@ -1723,7 +1723,7 @@
       state.map.jumpTo({
         center: [ahead.lng, ahead.lat],
         zoom: zoom,
-        pitch: state.ar ? 52 : 78,
+        pitch: state.ar ? 52 : state.navigating ? 78 : 56,
         bearing: state.camHeading || 0,
         padding: camPad()
       });
@@ -3356,7 +3356,7 @@
       style: dark ? STYLES.dark : STYLES.light,
       center: BUDAPEST,
       zoom: 13.5,
-      pitch: 78,
+      pitch: 56,
       maxPitch: 85,
       attributionControl: true
     });
@@ -3684,11 +3684,22 @@
   }
 
   window.NavDrive = {
+    ready: function () {
+      return new Promise(function (resolve) {
+        let n = 0;
+        (function tick() {
+          if (state.map) return resolve(true);
+          if (n++ > 80) return resolve(false);
+          setTimeout(tick, 100);
+        })();
+      });
+    },
     poke: function (lng, lat, heading, speed) {
       state.gpsAcc = 8;
       setOrigin({ lng: lng, lat: lat }, heading, speed);
     },
     go: function (lng, lat, label) {
+      if (!state.map) return Promise.reject(new Error("nincs térkép"));
       setDest({ lng: lng, lat: lat }, label || "Cél");
       return plan(false);
     },
