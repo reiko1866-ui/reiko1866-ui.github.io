@@ -157,46 +157,84 @@
     var uid = (id || "verso") + "-" + (suffix || "m");
     var paint = spec.color || "#c8ccd1";
     var lamp = spec.lamp || "#e11d48";
-    var tall = id === "verso" || id === "korando" || id === "scross";
-    var roofY = tall ? 58 : 68;
-    var bodyD =
-      id === "golf"
-        ? "M46 96c6-26 26-40 50-36 20 4 34 20 38 44l6 46c2 14-10 26-44 30-32 4-52-8-56-24z"
-        : id === "bmw3" || id === "merc_e"
-          ? "M48 98c8-24 26-36 50-32 18 3 32 16 36 40l8 46c2 14-10 26-46 30-34 4-52-8-56-22z"
-          : "M46 88c8-26 26-38 52-34 18 3 32 16 36 42l8 50c2 16-10 28-46 32-34 4-54-8-58-24z";
-    var lampShape =
-      id === "merc_e" || id === "scross"
-        ? '<rect x="54" y="132" width="72" height="8" rx="4" fill="' + lamp + '"/>'
-        : id === "bmw3"
-          ? '<path d="M56 128h28l4 18H54z" fill="' + lamp + '"/><path d="M96 126h28l-6 20H92z" fill="' + lamp + '"/>'
-          : id === "verso" || id === "korando"
-            ? '<rect x="52" y="118" width="14" height="36" rx="3" fill="' + lamp + '"/><rect x="114" y="116" width="14" height="36" rx="3" fill="' + lamp + '"/>'
-            : '<rect x="54" y="130" width="28" height="12" rx="3" fill="' + lamp + '"/><rect x="98" y="128" width="28" height="12" rx="3" fill="' + lamp + '"/>';
-    var chrome =
-      id === "scross" || id === "merc_e"
-        ? '<rect x="58" y="148" width="64" height="5" rx="2" fill="#dbe4ee"/>'
-        : '<rect x="78" y="148" width="28" height="8" rx="1.5" fill="#111"/>';
+    var bodies = {
+      verso:
+        "M42 78c4-18 18-32 42-30 22 2 40 16 46 38l10 62c2 16-8 28-48 32-38 4-56-10-58-28z",
+      scross:
+        "M40 84c6-20 20-34 44-32 24 2 42 18 48 40l8 56c2 16-8 30-50 34-40 4-56-12-58-28z",
+      bmw3:
+        "M48 102c10-22 26-34 46-30 18 4 32 18 36 40l6 40c2 14-10 24-44 28-32 4-50-8-52-22z",
+      merc_e:
+        "M50 104c12-20 26-32 44-28 18 4 32 16 36 36l6 40c2 14-8 24-42 28-32 4-50-8-52-22z",
+      korando:
+        "M38 72c6-18 20-30 46-28 24 2 44 16 50 40l10 66c2 16-10 30-52 34-42 4-60-12-62-30z",
+      golf:
+        "M50 108c8-22 24-34 42-30 16 4 28 16 32 36l6 36c2 12-8 22-40 26-30 4-46-8-48-20z"
+    };
+    var roof = {
+      verso: "M56 62c10-14 28-20 46-16 14 4 24 16 28 30l4 18H52z",
+      scross: "M54 68c10-14 28-20 48-14 14 4 24 16 28 30l3 16H50z",
+      bmw3: "M62 78c8-14 24-20 40-16 12 3 20 14 24 26l3 14H58z",
+      merc_e: "M64 80c8-12 22-18 38-14 12 3 20 12 24 24l3 14H60z",
+      korando: "M52 56c12-14 30-18 50-12 14 4 24 16 28 32l4 18H48z",
+      golf: "M64 86c8-14 22-18 36-14 12 3 20 12 24 24l2 12H60z"
+    };
+    var lamps = {
+      verso:
+        '<rect x="48" y="108" width="16" height="42" rx="3" fill="' + lamp + '"/>' +
+        '<rect x="116" y="104" width="16" height="42" rx="3" fill="' + lamp + '"/>' +
+        '<rect x="50" y="110" width="4" height="38" fill="#fecaca"/>',
+      scross:
+        '<rect x="50" y="126" width="80" height="10" rx="4" fill="' + lamp + '"/>' +
+        '<rect x="50" y="114" width="18" height="28" rx="3" fill="' + lamp + '"/>' +
+        '<rect x="112" y="112" width="18" height="28" rx="3" fill="' + lamp + '"/>' +
+        '<rect x="58" y="154" width="64" height="6" rx="2" fill="#e2e8f0"/>',
+      bmw3:
+        '<path d="M54 120h30l6 22H52z" fill="' + lamp + '"/>' +
+        '<path d="M96 118h30l-8 24H90z" fill="' + lamp + '"/>' +
+        '<path d="M78 86c6-8 16-8 24 0" fill="none" stroke="#94a3b8" stroke-width="2"/>',
+      merc_e:
+        '<rect x="52" y="124" width="76" height="9" rx="4" fill="' + lamp + '"/>' +
+        '<rect x="52" y="118" width="18" height="20" rx="4" fill="' + lamp + '"/>' +
+        '<rect x="110" y="116" width="18" height="20" rx="4" fill="' + lamp + '"/>' +
+        '<circle cx="80" cy="156" r="5" fill="#dbe4ee" stroke="#94a3b8"/>',
+      korando:
+        '<rect x="46" y="104" width="18" height="46" rx="3" fill="' + lamp + '"/>' +
+        '<rect x="116" y="100" width="18" height="46" rx="3" fill="' + lamp + '"/>' +
+        '<rect x="70" y="150" width="40" height="10" rx="2" fill="#111"/>',
+      golf:
+        '<rect x="54" y="128" width="30" height="14" rx="3" fill="' + lamp + '"/>' +
+        '<rect x="96" y="126" width="30" height="14" rx="3" fill="' + lamp + '"/>' +
+        '<rect x="62" y="132" width="56" height="5" rx="2" fill="#fecaca"/>'
+    };
+    var extras = {
+      verso: '<rect x="70" y="154" width="40" height="8" rx="1" fill="#334155"/>',
+      scross: '<rect x="72" y="88" width="36" height="6" rx="1" fill="#cbd5e1"/>',
+      bmw3: '<rect x="74" y="150" width="28" height="8" rx="1" fill="#111"/>',
+      merc_e: '<rect x="58" y="148" width="64" height="4" rx="2" fill="#cbd5e1"/>',
+      korando: '<rect x="44" y="92" width="92" height="6" fill="#1e293b" opacity=".5"/>',
+      golf: '<rect x="76" y="150" width="28" height="8" rx="1" fill="#111"/>'
+    };
+    var key = bodies[id] ? id : "verso";
+    var hi = id === "merc_e" || id === "golf" ? "#94a3b8" : "#0f172a";
     return (
       '<svg viewBox="0 0 160 200" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">' +
       "<defs>" +
       '<linearGradient id="p-' + uid + '" x1="0" y1="0" x2="1" y2="1">' +
-      '<stop offset="0" stop-color="#fff"/><stop offset=".4" stop-color="' + paint + '"/>' +
-      '<stop offset="1" stop-color="#64748b"/></linearGradient>' +
+      '<stop offset="0" stop-color="#fff"/><stop offset=".38" stop-color="' + paint + '"/>' +
+      '<stop offset="1" stop-color="#334155"/></linearGradient>' +
       '<linearGradient id="w-' + uid + '" x1="0" y1="0" x2="0" y2="1">' +
       '<stop offset="0" stop-color="#93c5fd"/><stop offset="1" stop-color="#0f172a"/></linearGradient>' +
       "</defs>" +
-      '<ellipse cx="84" cy="186" rx="46" ry="8" fill="rgba(0,0,0,.45)"/>' +
-      '<path d="' + bodyD + '" fill="url(#p-' + uid + ')" stroke="#0f172a" stroke-width="1.4"/>' +
-      '<path d="M60 ' + (roofY + 8) + "c8-16 24-24 40-20 12 3 22 14 26 28l4 16H56z" +
-      '" fill="url(#w-' + uid + ')" opacity=".95"/>' +
-      '<path d="M52 124h78l-3 12H56z" fill="#dbe3ee" opacity=".85"/>' +
-      lampShape +
-      chrome +
-      '<ellipse cx="44" cy="118" rx="9" ry="5" fill="#f8fafc" stroke="#0f172a" stroke-width="1.2"/>' +
-      '<ellipse cx="128" cy="112" rx="8" ry="4.5" fill="#f8fafc" stroke="#0f172a" stroke-width="1.2"/>' +
-      '<ellipse cx="58" cy="168" rx="11" ry="6.5" fill="#111"/><ellipse cx="118" cy="162" rx="11" ry="6.5" fill="#111"/>' +
-      '<path d="M70 ' + roofY + 'c10-6 24-6 34 0" fill="none" stroke="#cbd5e1" stroke-width="3"/>' +
+      '<ellipse cx="84" cy="188" rx="48" ry="8" fill="rgba(0,0,0,.5)"/>' +
+      '<path d="' + bodies[key] + '" fill="url(#p-' + uid + ')" stroke="' + hi + '" stroke-width="1.6"/>' +
+      '<path d="' + roof[key] + '" fill="url(#w-' + uid + ')" opacity=".95"/>' +
+      '<path d="M50 118h80l-4 14H54z" fill="#e2e8f0" opacity=".88"/>' +
+      lamps[key] +
+      extras[key] +
+      '<ellipse cx="42" cy="116" rx="10" ry="5.5" fill="#f8fafc" stroke="#0f172a" stroke-width="1.2"/>' +
+      '<ellipse cx="128" cy="108" rx="9" ry="5" fill="#f8fafc" stroke="#0f172a" stroke-width="1.2"/>' +
+      '<ellipse cx="56" cy="168" rx="12" ry="7" fill="#111"/><ellipse cx="120" cy="160" rx="12" ry="7" fill="#111"/>' +
       "</svg>"
     );
   }
