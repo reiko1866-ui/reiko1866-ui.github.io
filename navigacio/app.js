@@ -1632,8 +1632,8 @@
 
   function lookAheadMeters() {
     const kmh = (state.speed || 0) * 3.6;
-    if (state.ar) return Math.max(28, Math.min(72, 28 + kmh * 0.35));
-    return Math.max(8, Math.min(26, 8 + kmh * 0.16));
+    if (state.ar) return Math.max(22, Math.min(56, 22 + kmh * 0.28));
+    return Math.max(3, Math.min(10, 3 + kmh * 0.06));
   }
 
   function lookAhead(from, heading) {
@@ -1658,8 +1658,9 @@
     if (state.ar) {
       return { top: 6, bottom: 10, left: 6, right: 6 };
     }
-    const bottom = Math.round(h * (state.navigating ? 0.38 : 0.28));
-    return { top: 4, bottom: bottom, left: 8, right: right };
+    const top = Math.round(h * (state.navigating ? 0.46 : 0.18));
+    const bottom = Math.round(h * (state.navigating ? 0.14 : 0.22));
+    return { top: top, bottom: bottom, left: 8, right: right };
   }
 
   function placePuck(ll, heading) {
@@ -1716,7 +1717,7 @@
     state.lastCam = ts;
     const zoom = state.ar
       ? kmh > 90 ? 15.8 : 16.4
-      : kmh > 110 ? 16.7 : kmh > 70 ? 17.2 : kmh > 40 ? 17.65 : 18.05;
+      : kmh > 110 ? 16.9 : kmh > 70 ? 17.35 : kmh > 40 ? 17.8 : 18.2;
     const ahead = lookAhead(v, v.heading);
     try {
       state.map.jumpTo({
@@ -3690,6 +3691,9 @@
     go: function (lng, lat, label) {
       setDest({ lng: lng, lat: lat }, label || "Cél");
       return plan(false);
+    },
+    road: function (limit) {
+      applyRoad({ limit: Number(limit) || 70, urban: true, cls: "residential", start: 0, end: 1e9 }, true);
     }
   };
 
