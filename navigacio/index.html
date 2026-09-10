@@ -117,15 +117,25 @@
     </section>
 
     <section id="poen" class="page">
-      <h1>Poén</h1>
-      <p>A csomag poénos klipei, egymás után. Egyszerre csak egy hang.</p>
+      <h1>Hangcsomag</h1>
+      <p>Hallgasd meg a klipet, aztán koppints, hová tartozik. A fájlnév nem számít — te rakod a helyére. A Be/Ki csak annyi, hogy mehet-e vezetés közben.</p>
       <p id="poenCount">—</p>
-      <div class="poen-bar">
+      <div class="pack-cats" id="packCats"></div>
+      <label class="check pack-drive-row"><input type="checkbox" id="packCatDrive"> Ez a mappa mehet vezetés közben</label>
+      <label class="check pack-drive-row"><input type="checkbox" id="packPutOn" checked> Amit hallok, azt rakom a gombra</label>
+      <div class="poen-bar pack-toolbar">
         <button type="button" id="poenPlay">Mind megy</button>
         <button type="button" id="poenNext">Következő</button>
+        <button type="button" id="packKeep">Marad itt</button>
         <button type="button" id="poenStop">Állj</button>
       </div>
-      <p id="poenNow">Koppints: Mind megy</p>
+      <div class="row pack-toolbar">
+        <button type="button" id="packAllOn">Mind be a vezetésbe</button>
+        <button type="button" id="packAllOff">Mind ki a vezetésből</button>
+      </div>
+      <p id="poenNow">Hallgasd, aztán koppints: hová tartozik</p>
+      <p class="hint pack-put-label">Rakd ide</p>
+      <div class="pack-dest" id="packDest"></div>
       <ul id="poenList"></ul>
     </section>
 
@@ -138,7 +148,7 @@
         <li>Arcade 3D nézet: éjszakai vektoros aszfalt, 78° kamera, égbolt/köd. A Garázsban low-poly chibi mini autók, kártyán forgó 3D előnézet. Kanyarban a karosszéria megdől. Jobbra három gomb: térkép, útvonal, hang.</li>
         <li>Kaland mód: OSRM alternatives, a kanyargósabb út, arany neon, autópálya nélkül. Poénos hang: csak körforgalomnál, éles kanyarnál, meredek utcán vagy túllépéskor — az OSRM útvonalra illesztve.</li>
         <li>Előrejelzés, következő kanyar, kijárat, sávrajz, sebesség.</li>
-        <li>A 698 feltöltött klip: kanyarnál az utasítás. A poén csak a manőver után, ha nem takarja ki a következő kanyart. A Poén fülön külön is hallgathatók.</li>
+        <li>A 698 klipet te pakolod: hallgasd, aztán koppints, hová tartozik. A Be/Ki a vezetés. Alapból a kanyarmappák mennek, a poén és az egyenes ki van kapcsolva.</li>
         <li>Otthon és munka a menüből. Az autó helye mentődik: keresőben Autó, sárga pont a térképen.</li>
       </ul>
     </section>
@@ -185,7 +195,7 @@
       </header>
       <nav class="drawer-nav">
         <a class="nav-link mobile-link" href="#kezdolap">Kezdőlap</a>
-        <a class="nav-link mobile-link" href="#poen">Poén</a>
+        <a class="nav-link mobile-link" href="#poen">Hangcsomag</a>
         <a class="nav-link mobile-link" href="#funkciok">Funkciók</a>
         <a class="nav-link mobile-link" href="#Ajanlatok">Ajánlatok</a>
         <a class="nav-link mobile-link" href="#kapcsolat">Kapcsolat</a>
@@ -208,12 +218,14 @@
       <label class="check"><input type="checkbox" id="avoidToll"> Fizetős utak elkerülése</label>
       <p class="hint">A pipák megmaradnak. Ha van cél, az útvonal azonnal újraterveződik autópálya / fizető nélkül. A telefon vissza gombja a menüt zárja, nem az appot.</p>
       <label class="check"><input type="checkbox" id="voiceCheck" checked> Hang</label>
+      <p class="hint">Vezetés közben melyik mappa szólhat. A klipeket a Hangcsomag oldalon rakod a helyükre.</p>
+      <div class="voice-cats" id="voiceCatBox"></div>
       <label class="check"><input type="checkbox" id="dark" checked> Sötét térkép</label>
       <label class="check"><input type="checkbox" id="kalandCheck"> Kaland mód</label>
       <label class="check"><input type="checkbox" id="funPoiCheck" checked> Poénos POI</label>
       <p class="hint">Kaland: autópálya nélkül, a kanyargósabb OSRM-út, arany vonal. Poénos POI: körforgalom, éles kanyar, meredek utca vagy túllépés — csak az útra illesztve, a kanyarutasítás mindig előrébb van.</p>
       <div id="voiceTest">
-        <p class="hint">A csomag poénos GPS-hang. Kanyarnál az utasítás, poén csak a manőverhez kötve. Soha nem megy két hang egyszerre. A fájlnév nem számít.</p>
+        <p class="hint">Ezek tesztgombok: mindig lejátszanak egy klipet az adott helyzetből. A vezetés közbeni tiltást a Hangcsomag oldalon állítod. Soha nem megy két hang egyszerre.</p>
         <input id="voiceBase" type="text" spellcheck="false" placeholder="automatikus" hidden>
         <button type="button" id="voiceFind">Hangok keresése</button>
         <button type="button" id="voiceStart">Hang indítása</button>
