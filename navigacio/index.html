@@ -136,9 +136,9 @@
         <li>A kereső címlistája: név felül, város/utca alatta. Koppints a találatra — nem az elsőt indítja.</li>
         <li>A kanyarnál a feltöltött hangcsomag szól, egyszerre csak egy hang. Letéréskor újratervez.</li>
         <li>Arcade 3D nézet: éjszakai vektoros aszfalt, 78° kamera, égbolt/köd, Three.js gLTF autó a sávban. A Garázsban típus választás. Jobbra három gomb: térkép, útvonal, hang.</li>
-        <li>Kaland mód: OSRM alternatives, a kanyargósabb út, arany neon, autópálya nélkül. Poénos POI: nyers GPS, 50 méteren belül egy poén — egyszerre csak egy hang.</li>
+        <li>Kaland mód: OSRM alternatives, a kanyargósabb út, arany neon, autópálya nélkül. Poénos hang: csak körforgalomnál, éles kanyarnál, meredek utcán vagy túllépéskor — az OSRM útvonalra illesztve.</li>
         <li>Előrejelzés, következő kanyar, kijárat, sávrajz, sebesség.</li>
-        <li>A 698 feltöltött klip mind szól: kanyarnál az utasítás, utána a poén. A Poén fülön külön is hallgathatók.</li>
+        <li>A 698 feltöltött klip: kanyarnál az utasítás. A poén csak a manőver után, ha nem takarja ki a következő kanyart. A Poén fülön külön is hallgathatók.</li>
         <li>Otthon és munka a menüből. Az autó helye mentődik: keresőben Autó, sárga pont a térképen.</li>
       </ul>
     </section>
@@ -211,9 +211,9 @@
       <label class="check"><input type="checkbox" id="dark" checked> Sötét térkép</label>
       <label class="check"><input type="checkbox" id="kalandCheck"> Kaland mód</label>
       <label class="check"><input type="checkbox" id="funPoiCheck" checked> Poénos POI</label>
-      <p class="hint">Kaland: autópálya nélkül, a kanyargósabb OSRM-út, arany vonal, sűrűbb poén. Poénos POI: kocsma, kút, vár mellett 50 méteren belül egy poén — egyszerre csak egy hang.</p>
+      <p class="hint">Kaland: autópálya nélkül, a kanyargósabb OSRM-út, arany vonal. Poénos POI: körforgalom, éles kanyar, meredek utca vagy túllépés — csak az útra illesztve, a kanyarutasítás mindig előrébb van.</p>
       <div id="voiceTest">
-        <p class="hint">A csomag poénos GPS-hang. A 698 klip mind szól: kanyarnál az utasítás, utána a poén, autópályán is. Soha nem megy két hang egyszerre. A fájlnév nem számít.</p>
+        <p class="hint">A csomag poénos GPS-hang. Kanyarnál az utasítás, poén csak a manőverhez kötve. Soha nem megy két hang egyszerre. A fájlnév nem számít.</p>
         <input id="voiceBase" type="text" spellcheck="false" placeholder="automatikus" hidden>
         <button type="button" id="voiceFind">Hangok keresése</button>
         <button type="button" id="voiceStart">Hang indítása</button>

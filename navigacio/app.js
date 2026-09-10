@@ -194,7 +194,7 @@
     ignorePop: false,
     places: { home: null, work: null },
     limits: [],
-    road: { limit: 0, urban: null, cls: "", start: 0, end: 0, posted: false },
+    road: { limit: 0, urban: null, cls: "", start: 0, end: 0, posted: false, grade: 0 },
     place: "",
     snapI: 1,
     routeLen: 0,
@@ -207,6 +207,7 @@
     roadBusy: false,
     spokenRoad: "",
     lastSpeedWarn: 0,
+    voiceHoldUntil: 0,
     lastSpare: 0,
     kaland: false,
     funPoi: true,
@@ -1106,6 +1107,7 @@
       if (nv && nv.isBusy()) return;
       state.lastSpeedWarn = Date.now();
       playWarnBeep(3);
+      holdNavVoice(3500);
       if (nv) nv.playCat("speed");
       if (state.funPoi || state.kaland) {
         const id = "man:speed:" + limit;
@@ -1139,8 +1141,13 @@
     ],
     sharp: [
       "éles kanyar. a gyomor maradjon a helyén",
-      "meredek vagy éles: fogd a kormányt, ne a poént",
-      "élesen. a járdát hagyd békén"
+      "élesen. a járdát hagyd békén",
+      "éles kanyar: fogd a kormányt, ne a poént"
+    ],
+    steep: [
+      "meredek utca. a fék a barátod",
+      "emelkedő vagy lejtő: tartsd a sávot",
+      "meredek. ne a gázzal vitatkozz"
     ]
   };
 
@@ -1153,6 +1160,7 @@
   function gagThemeForStep(step, kind) {
     const type = String((step && step.maneuver && step.maneuver.type) || "").toLowerCase();
     const mod = String((step && step.maneuver && step.maneuver.modifier) || "").toLowerCase();
+    if (type.indexOf("exit") !== -1) return "";
     if (type.includes("roundabout") || type.includes("rotary")) return "roundabout";
     if (kind && (kind.cat === "leftSharp" || kind.cat === "rightSharp")) return "sharp";
     if (mod.includes("sharp")) return "sharp";
@@ -1161,21 +1169,62 @@
 
   let gagTimer = 0;
 
-  function queueManeuverGag(id, line) {
-    if (!line || AppState.triggeredPois.has(id)) return;
-    AppState.triggeredPois.add(id);
-    showFunChip(line);
-    if (gagTimer) return;
+  function cancelGagTimer() {
+    if (gagTimer) {
+      window.clearTimeout(gagTimer);
+      gagTimer = 0;
+    }
+  }
+
+  function holdNavVoice(ms) {
+    state.voiceHoldUntil = Math.max(state.voiceHoldUntil || 0, Date.now() + (ms || 2800));
+  }
+
+  function gagBlocked() {
+    return navVoiceBusy() || guidanceBlocking();
+  }
+
+  function speakGag(text) {
+    if (!state.voice || !state.navigating || !text) return false;
+    if (!isSnappedToRoute()) return false;
+    if (gagBlocked()) return false;
+    const voice = huVoice();
+    if (!voice || !window.speechSynthesis) return false;
+    try {
+      const u = new SpeechSynthesisUtterance(text);
+      u.lang = voice.lang || "hu-HU";
+      u.voice = voice;
+      u.rate = 1.06;
+      u.volume = 1;
+      window.speechSynthesis.speak(u);
+      state.voiceHoldUntil = Date.now() + Math.min(7000, 1400 + text.length * 55);
+      return true;
+    } catch (_e) {
+      return false;
+    }
+  }
+
+  function scheduleGag(line, delay, retries) {
+    cancelGagTimer();
+    const holdLeft = Math.max(0, (state.voiceHoldUntil || 0) - Date.now());
+    const wait = Math.max(delay, holdLeft + 280);
     gagTimer = window.setTimeout(function () {
       gagTimer = 0;
       if (!state.navigating || !(state.funPoi || state.kaland)) return;
-      if (!isSnappedToRoute()) return;
-      if (navVoiceBusy() || guidanceBlocking()) return;
-      const nv = navVoice();
-      const files = poenFiles();
-      if (!nv || !files.length) return;
-      nv.playJokes([files[Math.floor(Math.random() * files.length)]], 0);
-    }, 1600);
+      if (!isSnappedToRoute() || gagBlocked()) {
+        if (retries > 0) scheduleGag(line, 700, retries - 1);
+        return;
+      }
+      speakGag(line);
+    }, wait);
+  }
+
+  function queueManeuverGag(id, line) {
+    if (!line || AppState.triggeredPois.has(id)) return;
+    if (gagTimer) return;
+    AppState.triggeredPois.add(id);
+    showFunChip(line);
+    scheduleGag(line, gagBlocked() ? 2000 : 1600, 2);
   }
 
   function maybeSpeakManeuverGag(cur) {
@@ -1184,11 +1233,21 @@
     if (!isSnappedToRoute()) return;
     if (!already(cur.index, "now")) return;
     if (cur.until > 95) return;
-    if (navVoiceBusy() || guidanceBlocking()) return;
     const theme = gagThemeForStep(cur.step, cur.kind);
     if (!theme) return;
     const id = "man:" + cur.index + ":" + theme;
     queueManeuverGag(id, maneuverGagLine(theme));
+  }
+
+  function maybeSpeakSteep() {
+    if (!state.navigating || !(state.funPoi || state.kaland)) return;
+    if (!isSnappedToRoute()) return;
+    if (gagBlocked()) return;
+    const grade = Number(state.road && state.road.grade);
+    if (!Number.isFinite(grade) || Math.abs(grade) < 8) return;
+    const id = "man:steep:" + Math.round(Number(state.road.start) || 0);
+    if (AppState.triggeredPois.has(id)) return;
+    queueManeuverGag(id, maneuverGagLine("steep"));
   }
 
   function poiKindFromTags(tags) {
@@ -1331,21 +1390,8 @@
     if (AppState.triggeredPois.has(best.id)) return;
     const line = poiGag(best.kind, best.name);
     showFunChip(line);
-    if (!state.voice) {
-      AppState.triggeredPois.add(best.id);
-      state.spokenPoi[best.id] = true;
-      return;
-    }
-    const nv = navVoice();
-    if (nv && nv.isBusy()) return;
-    if (AppState.triggeredPois.has(best.id)) return;
     AppState.triggeredPois.add(best.id);
     state.spokenPoi[best.id] = true;
-    if (state.navigating) return;
-    if (nv && typeof nv.playJokes === "function") {
-      const files = poenFiles();
-      if (files.length) nv.playJokes(files.slice(0, 1), 0);
-    }
   }
 
   function nearestFull(coords, point) {
@@ -1359,6 +1405,7 @@
   function speakGuidance(kind) {
     if (!state.voice || !kind || kind.skip) return;
     if (!isSnappedToRoute()) return;
+    holdNavVoice(4500);
     hushSpeech();
     const nv = navVoice();
     if (nv) nv.playCat(kind.cat);
@@ -1438,6 +1485,7 @@
   }
 
   function guidanceBlocking() {
+    if (Date.now() < (state.voiceHoldUntil || 0)) return true;
     if (navVoiceBusy()) return true;
     if (!state.navigating) return false;
     const cur = nextActionable();
@@ -2144,11 +2192,14 @@
       const posted = Number(edge.speed_limit) >= 5 && Number(edge.speed_limit) <= 140;
       const limit = posted ? Number(edge.speed_limit) : defaultLimit(cls);
       const urban = inferUrban(limit, cls);
+      const grade = Number(edge.weighted_grade);
+      const g = Number.isFinite(grade) ? grade : 0;
       const last = segs[segs.length - 1];
       if (last && last.limit === limit && last.urban === urban && last.cls === cls && last.posted === posted) {
         last.end += meters;
+        if (Math.abs(g) > Math.abs(last.grade || 0)) last.grade = g;
       } else {
-        segs.push({ start: at, end: at + meters, limit, urban, cls, posted: posted });
+        segs.push({ start: at, end: at + meters, limit, urban, cls, posted: posted, grade: g });
       }
       at += meters;
     });
@@ -2204,6 +2255,7 @@
     const hz = $("hazardThen");
     if (hz) hz.hidden = true;
     maybeSpeakRoad();
+    maybeSpeakSteep();
   }
 
   function canvasIcon(w, h, draw) {
@@ -2517,7 +2569,7 @@
           costing: "auto",
           shape_match: "map_snap",
           filters: {
-            attributes: ["edge.speed_limit", "edge.road_class", "edge.length", "edge.names"],
+            attributes: ["edge.speed_limit", "edge.road_class", "edge.length", "edge.names", "edge.weighted_grade"],
             action: "include"
           }
         })
@@ -2563,7 +2615,20 @@
       const posted = Number(raw) >= 5 && Number(raw) <= 140;
       const limit = posted ? Number(raw) : legalLimit(raw, cls);
       const urban = inferUrban(limit, cls);
-      applyRoad({ limit, urban, cls, posted: posted }, true);
+      const gradeRaw = Number(
+        (hit.edge && hit.edge.weighted_grade) ||
+          (hit.edge_info && hit.edge_info.weighted_grade)
+      );
+      applyRoad(
+        {
+          limit,
+          urban,
+          cls,
+          posted: posted,
+          grade: Number.isFinite(gradeRaw) ? gradeRaw : 0
+        },
+        true
+      );
       if (urban === true) refreshPlace(state.origin.lat, state.origin.lng);
       else if (urban === false) {
         state.place = "";
@@ -2658,7 +2723,7 @@
         markSpoken(cur.index, "now");
         speakGuidance(kind);
       }
-    } else if (already(cur.index, "now")) {
+    } else if (already(cur.index, "now") && isSnappedToRoute()) {
       maybeSpeakManeuverGag(cur);
     }
     paintArHud();
@@ -2968,7 +3033,12 @@
       state.spokenLimit = 0;
       state.spokenHazard = "";
       state.lastSpeedWarn = 0;
+      state.voiceHoldUntil = 0;
       state.arrived = false;
+      cancelGagTimer();
+      AppState.triggeredPois.forEach(function (id) {
+        if (String(id).indexOf("man:") === 0) AppState.triggeredPois.delete(id);
+      });
       addLayers();
       drawRoute();
       state.cameras = [];
@@ -3038,14 +3108,14 @@
     state.spokenPoi = {};
     state.poiAt = 0;
     armVoice();
+    const nv = navVoice();
+    if (nv) nv.stop();
     hushSpeech();
     setStatus(state.kaland ? "Kaland mód" : "Navigáció");
-    hushSpeech();
     playWarnBeep(1);
-    const nv = navVoice();
     state.lastSpare = Date.now();
-    if (state.voice && nv) nv.playCat("start");
-    else if (state.voice) speakRoad("Navigáció indul");
+    holdNavVoice(2500);
+    if (state.voice) speakRoad("Navigáció indul");
     updateNav();
     updateRoadFromRoute();
     updateCamera(true);
@@ -4349,8 +4419,26 @@
     osrm: function () {
       return state.lastOsrmUrl || "";
     },
-    road: function (limit) {
-      applyRoad({ limit: Number(limit) || 70, urban: true, cls: "residential", start: 0, end: 1e9 }, true);
+    road: function (limit, posted, grade) {
+      applyRoad(
+        {
+          limit: Number(limit) || 70,
+          urban: true,
+          cls: "residential",
+          start: 0,
+          end: 1e9,
+          posted: posted !== false,
+          grade: Number(grade) || 0
+        },
+        true
+      );
+    },
+    gagTheme: function (type, modifier) {
+      const step = { maneuver: { type: type || "", modifier: modifier || "" } };
+      return gagThemeForStep(step, classify(step));
+    },
+    snapped: function () {
+      return isSnappedToRoute();
     },
     garage: function (id) {
       chooseCar(id);
