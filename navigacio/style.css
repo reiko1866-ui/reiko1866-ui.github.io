@@ -1103,6 +1103,11 @@ html.dark #results button.is-shortcut .result-title {
   -webkit-backdrop-filter: none;
 }
 
+body.is-scrolled #fabBar,
+body.is-scrolled .peek {
+  display: none;
+}
+
 #app.is-nav #fabBar {
   top: 50%;
   bottom: auto;
