@@ -1312,32 +1312,26 @@
     return el;
   }
 
+  function carIconHtml(id, suffix) {
+    if (window.NavCar3D && typeof window.NavCar3D.iconSvg === "function") {
+      return window.NavCar3D.iconSvg(id || window.NavCar3D.id(), suffix);
+    }
+    return "";
+  }
+
   function makeCarEl() {
     const el = document.createElement("div");
     el.className = "car3d";
     el.setAttribute("aria-hidden", "true");
-    el.innerHTML =
-      '<svg viewBox="0 0 160 200" xmlns="http://www.w3.org/2000/svg">' +
-      '<defs><linearGradient id="paint" x1="0" y1="0" x2="1" y2="1">' +
-      '<stop offset="0" stop-color="#ffffff"/><stop offset=".45" stop-color="#e8eef4"/>' +
-      '<stop offset="1" stop-color="#9aa7b8"/></linearGradient>' +
-      '<linearGradient id="win" x1="0" y1="0" x2="0" y2="1">' +
-      '<stop offset="0" stop-color="#93c5fd"/><stop offset="1" stop-color="#0f172a"/></linearGradient>' +
-      '<linearGradient id="bar" x1="0" y1="0" x2="1" y2="0">' +
-      '<stop offset="0" stop-color="#7f1d1d"/><stop offset=".5" stop-color="#fb7185"/>' +
-      '<stop offset="1" stop-color="#7f1d1d"/></linearGradient></defs>' +
-      '<ellipse cx="84" cy="186" rx="46" ry="8" fill="rgba(0,0,0,.5)"/>' +
-      '<path d="M48 92c8-28 28-40 52-36 18 3 32 18 36 42l8 48c2 16-10 28-46 32-34 4-52-8-56-24z" fill="url(#paint)" stroke="#0f172a" stroke-width="1.4"/>' +
-      '<path d="M62 78c8-16 22-24 38-20 12 3 22 14 26 28l4 18H58z" fill="url(#win)" opacity=".95"/>' +
-      '<path d="M52 128h78l-3 12H56z" fill="#dbe3ee"/>' +
-      '<rect x="54" y="132" width="72" height="9" rx="4" fill="url(#bar)"/>' +
-      '<rect x="78" y="144" width="28" height="8" rx="1.5" fill="#111"/>' +
-      '<ellipse cx="44" cy="118" rx="9" ry="5" fill="#f8fafc" stroke="#0f172a" stroke-width="1.2"/>' +
-      '<ellipse cx="128" cy="112" rx="8" ry="4.5" fill="#f8fafc" stroke="#0f172a" stroke-width="1.2"/>' +
-      '<ellipse cx="58" cy="168" rx="10" ry="6" fill="#111"/><ellipse cx="118" cy="162" rx="10" ry="6" fill="#111"/>' +
-      '<path d="M70 70c10-6 24-6 34 0" fill="none" stroke="#cbd5e1" stroke-width="3"/>' +
-      "</svg>";
+    el.innerHTML = carIconHtml(state.carModel || (window.NavCar3D && window.NavCar3D.id()), "puck");
     return el;
+  }
+
+  function paintPuckIcon() {
+    if (!state.puck) return;
+    const el = state.puck.getElement();
+    if (!el) return;
+    el.innerHTML = carIconHtml(state.carModel || (window.NavCar3D && window.NavCar3D.id()), "puck");
   }
 
   function snapLimit() {
@@ -1830,23 +1824,25 @@
   function placePuck(ll, heading) {
     if (!state.map || !ll) return;
     const lean = updateCarLean(heading);
-    if (window.NavCar3D) {
-      window.NavCar3D.setPose(ll.lng, ll.lat, heading, lean);
-      if (window.NavCar3D.ready) {
-        if (state.puck) {
-          try {
-            state.puck.remove();
-          } catch (_e) {}
-          state.puck = null;
-        }
-        return;
+    if (window.NavCar3D) window.NavCar3D.setPose(ll.lng, ll.lat, heading, lean);
+    const use3d = window.NavCar3D && window.NavCar3D.ready;
+    if (use3d) {
+      if (state.puck) {
+        try {
+          state.puck.remove();
+        } catch (_e) {}
+        state.puck = null;
       }
+      return;
     }
     if (!state.puck) {
       state.puck = new maplibregl.Marker({ element: makeCarEl(), anchor: "center" })
         .setLngLat([ll.lng, ll.lat])
         .addTo(state.map);
-    } else state.puck.setLngLat([ll.lng, ll.lat]);
+    } else {
+      state.puck.setLngLat([ll.lng, ll.lat]);
+      paintPuckIcon();
+    }
     const mapBearing = state.map.getBearing();
     state.puck.setRotation((Number.isFinite(heading) ? heading : 0) - mapBearing);
   }
@@ -3997,10 +3993,12 @@
       btn.setAttribute("data-car", id);
       btn.setAttribute("aria-pressed", id === cur ? "true" : "false");
       btn.innerHTML =
-        '<span class="garage-swatch"><span class="garage-car" style="--paint:' +
-        spec.color +
-        '"></span></span><span class="garage-name">' +
-        spec.name +
+        '<span class="garage-swatch">' +
+        carIconHtml(id, "g-" + id) +
+        '</span><span class="garage-brand">' +
+        (spec.brand || "") +
+        '</span><span class="garage-type">' +
+        (spec.type || spec.name || id) +
         '</span><span class="garage-hint">' +
         (spec.hint || "") +
         "</span>";
@@ -4015,9 +4013,13 @@
     if (!window.NavCar3D) return;
     const next = window.NavCar3D.setModel(id);
     state.carModel = next;
+    try {
+      localStorage.setItem(window.NavCar3D.garageKey || "nav2_car_model", next);
+    } catch (_e) {}
     paintGarage();
+    paintPuckIcon();
     const spec = window.NavCar3D.carModels[next];
-    setStatus(spec ? spec.name : next);
+    setStatus(spec ? spec.brand + " " + spec.type : next);
     if (state.view) placePuck(state.view, state.view.heading);
     else if (state.origin) placePuck(state.origin, state.heading);
     if (state.map) state.map.triggerRepaint();
