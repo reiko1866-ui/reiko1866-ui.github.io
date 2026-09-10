@@ -2425,7 +2425,9 @@
 
   async function fetchOsrm(from, to, extraQs) {
     const rad = Math.max(25, Math.min(80, Math.round((state.gpsAcc || 35) + 8)));
-    const baseSnap = (state.kaland ? "" : "&continue_straight=true") + "&radiuses=" + rad + ";" + rad;
+    const baseSnap = state.kaland
+      ? ""
+      : "&continue_straight=true&radiuses=" + rad + ";" + rad;
     let qs = extraQs || "";
     if (state.kaland) qs = qs.replace(/&?exclude=[^&]*/gi, "");
     function pathWith(snapQs) {
@@ -2461,7 +2463,7 @@
       return Promise.any(jobs);
     }
     try {
-      if (state.navigating && Number.isFinite(state.heading) && (state.speed || 0) > 3) {
+      if (!state.kaland && state.navigating && Number.isFinite(state.heading) && (state.speed || 0) > 3) {
         const range = (state.speed || 0) > 8 ? 35 : 60;
         try {
           return await tryPath(baseSnap + "&bearings=" + Math.round(state.heading) + "," + range + ";");
