@@ -1714,6 +1714,7 @@
     applyRouteStyle();
     if (state.navigating) syncFloatMarks(true);
     if (window.NavCar3D) window.NavCar3D.ensure(state.map);
+    if (!state.target) setTarget({ lng: BUDAPEST[0], lat: BUDAPEST[1] }, 0);
   }
 
   function routeColors() {
