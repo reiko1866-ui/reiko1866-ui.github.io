@@ -206,8 +206,11 @@
     warnCtx: null,
     hazards: [],
     spokenHazard: "",
-    mapOffline: false
+    mapOffline: false,
+    lastOsrmUrl: ""
   };
+
+  const POI_RANGE_M = 50;
 
   function setStatus(msg, err) {
     const el = $("status");
@@ -1224,12 +1227,12 @@
     const list = state.poeniPois || [];
     if (!list.length) return;
     let best = null;
-    let bestD = 50;
+    let bestD = POI_RANGE_M;
     for (let i = 0; i < list.length; i++) {
       const p = list[i];
       if (state.spokenPoi[p.id]) continue;
-      const d = haversine(here, p);
-      if (d <= 50 && d < bestD) {
+      const d = haversine(here, { lat: Number(p.lat), lng: Number(p.lng) });
+      if (d <= POI_RANGE_M && (!best || d < bestD)) {
         best = p;
         bestD = d;
       }
@@ -1354,6 +1357,7 @@
     const raw = { lng: lngLat.lng, lat: lngLat.lat };
     if (!plausibleJump(state.lastFix, { ll: raw, t: now, speed: speed || 0 }, acc)) {
       state.fixRejects = (state.fixRejects || 0) + 1;
+      maybeSpeakFunPoi(raw.lat, raw.lng);
       if (state.fixRejects < 3) return;
     }
     state.fixRejects = 0;
@@ -2366,6 +2370,7 @@
   }
 
   function osrmExcludeQs() {
+    if (state.kaland) return "";
     const parts = [];
     const o = routeOpts();
     if (o.avoidMotorway) parts.push("motorway");
@@ -2401,8 +2406,15 @@
       (r.legs || []).forEach(function (leg) {
         steps += (leg.steps || []).length;
       });
+      let motor = 0;
+      (r.legs || []).forEach(function (leg) {
+        (leg.steps || []).forEach(function (s) {
+          const hint = String(s.name || "") + " " + String(s.ref || "");
+          if (/motorway|autópálya|\bM\d/i.test(hint)) motor += Number(s.distance) || 0;
+        });
+      });
       const pts = (r.geometry && r.geometry.coordinates && r.geometry.coordinates.length) || 0;
-      const score = dist / straight + steps * 0.02 + pts * 0.0004;
+      const score = dist / straight + steps * 0.02 + pts * 0.0004 - motor / Math.max(dist, 1);
       if (score > bestScore) {
         best = r;
         bestScore = score;
@@ -2414,6 +2426,8 @@
   async function fetchOsrm(from, to, extraQs) {
     const rad = Math.max(25, Math.min(80, Math.round((state.gpsAcc || 35) + 8)));
     const baseSnap = (state.kaland ? "" : "&continue_straight=true") + "&radiuses=" + rad + ";" + rad;
+    let qs = extraQs || "";
+    if (state.kaland) qs = qs.replace(/&?exclude=[^&]*/gi, "");
     function pathWith(snapQs) {
       const kalandQs = state.kaland
         ? "?geometries=geojson&overview=full&alternatives=true&steps=true"
@@ -2428,13 +2442,15 @@
         to.lat +
         kalandQs +
         snapQs +
-        (extraQs || "")
+        qs
       );
     }
     function tryPath(snapQs) {
       const path = pathWith(snapQs);
       const jobs = OSRM.map(function (base) {
-        return fetchJson(base + "/" + path, null, 6500).then(function (res) {
+        const url = base + "/" + path;
+        state.lastOsrmUrl = url;
+        return fetchJson(url, null, 6500).then(function (res) {
           if (!res.ok) throw new Error("HTTP " + res.status);
           return res.json();
         }).then(function (data) {
@@ -2602,7 +2618,7 @@
       let last = null;
       const tries = state.kaland
         ? [
-            function () { return fetchOsrm(state.origin, state.dest, exclude); },
+            function () { return fetchOsrm(state.origin, state.dest, ""); },
             function () { return fetchValhalla(state.origin, state.dest); }
           ]
         : exclude
@@ -3890,6 +3906,9 @@
     },
     kaland: function (on) {
       applyKaland(!!on);
+    },
+    osrm: function () {
+      return state.lastOsrmUrl || "";
     },
     road: function (limit) {
       applyRoad({ limit: Number(limit) || 70, urban: true, cls: "residential", start: 0, end: 1e9 }, true);
