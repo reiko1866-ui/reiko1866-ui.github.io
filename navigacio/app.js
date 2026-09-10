@@ -626,13 +626,21 @@
     box.hidden = false;
   }
 
+  function cleanStreet(name) {
+    const s = String(name || "").trim();
+    if (!s || s === "-" || s === "—") return "";
+    if (/^unnamed/i.test(s) || /névtelen|út nélküli/i.test(s)) return "";
+    if (/^(road|street|path|track|footway|cycleway|service)$/i.test(s)) return "";
+    return s;
+  }
+
   function classify(step) {
     const type = String((step && step.maneuver && step.maneuver.type) || "").toLowerCase();
     const mod = String((step && step.maneuver && step.maneuver.modifier) || "").toLowerCase();
     const exit = Number(step && step.maneuver && step.maneuver.exit) || 0;
-    const street = String((step && step.name) || "").trim();
+    const street = cleanStreet((step && step.name) || "");
     const base = {
-      street: street === "-" ? "" : street,
+      street: street,
       exit,
       lane: laneHint(step),
       skip: false,
@@ -1079,11 +1087,8 @@
   function announceLimit(limit) {
     const n = Number(limit) || 0;
     if (!n || n === state.spokenLimit) return false;
-    if (!state.navigating || !state.voice) return false;
-    const nv = navVoice();
-    if (nv && nv.isBusy()) return false;
+    if (!state.navigating) return false;
     state.spokenLimit = n;
-    warnRoad("Sebességhatár " + n, 1, "lim:" + n);
     return true;
   }
 
@@ -1091,32 +1096,14 @@
     if (!state.navigating || !state.voice) return;
     const kmh = Math.round((state.speed || 0) * 3.6);
     const limit = Number(state.road && state.road.limit) || 0;
-    const nxt = state.limits.length ? nextBoundary(state.traveled) : null;
-    if (nxt && nxt.dist < 420 && nxt.dist > 50 && nxt.limit && nxt.limit !== limit) {
-      announceLimit(nxt.limit);
-    }
-    if (limit && kmh > limit + 5 && Date.now() - state.lastSpeedWarn > 22000) {
+    if (limit && kmh > limit + 8 && Date.now() - state.lastSpeedWarn > 28000) {
       const nv = navVoice();
       if (!(nv && nv.isBusy())) {
         state.lastSpeedWarn = Date.now();
         playWarnBeep(3);
-        if (nv && nv.playCat("speed")) {
-          /* pack only — no TTS on top */
-        } else {
-          speakRoad("Túlléped a " + limit + "-at");
-        }
+        if (nv) nv.playCat("speed");
       }
     }
-    maybePlaySpare();
-  }
-
-  function maybePlaySpare() {
-    if (!state.navigating || !state.voice) return;
-    const nv = navVoice();
-    if (!nv || nv.isBusy()) return;
-    if (Date.now() - (state.lastSpare || 0) < (state.kaland ? 45000 : 90000)) return;
-    state.lastSpare = Date.now();
-    nv.playCat("start");
   }
 
   const FUN_GAG = {
@@ -1282,9 +1269,10 @@
     if (AppState.triggeredPois.has(best.id)) return;
     AppState.triggeredPois.add(best.id);
     state.spokenPoi[best.id] = true;
-    if (nv && typeof nv.playCat === "function" && AppState.triggeredPois.has(best.id)) {
-      nv.playCat("start");
-      state.lastSpare = Date.now();
+    if (state.navigating) return;
+    if (nv && typeof nv.playJokes === "function") {
+      const files = poenFiles();
+      if (files.length) nv.playJokes(files.slice(0, 1), 0);
     }
   }
 
@@ -1296,45 +1284,11 @@
     return snap;
   }
 
-  let voiceGen = 0;
-
   function speakGuidance(kind) {
     if (!state.voice || !kind || kind.skip) return;
     hushSpeech();
     const nv = navVoice();
-    const gen = ++voiceGen;
     if (nv) nv.playCat(kind.cat);
-    afterPack(function () {
-      if (gen !== voiceGen || !state.navigating || !state.voice) return;
-      const n2 = navVoice();
-      if (n2 && !n2.isBusy()) n2.playCat("start");
-    });
-  }
-
-  function afterPack(fn) {
-    let n = 0;
-    function tick() {
-      const nv = navVoice();
-      if (nv && nv.isBusy() && n < 120) {
-        n += 1;
-        setTimeout(tick, 250);
-        return;
-      }
-      if (nv && nv.isBusy()) return;
-      fn();
-    }
-    setTimeout(tick, 400);
-  }
-
-  function speakTurnExtras(kind, then) {
-    const bits = [];
-    if (kind && kind.exit && kind.cat === "roundabout") bits.push("vedd a " + exitOrdinal(kind.exit) + " kijáratot");
-    if (kind && kind.lane) bits.push(kind.lane);
-    if (kind && kind.street && kind.cat !== "roundabout") bits.push(kind.street);
-    if (then && then.kind && then.kind.cat !== "arrive" && then.until < 850) {
-      bits.push("majd " + then.kind.action);
-    }
-    if (bits.length) speakRoad(bits.join(", "));
   }
 
   function makeEl(cls) {
@@ -2121,21 +2075,15 @@
     const roadThen = $("roadThen");
     const roadThenText = $("roadThenText");
     if (roadThen && roadThenText) {
-      if (nxt && nxt.dist < 1600 && nxt.limit && nxt.limit !== limit) {
+      if (nxt && nxt.dist < 900 && nxt.limit && nxt.limit !== limit) {
         roadThen.hidden = false;
-        roadThenText.textContent = fmtDist(nxt.dist) + " múlva " + nxt.limit + " km/h";
+        roadThenText.textContent = fmtDist(nxt.dist) + " múlva " + nxt.limit;
       } else {
         roadThen.hidden = true;
       }
     }
     const hz = $("hazardThen");
     if (hz) hz.hidden = true;
-    if (state.navigating && $("status") && !($("status").classList.contains("is-err") && /GPS/i.test($("status").textContent))) {
-      const bits = [];
-      if (label) bits.push(label);
-      if (limit) bits.push(limit + " km/h");
-      if (bits.length) setStatus(bits.join(" · "));
-    }
     maybeSpeakRoad();
   }
 
@@ -2567,13 +2515,16 @@
     $("turnDist").textContent = fmtTurnDist(cur.until);
     $("turnText").textContent = kind.label;
     $("turnStreet").textContent = kind.street || "";
+    if ($("status") && !$("status").classList.contains("is-err")) {
+      setStatus(kind.label + (kind.street ? " · " + kind.street : ""));
+    }
     paintLanes(kind.highway);
     const thenRow = $("thenRow");
-    if (then && then.kind && then.kind.cat !== "arrive") {
+    const thenSoon = then && then.kind && then.kind.cat !== "arrive" && then.until - cur.until < 420;
+    if (thenSoon) {
       thenRow.hidden = false;
       $("thenIcon").textContent = then.kind.icon;
-      $("thenText").textContent =
-        "Majd: " + then.kind.label + (then.kind.street ? ", " + then.kind.street : "");
+      $("thenText").textContent = "Majd: " + then.kind.label;
     } else {
       thenRow.hidden = true;
     }
@@ -3119,7 +3070,7 @@
       }
     } else {
       state.gpsHits = 0;
-      if (!state.arrived && raw) setStatus("GPS kész");
+      if (!state.navigating && !state.arrived && raw) setStatus("GPS kész");
     }
     if (state.navigating && state.gpsHits === 0) paintRoadUi();
   }
@@ -4101,7 +4052,7 @@
     paintGarage();
     paintPuckIcon();
     const spec = models[id];
-    setStatus(spec ? spec.brand + " " + spec.type : id);
+    if (!state.navigating) setStatus(spec ? spec.brand + " " + spec.type : id);
     const pose = state.origin || {
       lng: AppState.currentPos.lng,
       lat: AppState.currentPos.lat
