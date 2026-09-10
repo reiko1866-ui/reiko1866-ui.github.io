@@ -1163,36 +1163,38 @@
   }
 
   function maybeLoadFunPois() {
-    if (!state.funPoi || !state.navigating || !state.origin) return;
+    if (!state.funPoi || !state.origin) return;
     if (state.poiBusy) return;
-    if (Date.now() - (state.poiAt || 0) < 40000) return;
-    const lat = state.origin.lat;
-    const lng = state.origin.lng;
+    const wait = (state.funPois && state.funPois.length) ? 15000 : 8000;
+    if (Date.now() - (state.poiAt || 0) < wait) return;
+    const here = (state.lastFix && state.lastFix.ll) || state.origin;
+    const lat = here.lat;
+    const lng = here.lng;
     if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
     state.poiBusy = true;
     state.poiAt = Date.now();
     const q =
       "[out:json][timeout:6];(" +
-      "nwr(around:850," +
+      "nwr(around:1200," +
       lat.toFixed(5) +
       "," +
       lng.toFixed(5) +
       ')[amenity~"^(fuel|pub|bar|cafe|restaurant|fast_food)$"];' +
-      "nwr(around:850," +
+      "nwr(around:1200," +
       lat.toFixed(5) +
       "," +
       lng.toFixed(5) +
       ')[tourism~"^(attraction|museum|viewpoint)$"];' +
-      "nwr(around:850," +
+      "nwr(around:1200," +
       lat.toFixed(5) +
       "," +
       lng.toFixed(5) +
       ")[historic=castle];" +
-      "nwr(around:850," +
+      "nwr(around:1200," +
       lat.toFixed(5) +
       "," +
       lng.toFixed(5) +
-      ")[shop=supermarket];);out center 28;";
+      ")[shop=supermarket];);out center 36;";
     fetch("https://overpass-api.de/api/interpreter", {
       method: "POST",
       headers: { "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8" },
@@ -1203,7 +1205,8 @@
         return res.json();
       })
       .then(function (data) {
-        state.funPois = parseOverpassPois(data);
+        const next = parseOverpassPois(data);
+        if (next.length) state.funPois = next;
         state.poiBusy = false;
       })
       .catch(function () {
@@ -1212,26 +1215,32 @@
   }
 
   function maybeSpeakFunPoi() {
-    if (!state.funPoi || !state.navigating || !state.origin) return;
-    if (state.funChipUntil && Date.now() < state.funChipUntil - 4000) return;
-    const here = state.origin;
+    if (!state.funPoi) return;
+    const here = (state.lastFix && state.lastFix.ll) || state.origin;
+    if (!here) return;
+    const list = state.funPois || [];
+    if (!list.length) return;
     let best = null;
-    let bestD = 90;
-    (state.funPois || []).forEach(function (p) {
-      if (state.spokenPoi[p.id]) return;
+    let bestD = 50;
+    for (let i = 0; i < list.length; i++) {
+      const p = list[i];
+      if (state.spokenPoi[p.id]) continue;
       const d = haversine(here, p);
       if (d < bestD) {
         best = p;
         bestD = d;
       }
-    });
+    }
     if (!best) return;
-    state.spokenPoi[best.id] = true;
     const line = poiGag(best.kind, best.name);
     showFunChip(line);
-    if (!state.voice) return;
+    if (!state.voice) {
+      state.spokenPoi[best.id] = true;
+      return;
+    }
     const nv = navVoice();
     if (nv && nv.isBusy()) return;
+    state.spokenPoi[best.id] = true;
     if (nv) {
       nv.playCat("start");
       state.lastSpare = Date.now();
@@ -1678,56 +1687,62 @@
     state.puck.setRotation((Number.isFinite(heading) ? heading : 0) - mapBearing);
   }
 
+  const CAM_LERP = 0.05;
+  const CAM_PITCH_NAV = 68;
+
+  function lerp(start, end, amt) {
+    if (!Number.isFinite(start)) return end;
+    if (!Number.isFinite(end)) return start;
+    return (1 - amt) * start + amt * end;
+  }
+
   let smoothRaf = 0;
-  let smoothTs = 0;
 
   function startSmooth() {
     if (smoothRaf) return;
-    smoothTs = 0;
-    smoothRaf = requestAnimationFrame(tickSmooth);
+    smoothRaf = requestAnimationFrame(animateCamera);
   }
 
   function setTarget(ll, heading) {
     if (!ll) return;
     state.target = copyPose(ll, heading);
-    if (!state.view) state.view = copyPose(state.target);
+    if (!state.view) {
+      state.view = copyPose(state.target);
+      state.view.zoom = undefined;
+    }
     startSmooth();
   }
 
-  function tickSmooth(ts) {
-    smoothRaf = requestAnimationFrame(tickSmooth);
+  function animateCamera() {
+    smoothRaf = requestAnimationFrame(animateCamera);
     if (!state.map || !state.target) return;
-    const dt = smoothTs ? Math.min(0.08, (ts - smoothTs) / 1000) : 0.016;
-    smoothTs = ts;
     if (!state.view) state.view = copyPose(state.target);
-    const k = 1 - Math.exp(-dt * 8.4);
-    const hk = 1 - Math.exp(-dt * 7.2);
     const v = state.view;
     const t = state.target;
-    v.lng += (t.lng - v.lng) * k;
-    v.lat += (t.lat - v.lat) * k;
-    const kmh = (state.speed || 0) * 3.6;
-    if (Number.isFinite(t.heading) && (kmh >= 2 || state.navigating)) {
-      v.heading = mixHeading(v.heading, t.heading, Math.min(1, hk));
+    v.lat = lerp(v.lat, t.lat, CAM_LERP);
+    v.lng = lerp(v.lng, t.lng, CAM_LERP);
+    if (Number.isFinite(t.heading)) {
+      v.heading = mixHeading(v.heading, t.heading, CAM_LERP);
       state.camHeading = v.heading;
     } else if (!Number.isFinite(state.camHeading)) {
-      state.camHeading = v.heading || t.heading || 0;
+      state.camHeading = v.heading || 0;
     }
     placePuck(v, v.heading);
     if (!state.follow) return;
-    state.lastCam = ts;
-    const zoom = state.ar
+    const kmh = (state.speed || 0) * 3.6;
+    const wantZoom = state.ar
       ? kmh > 90 ? 15.8 : 16.4
       : state.navigating
-        ? kmh > 110 ? 17.6 : kmh > 70 ? 18.15 : kmh > 40 ? 18.55 : 18.9
-        : kmh > 110 ? 16.4 : kmh > 70 ? 16.9 : 17.4;
+        ? kmh > 110 ? 17.5 : kmh > 70 ? 18.05 : 18.4
+        : kmh > 90 ? 16.6 : 17.2;
+    v.zoom = lerp(Number.isFinite(v.zoom) ? v.zoom : wantZoom, wantZoom, 0.04);
     const ahead = lookAhead(v, v.heading);
     try {
       state.map.jumpTo({
         center: [ahead.lng, ahead.lat],
-        zoom: zoom,
-        pitch: state.ar ? 48 : state.navigating ? 65 : 52,
-        bearing: state.camHeading || 0,
+        bearing: v.heading || 0,
+        pitch: state.ar ? 48 : state.navigating ? CAM_PITCH_NAV : 52,
+        zoom: v.zoom,
         padding: camPad()
       });
     } catch (_e) {}
@@ -1738,7 +1753,7 @@
     setTarget(state.origin, state.heading);
     if (force && state.target) {
       state.view = copyPose(state.target);
-      if (((state.speed || 0) * 3.6 >= 2 || state.navigating) && Number.isFinite(state.target.heading)) {
+      if (Number.isFinite(state.target.heading)) {
         state.camHeading = state.target.heading;
         state.view.heading = state.camHeading;
       }
@@ -2371,9 +2386,31 @@
     return fetch(url, next).finally(function () { clearTimeout(t); });
   }
 
+  function pickOsrmRoute(routes, from, to) {
+    if (!routes || !routes[0]) throw new Error("Nincs útvonal");
+    if (!state.kaland || routes.length < 2) return routes[0];
+    const straight = Math.max(1, haversine(from, to));
+    let best = routes[0];
+    let bestScore = -1;
+    routes.forEach(function (r) {
+      const dist = Number(r.distance) || 0;
+      let steps = 0;
+      (r.legs || []).forEach(function (leg) {
+        steps += (leg.steps || []).length;
+      });
+      const score = dist / straight + steps * 0.015;
+      if (score > bestScore) {
+        best = r;
+        bestScore = score;
+      }
+    });
+    return best;
+  }
+
   async function fetchOsrm(from, to, extraQs) {
     const rad = Math.max(25, Math.min(80, Math.round((state.gpsAcc || 35) + 8)));
-    const baseSnap = "&continue_straight=true&radiuses=" + rad + ";" + rad;
+    const baseSnap = (state.kaland ? "" : "&continue_straight=true") + "&radiuses=" + rad + ";" + rad;
+    const altQs = state.kaland ? "&alternatives=true" : "";
     function pathWith(snapQs) {
       return (
         from.lng +
@@ -2384,6 +2421,7 @@
         "," +
         to.lat +
         "?overview=full&geometries=geojson&steps=true" +
+        altQs +
         snapQs +
         (extraQs || "")
       );
@@ -2396,7 +2434,7 @@
           return res.json();
         }).then(function (data) {
           if (data.code !== "Ok" || !data.routes || !data.routes[0]) throw new Error("Nincs útvonal");
-          return data.routes[0];
+          return pickOsrmRoute(data.routes, from, to);
         });
       });
       return Promise.any(jobs);
@@ -2557,7 +2595,12 @@
     try {
       let route = null;
       let last = null;
-      const tries = exclude
+      const tries = state.kaland
+        ? [
+            function () { return fetchOsrm(state.origin, state.dest, exclude); },
+            function () { return fetchValhalla(state.origin, state.dest); }
+          ]
+        : exclude
         ? [
             function () { return fetchValhalla(state.origin, state.dest); },
             function () { return fetchOsrm(state.origin, state.dest, exclude); }
@@ -2654,7 +2697,6 @@
     }
     state.spoken = {};
     state.spokenPoi = {};
-    state.funPois = [];
     state.poiAt = 0;
     armVoice();
     hushSpeech();
@@ -2778,6 +2820,8 @@
     }
     if (spd == null || isNaN(spd) || spd < 0) spd = state.speed || 0;
     setOrigin(raw, c.heading, spd);
+    maybeLoadFunPois();
+    maybeSpeakFunPoi();
     if (state.navigating && acc > 50) {
       state.gpsHits += 1;
       if (state.gpsHits >= 3 && Date.now() - state.lastGpsWarn > 40000) {
@@ -3036,6 +3080,10 @@
     applyRouteStyle();
     setStatus(state.kaland ? "Kaland mód be" : "Kaland mód ki");
     if (state.origin && state.dest) plan(true);
+    if (state.funPoi) {
+      state.poiAt = 0;
+      maybeLoadFunPois();
+    }
   }
 
   function applyFunPoi(on) {
@@ -3048,7 +3096,7 @@
     if (!state.funPoi) {
       state.funPois = [];
       state.funChipUntil = 0;
-    } else if (state.navigating) {
+    } else if (state.funPoi) {
       state.poiAt = 0;
       maybeLoadFunPois();
     }
@@ -3469,12 +3517,13 @@
       style: dark ? STYLES.dark : STYLES.light,
       center: BUDAPEST,
       zoom: 13.5,
-      pitch: 52,
+      pitch: 68,
       maxPitch: 85,
       fadeDuration: 0,
       renderWorldCopies: false,
       attributionControl: true
     });
+    startSmooth();
     let ready = false;
     state.map.once("load", function () {
       ready = true;
@@ -3820,6 +3869,23 @@
     },
     pitch: function () {
       return state.map ? Math.round(state.map.getPitch()) : 0;
+    },
+    poiTest: function () {
+      const h = (state.lastFix && state.lastFix.ll) || state.origin;
+      if (!h) return false;
+      state.funPoi = true;
+      state.funPois.push({
+        id: "test/" + Date.now(),
+        lat: h.lat,
+        lng: h.lng,
+        kind: "pub",
+        name: "Teszt kocsma"
+      });
+      maybeSpeakFunPoi();
+      return true;
+    },
+    kaland: function (on) {
+      applyKaland(!!on);
     },
     road: function (limit) {
       applyRoad({ limit: Number(limit) || 70, urban: true, cls: "residential", start: 0, end: 1e9 }, true);
