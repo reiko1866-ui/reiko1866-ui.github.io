@@ -367,6 +367,324 @@
       });
   }
 
+  function lightCone(THREE, color, len, radius, opacity) {
+    var geo = new THREE.ConeGeometry(radius, len, 18, 1, true);
+    geo.rotateX(-Math.PI / 2);
+    geo.translate(0, 0, len / 2);
+    return new THREE.Mesh(
+      geo,
+      new THREE.MeshBasicMaterial({
+        color: color,
+        transparent: true,
+        opacity: opacity,
+        side: THREE.DoubleSide,
+        depthWrite: false,
+        blending: THREE.AdditiveBlending,
+        fog: false
+      })
+    );
+  }
+
+  function addCarLights(THREE, carRoot) {
+    var headL = new THREE.SpotLight(0xfff1c8, 7.4, 42, 0.42, 0.28, 0.55);
+    headL.position.set(-0.52, 0.72, 1.82);
+    headL.target.position.set(-0.4, 0.02, 18);
+    carRoot.add(headL);
+    carRoot.add(headL.target);
+    var headR = new THREE.SpotLight(0xfff1c8, 7.4, 42, 0.42, 0.28, 0.55);
+    headR.position.set(0.52, 0.72, 1.82);
+    headR.target.position.set(0.4, 0.02, 18);
+    carRoot.add(headR);
+    carRoot.add(headR.target);
+    var tail = new THREE.SpotLight(0xff1a3c, 3.4, 16, 0.62, 0.32, 0.8);
+    tail.position.set(0, 0.58, -1.7);
+    tail.target.position.set(0, 0.04, -9);
+    carRoot.add(tail);
+    carRoot.add(tail.target);
+    var tailGlow = new THREE.PointLight(0xff2244, 1.35, 8.2);
+    tailGlow.position.set(0, 0.52, -1.85);
+    carRoot.add(tailGlow);
+    var beamL = lightCone(THREE, 0xffe7b0, 16, 2.6, 0.16);
+    beamL.position.set(-0.5, 0.55, 1.7);
+    var beamR = lightCone(THREE, 0xffe7b0, 16, 2.6, 0.16);
+    beamR.position.set(0.5, 0.55, 1.7);
+    var beamT = lightCone(THREE, 0xff2244, 7, 1.35, 0.22);
+    beamT.rotation.y = Math.PI;
+    beamT.position.set(0, 0.48, -1.55);
+    carRoot.add(beamL);
+    carRoot.add(beamR);
+    carRoot.add(beamT);
+  }
+
+  function asphaltTexture(THREE) {
+    var c = document.createElement("canvas");
+    c.width = 256;
+    c.height = 512;
+    var g = c.getContext("2d");
+    g.fillStyle = "#14161c";
+    g.fillRect(0, 0, 256, 512);
+    var i;
+    for (i = 0; i < 3200; i++) {
+      var n = 18 + Math.floor(Math.random() * 46);
+      g.fillStyle = "rgba(" + n + "," + (n + 2) + "," + (n + 6) + "," + (0.12 + Math.random() * 0.28) + ")";
+      g.fillRect(Math.random() * 256, Math.random() * 512, 1 + Math.random() * 2, 1 + Math.random() * 2);
+    }
+    g.setLineDash([30, 24]);
+    g.strokeStyle = "rgba(248,250,252,0.88)";
+    g.lineWidth = 7;
+    g.beginPath();
+    g.moveTo(128, 0);
+    g.lineTo(128, 512);
+    g.stroke();
+    g.setLineDash([]);
+    g.strokeStyle = "#f5c518";
+    g.lineWidth = 10;
+    g.beginPath();
+    g.moveTo(16, 0);
+    g.lineTo(16, 512);
+    g.stroke();
+    g.strokeStyle = "#f8fafc";
+    g.beginPath();
+    g.moveTo(240, 0);
+    g.lineTo(240, 512);
+    g.stroke();
+    var tex = new THREE.CanvasTexture(c);
+    tex.wrapS = THREE.RepeatWrapping;
+    tex.wrapT = THREE.RepeatWrapping;
+    tex.repeat.set(1, 10);
+    tex.needsUpdate = true;
+    return tex;
+  }
+
+  function makeSky(THREE) {
+    var c = document.createElement("canvas");
+    c.width = 8;
+    c.height = 256;
+    var g = c.getContext("2d");
+    var grd = g.createLinearGradient(0, 0, 0, 256);
+    grd.addColorStop(0, "#01030a");
+    grd.addColorStop(0.42, "#071428");
+    grd.addColorStop(0.68, "#163c72");
+    grd.addColorStop(0.84, "#c06a3e");
+    grd.addColorStop(1, "#0c1018");
+    g.fillStyle = grd;
+    g.fillRect(0, 0, 8, 256);
+    var tex = new THREE.CanvasTexture(c);
+    tex.needsUpdate = true;
+    var mat = new THREE.MeshBasicMaterial({
+      map: tex,
+      side: THREE.BackSide,
+      fog: false,
+      depthWrite: false
+    });
+    var mesh = new THREE.Mesh(new THREE.SphereGeometry(260, 28, 18), mat);
+    mesh.renderOrder = -8;
+    return mesh;
+  }
+
+  function enuOffset(origin, lng, lat) {
+    if (!origin || !Number.isFinite(origin.lat) || !Number.isFinite(origin.lng)) return { x: 0, z: 0 };
+    var x = (lng - origin.lng) * 111320 * Math.cos((origin.lat * Math.PI) / 180);
+    var z = -(lat - origin.lat) * 111320;
+    return { x: x, z: z };
+  }
+
+  function clearGroup(group) {
+    if (!group) return;
+    while (group.children.length) {
+      var ch = group.children[0];
+      group.remove(ch);
+      clearGroup(ch);
+      if (ch.geometry) ch.geometry.dispose();
+      if (ch.material) {
+        var mats = Array.isArray(ch.material) ? ch.material : [ch.material];
+        mats.forEach(function (m) {
+          if (!m) return;
+          if (m.map) m.map.dispose();
+          m.dispose();
+        });
+      }
+    }
+  }
+
+  function ribbonGeometry(THREE, coords, origin, width, y) {
+    var pts = [];
+    var i;
+    var elev = y == null ? 0.08 : y;
+    for (i = 0; i < coords.length; i++) {
+      var p = enuOffset(origin, coords[i][0], coords[i][1]);
+      if (!pts.length || Math.hypot(p.x - pts[pts.length - 1].x, p.z - pts[pts.length - 1].z) > 1.4) {
+        pts.push(p);
+      }
+    }
+    if (pts.length < 2) return null;
+    var pos = [];
+    var uvs = [];
+    var acc = 0;
+    var hw = width / 2;
+    for (i = 0; i < pts.length; i++) {
+      var a = pts[Math.max(0, i - 1)];
+      var b = pts[Math.min(pts.length - 1, i + 1)];
+      var dx = b.x - a.x;
+      var dz = b.z - a.z;
+      var len = Math.hypot(dx, dz) || 1;
+      if (i > 0) acc += Math.hypot(pts[i].x - pts[i - 1].x, pts[i].z - pts[i - 1].z);
+      var nx = (-dz / len) * hw;
+      var nz = (dx / len) * hw;
+      pos.push(pts[i].x + nx, elev, pts[i].z + nz);
+      pos.push(pts[i].x - nx, elev, pts[i].z - nz);
+      uvs.push(0, acc / 14, 1, acc / 14);
+    }
+    var idx = [];
+    for (i = 0; i < pts.length - 1; i++) {
+      var i0 = i * 2;
+      idx.push(i0, i0 + 2, i0 + 1, i0 + 1, i0 + 2, i0 + 3);
+    }
+    var geo = new THREE.BufferGeometry();
+    geo.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
+    geo.setAttribute("uv", new THREE.Float32BufferAttribute(uvs, 2));
+    geo.setIndex(idx);
+    geo.computeVertexNormals();
+    return geo;
+  }
+
+  function buildingGroup(THREE, building, origin) {
+    var ring = building.ring || [];
+    if (ring.length < 3) return null;
+    var shape = new THREE.Shape();
+    var i;
+    for (i = 0; i < ring.length; i++) {
+      var p = enuOffset(origin, ring[i][0], ring[i][1]);
+      if (i === 0) shape.moveTo(p.x, -p.z);
+      else shape.lineTo(p.x, -p.z);
+    }
+    var h = Math.max(7, Number(building.h) || 14);
+    var geo;
+    try {
+      geo = new THREE.ExtrudeGeometry(shape, { depth: h, bevelEnabled: false, curveSegments: 1 });
+    } catch (_e) {
+      return null;
+    }
+    geo.rotateX(-Math.PI / 2);
+    if (building.minH) geo.translate(0, Number(building.minH) || 0, 0);
+    var mesh = new THREE.Mesh(
+      geo,
+      new THREE.MeshStandardMaterial({
+        color: 0x0c1a2c,
+        emissive: 0x0a3d62,
+        emissiveIntensity: 0.42,
+        metalness: 0.78,
+        roughness: 0.16,
+        transparent: true,
+        opacity: 0.74,
+        side: THREE.DoubleSide
+      })
+    );
+    var edges = new THREE.LineSegments(
+      new THREE.EdgesGeometry(geo, 18),
+      new THREE.LineBasicMaterial({
+        color: 0x5ee7ff,
+        transparent: true,
+        opacity: 0.48
+      })
+    );
+    var g = new THREE.Group();
+    g.add(mesh);
+    g.add(edges);
+    return g;
+  }
+
+  function edgeLine(THREE, coords, origin, side, color) {
+    var pts = [];
+    var i;
+    for (i = 0; i < coords.length; i++) {
+      var p = enuOffset(origin, coords[i][0], coords[i][1]);
+      if (!pts.length || Math.hypot(p.x - pts[pts.length - 1].x, p.z - pts[pts.length - 1].z) > 1.4) {
+        pts.push(p);
+      }
+    }
+    if (pts.length < 2) return null;
+    var pos = [];
+    var off = 1.72 * side;
+    for (i = 0; i < pts.length; i++) {
+      var a = pts[Math.max(0, i - 1)];
+      var b = pts[Math.min(pts.length - 1, i + 1)];
+      var dx = b.x - a.x;
+      var dz = b.z - a.z;
+      var len = Math.hypot(dx, dz) || 1;
+      pos.push(pts[i].x + (-dz / len) * off, 0.1, pts[i].z + (dx / len) * off);
+    }
+    var geo = new THREE.BufferGeometry();
+    geo.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
+    return new THREE.Line(
+      geo,
+      new THREE.LineBasicMaterial({ color: color, linewidth: 2 })
+    );
+  }
+
+  function signTexture(kind, label) {
+    var c = document.createElement("canvas");
+    c.width = 128;
+    c.height = 128;
+    var g = c.getContext("2d");
+    g.beginPath();
+    g.arc(64, 64, 54, 0, Math.PI * 2);
+    g.fillStyle = "#fff";
+    g.fill();
+    g.lineWidth = kind === "cam" ? 10 : 14;
+    g.strokeStyle = kind === "cam" ? "#111" : "#e11d2e";
+    g.stroke();
+    g.fillStyle = "#111";
+    g.textAlign = "center";
+    g.textBaseline = "middle";
+    if (kind === "cam") {
+      g.beginPath();
+      g.arc(64, 64, 16, 0, Math.PI * 2);
+      g.stroke();
+    } else {
+      g.font = "700 42px sans-serif";
+      g.fillText(String(label || ""), 64, 66);
+    }
+    var tex = new api.THREE.CanvasTexture(c);
+    tex.needsUpdate = true;
+    return tex;
+  }
+
+  function makeMarker(THREE, mark) {
+    var g = new THREE.Group();
+    var stem = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.035, 0.035, 3.05, 8),
+      new THREE.MeshBasicMaterial({ color: 0xff2a3c })
+    );
+    stem.position.y = 1.52;
+    var disc = new THREE.Mesh(
+      new THREE.PlaneGeometry(1.7, 1.7),
+      new THREE.MeshBasicMaterial({
+        map: signTexture(mark.kind, mark.label),
+        transparent: true,
+        depthWrite: false
+      })
+    );
+    disc.position.y = 3.15;
+    g.add(stem);
+    g.add(disc);
+    g.userData.billboard = disc;
+    return g;
+  }
+
+  function faceMarkers(root) {
+    if (!root) return;
+    root.children.forEach(function (g) {
+      if (g.userData && g.userData.billboard) {
+        g.userData.billboard.lookAt(0, g.userData.billboard.position.y, 0);
+      }
+    });
+  }
+
+  var routeCache = "";
+  var markCache = "";
+  var buildCache = "";
+
   function makeLayer() {
     var THREE = api.THREE;
     return {
@@ -378,24 +696,51 @@
       renderer: null,
       carRoot: null,
       carSlot: null,
+      worldRoot: null,
+      routeRoot: null,
+      markRoot: null,
+      buildRoot: null,
+      sky: null,
+      worldOrigin: null,
       onAdd: function (map, gl) {
         this.camera = new THREE.Camera();
         this.scene = new THREE.Scene();
-        this.scene.add(new THREE.AmbientLight(0xe8eef8, 0.72));
-        this.scene.add(new THREE.HemisphereLight(0x9ec9ff, 0x1a1c22, 0.55));
-        var sun = new THREE.DirectionalLight(0xffffff, 1.7);
-        sun.position.set(5, 18, -16);
+        this.scene.fog = new THREE.Fog(0x0b1b33, 18, 150);
+        this.sky = makeSky(THREE);
+        this.scene.add(this.sky);
+        this.scene.add(new THREE.AmbientLight(0x8aa0c0, 0.38));
+        this.scene.add(new THREE.HemisphereLight(0x4a7ab0, 0x12141a, 0.42));
+        var sun = new THREE.DirectionalLight(0xffd2b0, 0.55);
+        sun.position.set(8, 22, -10);
         this.scene.add(sun);
-        var fill = new THREE.DirectionalLight(0xffd8c0, 0.4);
-        fill.position.set(-8, 6, 8);
+        var fill = new THREE.DirectionalLight(0x6ea8ff, 0.22);
+        fill.position.set(-10, 8, 12);
         this.scene.add(fill);
-        var rim = new THREE.DirectionalLight(0xffffff, 0.85);
-        rim.position.set(0, 10, -22);
-        this.scene.add(rim);
         this.carRoot = new THREE.Group();
         this.carSlot = new THREE.Group();
+        this.worldRoot = new THREE.Group();
+        this.routeRoot = new THREE.Group();
+        this.markRoot = new THREE.Group();
+        this.buildRoot = new THREE.Group();
         this.carRoot.add(this.carSlot);
+        this.worldRoot.add(this.routeRoot);
+        this.worldRoot.add(this.markRoot);
+        this.worldRoot.add(this.buildRoot);
         this.scene.add(this.carRoot);
+        this.scene.add(this.worldRoot);
+        var asphalt = new THREE.Mesh(
+          new THREE.PlaneGeometry(22, 72),
+          new THREE.MeshStandardMaterial({
+            map: asphaltTexture(THREE),
+            color: 0xffffff,
+            roughness: 0.92,
+            metalness: 0.04
+          })
+        );
+        asphalt.rotation.x = -Math.PI / 2;
+        asphalt.position.set(0, 0.02, 18);
+        asphalt.receiveShadow = true;
+        this.carRoot.add(asphalt);
         var shadow = new THREE.Mesh(
           new THREE.CircleGeometry(1.15, 28),
           new THREE.MeshBasicMaterial({
@@ -406,8 +751,9 @@
           })
         );
         shadow.rotation.x = -Math.PI / 2;
-        shadow.position.y = 0.015;
+        shadow.position.y = 0.03;
         this.carRoot.add(shadow);
+        addCarLights(THREE, this.carRoot);
         this.map = map;
         try {
           this.renderer = new THREE.WebGLRenderer({
@@ -437,6 +783,13 @@
         var scale = mc.meterInMercatorCoordinateUnits();
         var headingRad = ((180 - (Number(vis.heading) || 0)) * Math.PI) / 180;
         var leanRad = ((Number(vis.lean) || 0) * Math.PI) / 180;
+        if (this.carRoot) this.carRoot.rotation.y = headingRad;
+        if (this.carSlot) this.carSlot.rotation.z = leanRad;
+        if (this.worldRoot && this.worldOrigin) {
+          var w = enuOffset({ lng: vis.lng, lat: vis.lat }, this.worldOrigin.lng, this.worldOrigin.lat);
+          this.worldRoot.position.set(w.x, 0, w.z);
+        }
+        faceMarkers(this.markRoot);
         var raw =
           args && args.defaultProjectionData && args.defaultProjectionData.mainMatrix
             ? args.defaultProjectionData.mainMatrix
@@ -446,14 +799,10 @@
         if (!arr.length || arr.some(function (n) { return !Number.isFinite(n); })) return;
         var m = new THREE.Matrix4().fromArray(arr);
         var rotationX = new THREE.Matrix4().makeRotationAxis(new THREE.Vector3(1, 0, 0), Math.PI / 2);
-        var rotationY = new THREE.Matrix4().makeRotationAxis(new THREE.Vector3(0, 1, 0), headingRad);
-        var rotationZ = new THREE.Matrix4().makeRotationAxis(new THREE.Vector3(0, 0, 1), leanRad);
         var l = new THREE.Matrix4()
           .makeTranslation(mc.x, mc.y, mc.z)
           .scale(new THREE.Vector3(scale, -scale, scale))
-          .multiply(rotationX)
-          .multiply(rotationY)
-          .multiply(rotationZ);
+          .multiply(rotationX);
         this.camera.projectionMatrix = m.multiply(l);
         this.renderer.resetState();
         this.renderer.render(this.scene, this.camera);
@@ -496,6 +845,127 @@
     pose.lat = lat;
     if (Number.isFinite(heading)) pose.heading = heading;
     if (Number.isFinite(lean)) pose.lean = lean;
+    if (mapRef) mapRef.triggerRepaint();
+  };
+
+  function adoptOrigin(origin) {
+    if (!layer || !origin || !Number.isFinite(origin.lat) || !Number.isFinite(origin.lng)) return;
+    layer.worldOrigin = { lng: origin.lng, lat: origin.lat };
+  }
+
+  api.setRoute = function (coords, origin) {
+    if (!layer || !layer.routeRoot || !api.THREE) return;
+    var list = coords || [];
+    var key =
+      list.length +
+      ":" +
+      (list[0] ? list[0][0].toFixed(5) + list[0][1].toFixed(5) : "x") +
+      ":" +
+      (list[list.length - 1] ? list[list.length - 1][0].toFixed(5) : "y");
+    if (key === routeCache) return;
+    routeCache = key;
+    clearGroup(layer.routeRoot);
+    if (list.length < 2 || !origin) return;
+    adoptOrigin(origin);
+    var THREE = api.THREE;
+    var road = ribbonGeometry(THREE, list, origin, 8.6, 0.03);
+    if (road) {
+      layer.routeRoot.add(
+        new THREE.Mesh(
+          road,
+          new THREE.MeshStandardMaterial({
+            map: asphaltTexture(THREE),
+            color: 0xffffff,
+            roughness: 0.9,
+            metalness: 0.04
+          })
+        )
+      );
+    }
+    var bloom = ribbonGeometry(THREE, list, origin, 5.6, 0.07);
+    if (bloom) {
+      layer.routeRoot.add(
+        new THREE.Mesh(
+          bloom,
+          new THREE.MeshBasicMaterial({
+            color: 0x00ff66,
+            transparent: true,
+            opacity: 0.2,
+            side: THREE.DoubleSide,
+            depthWrite: false,
+            blending: THREE.AdditiveBlending
+          })
+        )
+      );
+    }
+    var body = ribbonGeometry(THREE, list, origin, 3.05, 0.11);
+    if (body) {
+      layer.routeRoot.add(
+        new THREE.Mesh(
+          body,
+          new THREE.MeshStandardMaterial({
+            color: 0x22ff77,
+            emissive: 0x00ff66,
+            emissiveIntensity: 1.35,
+            transparent: true,
+            opacity: 0.7,
+            side: THREE.DoubleSide,
+            roughness: 0.18,
+            metalness: 0.08,
+            depthWrite: false
+          })
+        )
+      );
+    }
+    var yel = edgeLine(THREE, list, origin, -1, 0xf5c518);
+    var wht = edgeLine(THREE, list, origin, 1, 0xf8fafc);
+    if (yel) layer.routeRoot.add(yel);
+    if (wht) layer.routeRoot.add(wht);
+    if (mapRef) mapRef.triggerRepaint();
+  };
+
+  api.setMarkers = function (marks, origin) {
+    if (!layer || !layer.markRoot || !api.THREE) return;
+    var list = marks || [];
+    var key = list
+      .map(function (m) {
+        return m.kind + m.label + Math.round(m.lat * 1e4);
+      })
+      .join("|");
+    if (key === markCache) return;
+    markCache = key;
+    clearGroup(layer.markRoot);
+    if (!origin) return;
+    adoptOrigin(origin);
+    var THREE = api.THREE;
+    list.forEach(function (mark) {
+      var g = makeMarker(THREE, mark);
+      var p = enuOffset(origin, mark.lng, mark.lat);
+      g.position.set(p.x, 0, p.z);
+      layer.markRoot.add(g);
+    });
+    if (mapRef) mapRef.triggerRepaint();
+  };
+
+  api.setBuildings = function (buildings, origin) {
+    if (!layer || !layer.buildRoot || !api.THREE) return;
+    var list = buildings || [];
+    var key =
+      list.length +
+      ":" +
+      (origin ? origin.lat.toFixed(4) + origin.lng.toFixed(4) : "0") +
+      ":" +
+      (list[0] && list[0].ring && list[0].ring[0] ? list[0].ring[0][0].toFixed(4) : "x");
+    if (key === buildCache) return;
+    buildCache = key;
+    clearGroup(layer.buildRoot);
+    if (!origin) return;
+    adoptOrigin(origin);
+    var THREE = api.THREE;
+    list.forEach(function (b) {
+      var g = buildingGroup(THREE, b, origin);
+      if (g) layer.buildRoot.add(g);
+    });
     if (mapRef) mapRef.triggerRepaint();
   };
 

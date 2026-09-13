@@ -2027,10 +2027,13 @@ noscript {
 
 #trip {
   min-width: 7.8rem;
+  background: rgba(255, 255, 255, 0.92);
+  color: #111;
 }
 
 #trip strong {
   font-size: 1.7rem;
+  color: #111;
 }
 
 #app.is-nav #fabBar {
@@ -2123,4 +2126,43 @@ noscript {
   #hudLeft {
     gap: 0.45rem;
   }
+}
+
+#app.is-nav #trip {
+  background: rgba(255, 255, 255, 0.92) !important;
+  color: #111 !important;
+  border-radius: 1.05rem;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.28);
+}
+
+#app.is-nav #trip strong,
+#app.is-nav #tripMeta,
+#app.is-nav #tripMeta em {
+  color: #111 !important;
+}
+
+#app.is-nav #compassN {
+  background:
+    radial-gradient(circle at 32% 28%, #fff 0 38%, #e8edf4 62%, #c5ccd6 100%);
+  box-shadow:
+    inset 0 2px 4px rgba(255, 255, 255, 0.9),
+    inset 0 -3px 6px rgba(15, 23, 42, 0.18),
+    0 10px 22px rgba(0, 0, 0, 0.3);
+}
+
+#app.is-nav #limitSign {
+  background: #fff !important;
+  color: #111 !important;
+  border: 3px solid #111 !important;
+}
+
+#app.is-nav #fabBar {
+  top: 42%;
+  bottom: auto;
+  transform: translateY(-50%);
+}
+
+#app.is-nav .fab {
+  background: #fff;
+  color: #111;
 }

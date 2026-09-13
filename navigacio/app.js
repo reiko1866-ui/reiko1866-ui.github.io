@@ -2166,12 +2166,12 @@
             "interpolate",
             ["linear"],
             ["zoom"],
-            16,
-            0.9,
-            17.4,
-            0.35,
-            18.2,
-            0
+            14,
+            0.86,
+            18,
+            0.8,
+            20.5,
+            0.68
           ]
         }
       });
@@ -2315,12 +2315,41 @@
           "line-width": 16
         }
       });
+      state.map.addLayer({
+        id: "route-edge-y",
+        type: "line",
+        source: "route",
+        layout: { "line-cap": "butt", "line-join": "round" },
+        paint: {
+          "line-color": "#f5c518",
+          "line-width": 3.2,
+          "line-offset": -8.4,
+          "line-opacity": 0.95
+        }
+      });
+      state.map.addLayer({
+        id: "route-edge-w",
+        type: "line",
+        source: "route",
+        layout: { "line-cap": "butt", "line-join": "round" },
+        paint: {
+          "line-color": "#f8fafc",
+          "line-width": 3.2,
+          "line-offset": 8.4,
+          "line-opacity": 0.95
+        }
+      });
     }
     ensureMarkLayer();
     if (state.coords.length) drawRoute();
     paintCar();
     applyRouteStyle();
-    if (state.navigating) syncFloatMarks(true);
+    if (state.navigating) {
+      setArcadeMapMode(true);
+      syncFloatMarks(true);
+    } else {
+      setArcadeMapMode(false);
+    }
     if (window.NavCar3D) window.NavCar3D.ensure(state.map);
     addHouseNumbers();
     AppState.targetPos.lat = BUDAPEST[1];
@@ -2337,12 +2366,12 @@
           "interpolate",
           ["linear"],
           ["zoom"],
-          15.2,
-          0.88,
-          16,
-          0.2,
-          16.6,
-          0
+          14,
+          0.86,
+          18,
+          0.8,
+          20.5,
+          0.68
         ]);
       }
     } catch (_flat) {}
@@ -2442,10 +2471,151 @@
     } catch (_e) {}
   }
 
+  function remainingCoords() {
+    const coords = state.coords || [];
+    if (coords.length < 2) return [];
+    const here = state.traveled || 0;
+    const out = [];
+    const cur = AppState.currentPos;
+    if (Number.isFinite(cur.lng) && Number.isFinite(cur.lat)) out.push([cur.lng, cur.lat]);
+    let acc = 0;
+    for (let i = 1; i < coords.length; i++) {
+      const a = { lng: coords[i - 1][0], lat: coords[i - 1][1] };
+      const b = { lng: coords[i][0], lat: coords[i][1] };
+      const seg = haversine(a, b);
+      if (acc + seg >= here - 12) out.push([b.lng, b.lat]);
+      acc += seg;
+      if (out.length > 180) break;
+    }
+    return out;
+  }
+
+  function arcadeOrigin() {
+    const cur = AppState.currentPos;
+    return {
+      lng: Number.isFinite(cur.lng) ? cur.lng : state.origin && state.origin.lng,
+      lat: Number.isFinite(cur.lat) ? cur.lat : state.origin && state.origin.lat
+    };
+  }
+
+  function setArcadeMapMode(on) {
+    if (!state.map || !state.map.isStyleLoaded()) return;
+    const layers = (state.map.getStyle() && state.map.getStyle().layers) || [];
+    layers.forEach(function (ly) {
+      if (!ly || !ly.id) return;
+      if (/^route-/.test(ly.id) || ly.id === "nav-housenumbers" || ly.id === "nav-housenumbers-dot") {
+        return;
+      }
+      const sl = ly["source-layer"] || "";
+      const hide =
+        ly.type === "symbol" ||
+        ly.type === "fill-extrusion" ||
+        ly.id === "arcade-buildings" ||
+        ly.id === "arcade-lanes" ||
+        ly.id === "building" ||
+        (ly.type === "line" && (sl === "transportation" || sl === "roads" || /highway|road|street|path/i.test(ly.id)));
+      if (!hide) return;
+      try {
+        state.map.setLayoutProperty(ly.id, "visibility", on ? "none" : "visible");
+      } catch (_e) {}
+    });
+  }
+
+  function collectArcadeBuildings(origin) {
+    if (!state.map || !origin) return [];
+    const layers = (state.map.getStyle() && state.map.getStyle().layers) || [];
+    let src = null;
+    let layer = null;
+    layers.forEach(function (ly) {
+      const sl = ly["source-layer"] || "";
+      if (!src && (sl === "building" || sl === "buildings")) {
+        src = ly.source;
+        layer = sl;
+      }
+    });
+    let feats = [];
+    try {
+      if (src) feats = state.map.querySourceFeatures(src, { sourceLayer: layer });
+    } catch (_e) {
+      feats = [];
+    }
+    const out = [];
+    const seen = {};
+    const cos = Math.cos((origin.lat * Math.PI) / 180);
+    for (let i = 0; i < feats.length && out.length < 64; i++) {
+      const f = feats[i];
+      const g = f && f.geometry;
+      if (!g) continue;
+      const rings =
+        g.type === "Polygon"
+          ? [g.coordinates[0]]
+          : g.type === "MultiPolygon"
+            ? g.coordinates.map(function (poly) { return poly[0]; })
+            : null;
+      if (!rings || !rings[0] || rings[0].length < 3) continue;
+      const ring = rings[0];
+      let cx = 0;
+      let cy = 0;
+      for (let k = 0; k < ring.length; k++) {
+        cx += ring[k][0];
+        cy += ring[k][1];
+      }
+      cx /= ring.length;
+      cy /= ring.length;
+      const dx = (cx - origin.lng) * 111320 * cos;
+      const dy = (cy - origin.lat) * 111320;
+      if (dx * dx + dy * dy > 210 * 210) continue;
+      const key = cx.toFixed(5) + "," + cy.toFixed(5);
+      if (seen[key]) continue;
+      seen[key] = 1;
+      const props = f.properties || {};
+      out.push({
+        ring: ring,
+        h: Math.max(8, Number(props.render_height || props.height) || 16),
+        minH: Number(props.render_min_height || props.min_height) || 0
+      });
+    }
+    return out;
+  }
+
+  function pushArcadeWorld() {
+    if (!window.NavCar3D) return;
+    const origin = arcadeOrigin();
+    if (!Number.isFinite(origin.lng) || !Number.isFinite(origin.lat)) return;
+    if (window.NavCar3D.setRoute) window.NavCar3D.setRoute(remainingCoords(), origin);
+    if (window.NavCar3D.setMarkers && state.navigating) {
+      const marks = [];
+      const here = state.traveled || 0;
+      let shown = 0;
+      for (let i = 0; i < state.limits.length && shown < 5; i++) {
+        const seg = state.limits[i];
+        if (seg.start < here + 70) continue;
+        if (seg.start > here + 2600) break;
+        if (i > 0 && state.limits[i - 1].limit === seg.limit) continue;
+        if (!seg.limit) continue;
+        const p = alongLine(state.coords, seg.start);
+        if (!p) continue;
+        marks.push({ kind: "limit", label: String(seg.limit), lng: p.lng, lat: p.lat });
+        shown += 1;
+      }
+      (state.cameras || []).forEach(function (cam) {
+        if (cam.traveled < here + 70 || cam.traveled > here + 2200) return;
+        marks.push({ kind: "cam", label: "", lng: cam.lng, lat: cam.lat });
+      });
+      window.NavCar3D.setMarkers(marks, origin);
+    } else if (window.NavCar3D.setMarkers) {
+      window.NavCar3D.setMarkers([], origin);
+    }
+    if (window.NavCar3D.setBuildings) {
+      window.NavCar3D.setBuildings(state.navigating ? collectArcadeBuildings(origin) : [], origin);
+    }
+  }
+
   function drawRoute() {
     const src = state.map.getSource("route");
     if (!src) return;
     src.setData(splitLine(state.coords, state.traveled));
+    pushArcadeWorld();
   }
 
   function copyPose(p, heading) {
@@ -2467,8 +2637,8 @@
 
   function lookAheadMeters() {
     const kmh = (state.speed || 0) * 3.6;
-    if (state.navigating) return Math.max(44, Math.min(82, 48 + kmh * 0.28));
-    return Math.max(32, Math.min(62, 36 + kmh * 0.22));
+    if (state.navigating) return Math.max(1.4, Math.min(3.2, 1.8 + kmh * 0.01));
+    return Math.max(2.2, Math.min(4.2, 2.6 + kmh * 0.01));
   }
 
   function lookAhead(from, heading) {
@@ -2494,8 +2664,8 @@
     const pad = state.ar
       ? { top: 6, bottom: 10, left: 6, right: 6 }
       : {
-          top: Math.round(h * (state.navigating ? 0.05 : 0.07)),
-          bottom: Math.round(h * (state.navigating ? 0.28 : 0.26)),
+          top: Math.round(h * (state.navigating ? 0.04 : 0.07)),
+          bottom: Math.round(h * (state.navigating ? 0.36 : 0.28)),
           left: 8,
           right: right
         };
@@ -2503,7 +2673,14 @@
     return pad;
   }
 
-  function paintCompass() {}
+  function paintCompass() {
+    const el = $("compassN");
+    if (!el) return;
+    const dial = el.querySelector(".compass-dial");
+    if (!dial) return;
+    const h = Number(state.heading || AppState.currentPos.bearing || 0);
+    dial.style.transform = "rotate(" + (-h) + "deg)";
+  }
 
   function updateCarLean(heading) {
     const now = performance.now();
@@ -2552,7 +2729,7 @@
   }
 
   const CAM_LERP = 0.16;
-  const CAM_PITCH_NAV = 78;
+  const CAM_PITCH_NAV = 75;
   let lastPoiTick = 0;
   let lastOffTick = 0;
   let lastSmoothT = 0;
@@ -2648,6 +2825,7 @@
       if (state.map && Number.isFinite(cur.lat) && Number.isFinite(cur.lng)) {
         setOrigin({ lng: cur.lng, lat: cur.lat }, cur.bearing, AppState.speed, true);
       }
+      if (state.navigating) pushArcadeWorld();
       tickGpsHud();
       if (state.pendingPlan && state.dest && state.origin && !state.route && !state.planning) {
         state.pendingPlan = false;
@@ -2670,8 +2848,8 @@
     state.camHeading = v.heading;
     const kmh = (state.speed || AppState.speed || 0) * 3.6;
     const wantZoom = state.navigating
-        ? kmh > 110 ? 17.85 : kmh > 70 ? 18.2 : 18.5
-        : kmh > 90 ? 17.6 : 18.15;
+        ? kmh > 110 ? 19.55 : kmh > 70 ? 19.8 : 20.05
+        : kmh > 90 ? 19.35 : 19.7;
     v.zoom = lerp(Number.isFinite(v.zoom) ? v.zoom : wantZoom, wantZoom, 0.04);
     const ahead = lookAhead(v, v.heading);
     try {
@@ -3155,6 +3333,7 @@
       }
     }
     setMarkData(feats);
+    pushArcadeWorld();
   }
 
   async function loadRoadProfile(coords) {
@@ -3686,6 +3865,59 @@
     return plan(reroute);
   }
 
+  function maybeArcadePreview() {
+    if (!/[?&]arcade=1/.test(location.search) || state.navigating || state.route) return;
+    const o = {
+      lng: Number.isFinite(AppState.currentPos.lng) ? AppState.currentPos.lng : BUDAPEST[0],
+      lat: Number.isFinite(AppState.currentPos.lat) ? AppState.currentPos.lat : BUDAPEST[1]
+    };
+    state.origin = o;
+    const coords = [];
+    let heading = 12;
+    let p = { lng: o.lng, lat: o.lat };
+    coords.push([p.lng, p.lat]);
+    for (let i = 0; i < 90; i++) {
+      if (i === 18) heading = 42;
+      if (i === 36) heading = 8;
+      if (i === 58) heading = -18;
+      p = offsetLngLat(p, heading, 26);
+      coords.push([p.lng, p.lat]);
+    }
+    const dest = { lng: coords[coords.length - 1][0], lat: coords[coords.length - 1][1] };
+    setDest(dest, "Arcade teszt");
+    state.route = {
+      distance: lineLen(coords),
+      duration: 28 * 60,
+      geometry: { coordinates: coords },
+      legs: [{ steps: [] }]
+    };
+    state.coords = coords;
+    state.routeLen = state.route.distance;
+    state.steps = [];
+    state.traveled = 30;
+    state.limits = [
+      { start: 0, end: 420, limit: 50, urban: true, cls: "residential" },
+      { start: 420, end: 1400, limit: 70, urban: false, cls: "primary" },
+      { start: 1400, end: 99999, limit: 50, urban: true, cls: "residential" }
+    ];
+    const cam = alongLine(coords, 520);
+    state.cameras = cam ? [{ lng: cam.lng, lat: cam.lat, traveled: 520 }] : [];
+    state.road = { limit: 50, urban: true, cls: "residential" };
+    state.speed = 18.3;
+    AppState.speed = 18.3;
+    AppState.targetPos.lat = o.lat;
+    AppState.targetPos.lng = o.lng;
+    AppState.targetPos.bearing = heading;
+    AppState.currentPos.lat = o.lat;
+    AppState.currentPos.lng = o.lng;
+    AppState.currentPos.bearing = heading;
+    AppState.currentPos._seeded = true;
+    addLayers();
+    drawRoute();
+    startNav();
+    paintRoadUi();
+  }
+
   function startNav() {
     if (!state.route) return;
     state.pendingPlan = false;
@@ -3693,6 +3925,8 @@
     $("app").classList.add("is-nav");
     $("trip").hidden = false;
     $("banner").hidden = false;
+    setArcadeMapMode(true);
+    pushArcadeWorld();
     closeDrawer("keep");
     closeSearch("keep");
     armBack();
@@ -3770,6 +4004,12 @@
     $("app").classList.remove("is-nav");
     $("trip").hidden = true;
     $("banner").hidden = true;
+    setArcadeMapMode(false);
+    if (window.NavCar3D) {
+      if (window.NavCar3D.setRoute) window.NavCar3D.setRoute([], arcadeOrigin());
+      if (window.NavCar3D.setMarkers) window.NavCar3D.setMarkers([], arcadeOrigin());
+      if (window.NavCar3D.setBuildings) window.NavCar3D.setBuildings([], arcadeOrigin());
+    }
     if ($("lanes")) {
       $("lanes").hidden = true;
       $("lanes").innerHTML = "";
@@ -4684,7 +4924,10 @@
       const msg = e && e.error && (e.error.message || e.error.statusText);
       if (msg) setStatus("Térkép: " + msg, true);
     });
-    state.map.on("load", addLayers);
+    state.map.on("load", function () {
+      addLayers();
+      maybeArcadePreview();
+    });
     state.map.on("style.load", function () {
       addLayers();
       applyMarkSize();
