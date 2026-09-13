@@ -2306,9 +2306,65 @@
     applyRouteStyle();
     if (state.navigating) syncFloatMarks(true);
     if (window.NavCar3D) window.NavCar3D.ensure(state.map);
+    addHouseNumbers();
     AppState.targetPos.lat = BUDAPEST[1];
     AppState.targetPos.lng = BUDAPEST[0];
     startSmooth();
+  }
+
+  function addHouseNumbers() {
+    if (!state.map || !state.map.isStyleLoaded()) return;
+    if (state.map.getLayer("nav-housenumbers")) return;
+    const st = state.map.getStyle() || {};
+    let src = "";
+    let sl = "housenumber";
+    (st.layers || []).forEach(function (ly) {
+      const name = String((ly && ly["source-layer"]) || "");
+      if (/housenumber/i.test(name)) {
+        src = ly.source;
+        sl = name;
+      }
+    });
+    if (!src && st.sources && st.sources.openmaptiles) src = "openmaptiles";
+    if (!src) {
+      Object.keys(st.sources || {}).forEach(function (id) {
+        if (src) return;
+        const s = st.sources[id];
+        if (s && s.type === "vector" && id !== "protomaps") src = id;
+      });
+    }
+    if (!src) return;
+    const dark = document.documentElement.classList.contains("dark");
+    try {
+      state.map.addLayer({
+        id: "nav-housenumbers",
+        type: "symbol",
+        source: src,
+        "source-layer": sl,
+        minzoom: 16,
+        filter: [
+          "any",
+          ["has", "housenumber"],
+          ["has", "addr:housenumber"],
+          ["has", "house_number"]
+        ],
+        layout: {
+          "text-field": [
+            "to-string",
+            ["coalesce", ["get", "housenumber"], ["get", "addr:housenumber"], ["get", "house_number"]]
+          ],
+          "text-font": ["Noto Sans Regular"],
+          "text-size": ["interpolate", ["linear"], ["zoom"], 16, 11, 18, 16, 20, 20],
+          "text-padding": 1,
+          "text-optional": true
+        },
+        paint: {
+          "text-color": dark ? "#f8fafc" : "#0f172a",
+          "text-halo-color": dark ? "#020617" : "#ffffff",
+          "text-halo-width": 1.6
+        }
+      });
+    } catch (_e) {}
   }
 
   function routeColors() {
@@ -2507,8 +2563,7 @@
     }
     if (!state.map) return;
     paintCompass();
-    const lockHeading = state.follow || state.navigating;
-    if (!lockHeading) return;
+    if (!state.follow) return;
     const pose = state.origin || { lng: cur.lng, lat: cur.lat };
     const heading = state.heading || cur.bearing || 0;
     if (!state.view) state.view = copyPose(pose, heading);
@@ -3777,13 +3832,16 @@
     const g = f.geometry || {};
     const c = g.coordinates || [];
     const street = [p.street, p.housenumber].filter(Boolean).join(" ");
-    const title = p.name || street || p.city || p.county || "Hely";
+    const title = street || p.name || p.city || p.county || "Hely";
+    const kind = p.housenumber || /house|building/i.test(String(p.type || p.osm_value || ""))
+      ? "house"
+      : p.osm_value || p.type;
     return finishPlace(
       c[1],
       c[0],
       title,
-      [street, /kerület/i.test(String(p.district || "")) ? p.district : "", p.city || p.county, p.country],
-      p.osm_value || p.type
+      [street, p.district, p.city || p.county, p.country],
+      kind
     );
   }
 
@@ -3791,36 +3849,111 @@
     const a = item.address || {};
     const street = [a.road || a.pedestrian || a.residential, a.house_number].filter(Boolean).join(" ");
     const city = a.city || a.town || a.village || a.municipality || a.county || "";
-    const title = item.name || street || city || "Hely";
+    const title = street || item.name || city || "Hely";
+    const kind = a.house_number || /house|building/i.test(String(item.addresstype || item.type || ""))
+      ? "house"
+      : item.addresstype || item.type;
     return finishPlace(
       item.lat,
       item.lon,
       title,
-      [street, a.suburb || a.neighbourhood, city, a.country],
-      item.addresstype || item.type
+      [street, a.suburb || a.neighbourhood || a.city_district, city, a.country],
+      kind
     );
   }
 
-  async function geocode(q) {
-    try {
-      const res = await fetch(
-        "https://photon.komoot.io/api/?lang=hu&limit=8&q=" + encodeURIComponent(q)
-      );
-      const data = await res.json();
-      const list = (data.features || []).map(fromPhoton).filter(function (p) {
-        return Number.isFinite(p.lat) && Number.isFinite(p.lon);
-      });
-      if (list.length) return list;
-    } catch (_e) {}
-    const url =
-      NOMINATIM +
-      "?format=jsonv2&addressdetails=1&limit=8&q=" +
-      encodeURIComponent(q);
+  function parseAddress(q) {
+    const raw = String(q || "").trim();
+    const m = raw.match(/^(.*?)[\s,]+(\d+[a-zA-Z]?(?:[\/\-]\d+[a-zA-Z]?)?)\s*$/);
+    if (!m || String(m[1]).trim().length < 2) return { raw: raw, street: "", number: "" };
+    return { raw: raw, street: m[1].replace(/,\s*$/, "").trim(), number: m[2] };
+  }
+
+  function photonQuery(q, layer) {
+    let u = "https://photon.komoot.io/api/?limit=8&q=" + encodeURIComponent(q);
+    if (layer) u += "&layer=" + encodeURIComponent(layer);
+    const o = state.origin;
+    if (o && Number.isFinite(o.lat) && Number.isFinite(o.lng)) {
+      u += "&lat=" + o.lat + "&lon=" + o.lng;
+    }
+    return u;
+  }
+
+  async function fetchPhoton(q, layer) {
+    const res = await fetch(photonQuery(q, layer));
+    if (!res.ok) return [];
+    const data = await res.json();
+    if (data && data.lang) return [];
+    return (data.features || []).map(fromPhoton).filter(function (p) {
+      return Number.isFinite(p.lat) && Number.isFinite(p.lon);
+    });
+  }
+
+  async function fetchNominatim(q, parsed) {
+    let url = NOMINATIM + "?format=jsonv2&addressdetails=1&limit=8&countrycodes=hu";
+    if (parsed && parsed.number && parsed.street) {
+      url += "&street=" + encodeURIComponent(parsed.street + " " + parsed.number);
+    } else {
+      url += "&q=" + encodeURIComponent(q);
+    }
     const res = await fetch(url, { headers: { Accept: "application/json" } });
     if (!res.ok) throw new Error("A keresés sikertelen.");
     const data = await res.json();
-    if (!data.length) throw new Error("Nincs találat.");
-    return data.map(fromNominatim);
+    return (data || []).map(fromNominatim).filter(function (p) {
+      return Number.isFinite(p.lat) && Number.isFinite(p.lon);
+    });
+  }
+
+  function houseScore(p) {
+    const sub = String((p && p.subtitle) || "").toLowerCase();
+    if (sub.indexOf("házszám") >= 0) return 0;
+    if (sub.indexOf("utca") >= 0) return 1;
+    return 2;
+  }
+
+  function mergePlaces(lists) {
+    const seen = {};
+    const out = [];
+    lists.forEach(function (list) {
+      (list || []).forEach(function (p) {
+        if (!p) return;
+        const k = Number(p.lat).toFixed(5) + "," + Number(p.lon).toFixed(5) + "|" + String(p.title || "");
+        if (seen[k]) return;
+        seen[k] = true;
+        out.push(p);
+      });
+    });
+    out.sort(function (a, b) {
+      return houseScore(a) - houseScore(b);
+    });
+    return out;
+  }
+
+  async function geocode(q) {
+    const parsed = parseAddress(q);
+    const batches = [];
+    if (parsed.number) {
+      try {
+        batches.push(await fetchPhoton(q, "house"));
+      } catch (_e) {}
+    }
+    try {
+      batches.push(await fetchPhoton(q));
+    } catch (_e2) {}
+    let list = mergePlaces(batches);
+    const needHouse = parsed.number && !list.some(function (p) {
+      return /házszám/i.test(p.subtitle || "");
+    });
+    if (!list.length || needHouse) {
+      try {
+        batches.push(await fetchNominatim(q, parsed));
+        list = mergePlaces(batches);
+      } catch (err) {
+        if (!list.length) throw err;
+      }
+    }
+    if (!list.length) throw new Error("Nincs találat.");
+    return list.slice(0, 10);
   }
 
   function showResults(list) {
@@ -4432,12 +4565,25 @@
       applyMarkSize();
     });
     window.addEventListener("resize", applyMarkSize);
-    state.map.on("dragstart", () => {
-      if (state.navigating) return;
+    try {
+      state.map.dragPan.enable();
+      state.map.touchZoomRotate.enable();
+      if (state.map.touchPitch) state.map.touchPitch.enable();
+    } catch (_e3) {}
+    function unlockFollow(ev) {
+      if (ev && ev.type !== "dragstart" && !ev.originalEvent) return;
+      if (!state.follow) return;
       state.follow = false;
-      $("follow").classList.remove("is-on");
-      $("follow").setAttribute("aria-pressed", "false");
-    });
+      if ($("follow")) {
+        $("follow").classList.remove("is-on");
+        $("follow").setAttribute("aria-pressed", "false");
+      }
+      setStatus("Térkép szabad — a térkép gomb visszateszi");
+    }
+    state.map.on("dragstart", unlockFollow);
+    state.map.on("rotatestart", unlockFollow);
+    state.map.on("pitchstart", unlockFollow);
+    state.map.on("zoomstart", unlockFollow);
     let t = 0;
     let start = null;
     function armLongPress(lngLat) {
@@ -4474,7 +4620,12 @@
       state.follow = !state.follow;
       $("follow").classList.toggle("is-on", state.follow);
       $("follow").setAttribute("aria-pressed", state.follow ? "true" : "false");
-      if (state.follow) updateCamera(true);
+      if (state.follow) {
+        updateCamera(true);
+        setStatus("Követés be");
+      } else {
+        setStatus("Térkép szabad");
+      }
     });
     let followHold = 0;
     let followMenu = false;
