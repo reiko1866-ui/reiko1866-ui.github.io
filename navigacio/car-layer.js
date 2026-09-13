@@ -3,8 +3,8 @@
 
   var GARAGE_KEY = "nav2_car_model";
   var LAYER_ID = "ego-car-3d";
-  var TARGET_METERS = 5.6;
-  var CHIBI_SCALE = 1.42;
+  var TARGET_METERS = 4.5;
+  var CHIBI_SCALE = 1;
   var THREE_LOCAL = "./vendor/three.min.js";
   var GLTF_LOCAL = "./vendor/GLTFLoader.js";
   var THREE_CDN = "https://cdn.jsdelivr.net/npm/three@0.147.0/build/three.min.js";
@@ -16,7 +16,7 @@
       brand: "Toyota",
       type: "Mini Verso",
       name: "Mini Verso",
-      hint: "Zömök mini MPV",
+      hint: "Rövid orr, magas kabin",
       color: "#d4d7de",
       lamp: "#e11d48"
     },
@@ -25,7 +25,7 @@
       brand: "Suzuki",
       type: "Mini SX4 S-Cross",
       name: "Mini SX4 S-Cross",
-      hint: "Króm rács, nagy kerekek",
+      hint: "Crossover, króm rács",
       color: "#f3efe6",
       lamp: "#fb7185"
     },
@@ -34,7 +34,7 @@
       brand: "BMW",
       type: "Mini 3er / M3",
       name: "Mini 3er / M3",
-      hint: "Dupla vese, sportos far",
+      hint: "Dupla vese, hosszú orr",
       color: "#b7c0cb",
       lamp: "#ef4444"
     },
@@ -43,7 +43,7 @@
       brand: "Mercedes-Benz",
       type: "Mini E-Class",
       name: "Mini E-Class",
-      hint: "Csillag-rács, LED-sáv",
+      hint: "Csillag, LED-sáv",
       color: "#1c1f26",
       lamp: "#f87171"
     },
@@ -52,7 +52,7 @@
       brand: "SsangYong",
       type: "Mini Korando",
       name: "Mini Korando",
-      hint: "Magas mini SUV",
+      hint: "Magas SUV, tetősín",
       color: "#6a7180",
       lamp: "#dc2626"
     },
@@ -61,7 +61,7 @@
       brand: "Volkswagen",
       type: "Mini Golf",
       name: "Mini Golf",
-      hint: "Pufi ferdehátú",
+      hint: "Ferdehátú, VW rács",
       color: "#b91c1c",
       lamp: "#fecaca"
     }
@@ -75,7 +75,7 @@
     GLTFLoader: null
   };
 
-  var pose = { lng: 19.0402, lat: 47.4979, heading: 0, lean: 0, alt: 0.02 };
+  var pose = { lng: 19.0402, lat: 47.4979, heading: 0, lean: 0, alt: 0 };
   var cache = {};
   var loadingId = "";
   var layer = null;
@@ -263,21 +263,20 @@
 
   function alignAndFit(model) {
     var THREE = api.THREE;
-    /* GLB Y-up → Z-up aszfalt, 180° Z: a farok a haladási irányba. */
-    model.rotation.x = Math.PI / 2;
-    model.rotation.z = Math.PI;
+    /* GLB marad Y-up: a kerekek az y=0 aszfalton. A Z-up váltás a MapLibre mátrixban van. */
+    model.rotation.set(0, 0, 0);
     model.updateMatrixWorld(true);
     var box = new THREE.Box3().setFromObject(model);
     var size = box.getSize(new THREE.Vector3());
-    var longest = Math.max(size.x, size.y, size.z, 0.001);
+    var longest = Math.max(size.x, size.z, 0.001);
     var s = (TARGET_METERS / longest) * CHIBI_SCALE;
     model.scale.setScalar(s);
     model.updateMatrixWorld(true);
     box.setFromObject(model);
     var center = box.getCenter(new THREE.Vector3());
     model.position.x -= center.x;
-    model.position.y -= center.y;
-    model.position.z -= box.min.z;
+    model.position.z -= center.z;
+    model.position.y -= box.min.y;
   }
 
   function fetchModel(id) {
@@ -302,11 +301,13 @@
   function putMesh(id) {
     showFallback();
     if (!layer || !layer.carRoot || !api.THREE) return;
+    var slot = layer.carSlot || layer.carRoot;
     loadingId = id;
     fetchModel(id)
       .then(function (src) {
         if (loadingId !== id || !layer.carRoot) return;
-        while (layer.carRoot.children.length) layer.carRoot.remove(layer.carRoot.children[0]);
+        slot = layer.carSlot || layer.carRoot;
+        while (slot.children.length) slot.remove(slot.children[0]);
         var mesh = cloneGltf(src);
         var THREE = api.THREE;
         mesh.traverse(function (node) {
@@ -324,7 +325,7 @@
           });
         });
         alignAndFit(mesh);
-        layer.carRoot.add(mesh);
+        slot.add(mesh);
         api.currentId = id;
         hideFallback();
         if (mapRef) mapRef.triggerRepaint();
@@ -345,6 +346,7 @@
       scene: null,
       renderer: null,
       carRoot: null,
+      carSlot: null,
       onAdd: function (map, gl) {
         this.camera = new THREE.Camera();
         this.scene = new THREE.Scene();
@@ -360,11 +362,26 @@
         rim.position.set(0, 10, -22);
         this.scene.add(rim);
         this.carRoot = new THREE.Group();
+        this.carSlot = new THREE.Group();
+        this.carRoot.add(this.carSlot);
         this.scene.add(this.carRoot);
+        var shadow = new THREE.Mesh(
+          new THREE.CircleGeometry(1.15, 28),
+          new THREE.MeshBasicMaterial({
+            color: 0x000000,
+            transparent: true,
+            opacity: 0.32,
+            depthWrite: false
+          })
+        );
+        shadow.rotation.x = -Math.PI / 2;
+        shadow.position.y = 0.015;
+        this.carRoot.add(shadow);
         this.map = map;
         try {
           this.renderer = new THREE.WebGLRenderer({
-            alpha: true,
+            canvas: map.getCanvas(),
+            context: gl,
             antialias: true
           });
         } catch (err) {
@@ -372,24 +389,14 @@
           this.renderer = null;
           return;
         }
-        this.renderer.setClearColor(0x000000, 0);
-        this.renderer.autoClear = true;
-        this.renderer.setPixelRatio(window.devicePixelRatio || 1);
+        this.renderer.autoClear = false;
         if (this.renderer.outputEncoding !== undefined && THREE.sRGBEncoding) {
           this.renderer.outputEncoding = THREE.sRGBEncoding;
         }
-        var el = this.renderer.domElement;
-        el.className = "car3d-canvas";
-        el.style.cssText = "position:absolute;left:0;top:0;width:100%;height:100%;pointer-events:none;";
-        map.getCanvasContainer().appendChild(el);
         putMesh(api.currentId || savedId());
       },
       onRemove: function () {
         showFallback();
-        if (this.renderer && this.renderer.domElement && this.renderer.domElement.parentNode) {
-          this.renderer.domElement.parentNode.removeChild(this.renderer.domElement);
-        }
-        if (this.renderer) this.renderer.dispose();
         this.renderer = null;
       },
       render: function (gl, args) {
@@ -405,18 +412,20 @@
         if (!raw) return;
         var arr = raw.length ? Array.prototype.slice.call(raw, 0, 16) : (raw.elements ? Array.prototype.slice.call(raw.elements, 0, 16) : []);
         if (!arr.length || arr.some(function (n) { return !Number.isFinite(n); })) return;
-        var canvas = this.map.getCanvas();
-        var w = canvas.clientWidth || canvas.width;
-        var h = canvas.clientHeight || canvas.height;
-        this.renderer.setSize(w, h, false);
         var m = new THREE.Matrix4().fromArray(arr);
+        var rotationX = new THREE.Matrix4().makeRotationAxis(new THREE.Vector3(1, 0, 0), Math.PI / 2);
+        var rotationY = new THREE.Matrix4().makeRotationAxis(new THREE.Vector3(0, 1, 0), headingRad);
+        var rotationZ = new THREE.Matrix4().makeRotationAxis(new THREE.Vector3(0, 0, 1), leanRad);
         var l = new THREE.Matrix4()
           .makeTranslation(mc.x, mc.y, mc.z)
           .scale(new THREE.Vector3(scale, -scale, scale))
-          .multiply(new THREE.Matrix4().makeRotationAxis(new THREE.Vector3(0, 0, 1), headingRad))
-          .multiply(new THREE.Matrix4().makeRotationAxis(new THREE.Vector3(0, 1, 0), leanRad));
+          .multiply(rotationX)
+          .multiply(rotationY)
+          .multiply(rotationZ);
         this.camera.projectionMatrix = m.multiply(l);
+        this.renderer.resetState();
         this.renderer.render(this.scene, this.camera);
+        this.renderer.resetState();
         this.map.triggerRepaint();
       }
     };
@@ -516,8 +525,8 @@
     model.updateMatrixWorld(true);
     var box = new THREE.Box3().setFromObject(model);
     var size = box.getSize(new THREE.Vector3());
-    var longest = Math.max(size.x, size.y, size.z, 0.001);
-    model.scale.setScalar(1.42 / longest);
+    var longest = Math.max(size.x, size.z, 0.001);
+    model.scale.setScalar(1.7 / longest);
     model.updateMatrixWorld(true);
     box.setFromObject(model);
     var c = box.getCenter(new THREE.Vector3());
@@ -589,9 +598,9 @@
         disc.rotation.x = -Math.PI / 2;
         disc.position.y = 0.01;
         garage.scene.add(disc);
-        garage.camera = new THREE.PerspectiveCamera(32, 1.6, 0.1, 20);
-        garage.camera.position.set(1.45, 1.38, 2.05);
-        garage.camera.lookAt(0, 0.58, 0);
+        garage.camera = new THREE.PerspectiveCamera(30, 1.6, 0.1, 20);
+        garage.camera.position.set(1.55, 0.92, 2.15);
+        garage.camera.lookAt(0, 0.38, 0);
         garage.yaw = 0.85;
         var ids = [];
         for (var i = 0; i < canvases.length; i++) ids.push(canvases[i].getAttribute("data-car-preview"));
@@ -644,7 +653,7 @@
   global.addEventListener("carModelChanged", function (ev) {
     var id = ev && ev.detail;
     if (!id || !carModels[id]) id = "verso";
-    if (id === api.currentId && api.ready && layer && layer.carRoot && layer.carRoot.children.length) {
+    if (id === api.currentId && api.ready && layer && layer.carSlot && layer.carSlot.children.length) {
       return;
     }
     api.setModel(id, true);
