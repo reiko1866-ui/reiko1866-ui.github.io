@@ -653,19 +653,19 @@
   function makeMarker(THREE, mark) {
     var g = new THREE.Group();
     var stem = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.035, 0.035, 3.05, 8),
+      new THREE.CylinderGeometry(0.045, 0.045, 4.2, 8),
       new THREE.MeshBasicMaterial({ color: 0xff2a3c })
     );
-    stem.position.y = 1.52;
+    stem.position.y = 2.1;
     var disc = new THREE.Mesh(
-      new THREE.PlaneGeometry(1.7, 1.7),
+      new THREE.PlaneGeometry(2.4, 2.4),
       new THREE.MeshBasicMaterial({
         map: signTexture(mark.kind, mark.label),
         transparent: true,
         depthWrite: false
       })
     );
-    disc.position.y = 3.15;
+    disc.position.y = 4.4;
     g.add(stem);
     g.add(disc);
     g.userData.billboard = disc;
