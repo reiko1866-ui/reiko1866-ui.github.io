@@ -2565,7 +2565,7 @@
       const dx = (cx - origin.lng) * 111320 * cos;
       const dy = (cy - origin.lat) * 111320;
       if (dx * dx + dy * dy > 210 * 210) continue;
-      if (dx * dx + dy * dy < 12 * 12) continue;
+      if (dx * dx + dy * dy < 28 * 28) continue;
       const key = cx.toFixed(5) + "," + cy.toFixed(5);
       if (seen[key]) continue;
       seen[key] = 1;
