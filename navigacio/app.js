@@ -2569,6 +2569,18 @@
       const key = cx.toFixed(5) + "," + cy.toFixed(5);
       if (seen[key]) continue;
       seen[key] = 1;
+      let minX = Infinity;
+      let maxX = -Infinity;
+      let minY = Infinity;
+      let maxY = -Infinity;
+      for (let k = 0; k < ring.length; k++) {
+        if (ring[k][0] < minX) minX = ring[k][0];
+        if (ring[k][0] > maxX) maxX = ring[k][0];
+        if (ring[k][1] < minY) minY = ring[k][1];
+        if (ring[k][1] > maxY) maxY = ring[k][1];
+      }
+      const span = Math.hypot((maxX - minX) * 111320 * cos, (maxY - minY) * 111320);
+      if (span > 90) continue;
       const props = f.properties || {};
       out.push({
         ring: ring,
@@ -3949,7 +3961,7 @@
     try {
       if (state.map) {
         state.map.setPitch(CAM_PITCH_NAV);
-        state.map.setZoom(19.15);
+        state.map.setZoom(20.25);
       }
     } catch (_cam) {}
     if (state.coords.length >= 2) {
