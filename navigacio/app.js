@@ -4546,6 +4546,8 @@
       renderWorldCopies: false,
       attributionControl: true
     });
+    window.NavMap = state.map;
+    state.map.on("idle", addHouseNumbers);
     startSmooth();
     let ready = false;
     state.map.once("load", function () {
