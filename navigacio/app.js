@@ -2156,7 +2156,17 @@
             ["to-number", ["get", "min_height"]],
             0
           ],
-          "fill-extrusion-opacity": 0.9
+          "fill-extrusion-opacity": [
+            "interpolate",
+            ["linear"],
+            ["zoom"],
+            16,
+            0.9,
+            17.4,
+            0.35,
+            18.2,
+            0
+          ]
         }
       });
     }
@@ -2341,7 +2351,7 @@
         type: "symbol",
         source: src,
         "source-layer": sl,
-        minzoom: 16,
+        minzoom: 14,
         filter: [
           "any",
           ["has", "housenumber"],
@@ -2354,9 +2364,13 @@
             ["coalesce", ["get", "housenumber"], ["get", "addr:housenumber"], ["get", "house_number"]]
           ],
           "text-font": ["Noto Sans Regular"],
-          "text-size": ["interpolate", ["linear"], ["zoom"], 16, 11, 18, 16, 20, 20],
+          "text-size": ["interpolate", ["linear"], ["zoom"], 14, 10, 16, 13, 18, 17],
           "text-padding": 1,
-          "text-optional": true
+          "text-optional": true,
+          "text-pitch-alignment": "viewport",
+          "text-rotation-alignment": "viewport",
+          "text-allow-overlap": true,
+          "text-ignore-placement": true
         },
         paint: {
           "text-color": dark ? "#f8fafc" : "#0f172a",
