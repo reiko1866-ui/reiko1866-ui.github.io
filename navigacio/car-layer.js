@@ -408,7 +408,7 @@
         if (!this.renderer || !this.camera || !this.scene || !this.map) return;
         var mc = maplibregl.MercatorCoordinate.fromLngLat([pose.lng, pose.lat], pose.alt);
         var scale = mc.meterInMercatorCoordinateUnits();
-        var headingRad = (-(Number(pose.heading) || 0) * Math.PI) / 180;
+        var headingRad = ((180 - (Number(pose.heading) || 0)) * Math.PI) / 180;
         var leanRad = ((Number(pose.lean) || 0) * Math.PI) / 180;
         var raw =
           args && args.defaultProjectionData && args.defaultProjectionData.mainMatrix
