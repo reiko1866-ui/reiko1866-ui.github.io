@@ -3,7 +3,7 @@
 
   var GARAGE_KEY = "nav2_car_model";
   var LAYER_ID = "ego-car-3d";
-  var TARGET_METERS = 4.5;
+  var TARGET_METERS = 7.2;
   var CHIBI_SCALE = 1;
   var THREE_LOCAL = "./vendor/three.min.js";
   var GLTF_LOCAL = "./vendor/GLTFLoader.js";
@@ -317,10 +317,15 @@
           mats.forEach(function (m) {
             if (!m) return;
             m.side = THREE.DoubleSide;
-            if (typeof m.metalness === "number" && m.metalness > 0.45) m.metalness = 0.35;
-            if (typeof m.roughness === "number" && m.roughness < 0.18) m.roughness = 0.22;
-            if (m.emissive && m.color && m.emissive.getHex && m.emissive.getHex() === 0) {
-              m.emissive = m.color.clone().multiplyScalar(0.12);
+            if (m.map) {
+              if (typeof m.metalness === "number") m.metalness = 0.08;
+              if (typeof m.roughness === "number") m.roughness = 0.46;
+            } else {
+              if (typeof m.metalness === "number" && m.metalness > 0.45) m.metalness = 0.35;
+              if (typeof m.roughness === "number" && m.roughness < 0.18) m.roughness = 0.22;
+              if (m.emissive && m.color && m.emissive.getHex && m.emissive.getHex() === 0) {
+                m.emissive = m.color.clone().multiplyScalar(0.1);
+              }
             }
           });
         });
@@ -526,7 +531,7 @@
     var box = new THREE.Box3().setFromObject(model);
     var size = box.getSize(new THREE.Vector3());
     var longest = Math.max(size.x, size.z, 0.001);
-    model.scale.setScalar(1.7 / longest);
+    model.scale.setScalar(1.85 / longest);
     model.updateMatrixWorld(true);
     box.setFromObject(model);
     var c = box.getCenter(new THREE.Vector3());
@@ -598,9 +603,9 @@
         disc.rotation.x = -Math.PI / 2;
         disc.position.y = 0.01;
         garage.scene.add(disc);
-        garage.camera = new THREE.PerspectiveCamera(30, 1.6, 0.1, 20);
-        garage.camera.position.set(1.55, 0.92, 2.15);
-        garage.camera.lookAt(0, 0.38, 0);
+        garage.camera = new THREE.PerspectiveCamera(28, 1.6, 0.1, 20);
+        garage.camera.position.set(1.85, 1.2, 2.35);
+        garage.camera.lookAt(0, 0.32, 0);
         garage.yaw = 0.85;
         var ids = [];
         for (var i = 0; i < canvases.length; i++) ids.push(canvases[i].getAttribute("data-car-preview"));
