@@ -112,6 +112,29 @@ button {
   background: #0F172A;
 }
 
+#arcade3d {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  background: #050914;
+}
+
+#arcade3d[hidden] {
+  display: none !important;
+}
+
+#app.is-nav #map .maplibregl-canvas,
+#app.is-nav .maplibregl-canvas-container canvas.maplibregl-canvas {
+  opacity: 0 !important;
+}
+
+#app.is-nav #map {
+  background: #050914;
+}
+
 .maplibregl-canvas-container,
 .maplibregl-canvas {
   background: #0F172A;

@@ -2503,22 +2503,11 @@
     const layers = (state.map.getStyle() && state.map.getStyle().layers) || [];
     layers.forEach(function (ly) {
       if (!ly || !ly.id) return;
-      if (/^route-/.test(ly.id) || ly.id === "nav-housenumbers" || ly.id === "nav-housenumbers-dot") {
-        return;
-      }
-      const sl = ly["source-layer"] || "";
-      const hide =
-        ly.type === "fill-extrusion" ||
-        ly.id === "arcade-buildings" ||
-        ly.id === "arcade-lanes" ||
-        ly.id === "building" ||
-        (ly.type === "line" && (sl === "transportation" || sl === "roads" || /highway|road|street|path/i.test(ly.id))) ||
-        (on && ly.type === "symbol" && /housenumber|road_label|highway_name/i.test(ly.id));
-      if (!hide) return;
       try {
         state.map.setLayoutProperty(ly.id, "visibility", on ? "none" : "visible");
       } catch (_e) {}
     });
+    if (window.NavCar3D && window.NavCar3D.setArcade) window.NavCar3D.setArcade(on);
   }
 
   function collectArcadeBuildings(origin) {
@@ -2591,6 +2580,53 @@
     return out;
   }
 
+  function collectArcadeRoads(origin) {
+    if (!state.map || !origin) return [];
+    const layers = (state.map.getStyle() && state.map.getStyle().layers) || [];
+    let src = null;
+    let layer = null;
+    layers.forEach(function (ly) {
+      const sl = ly["source-layer"] || "";
+      if (!src && (sl === "transportation" || sl === "roads")) {
+        src = ly.source;
+        layer = sl;
+      }
+    });
+    let feats = [];
+    try {
+      if (src) feats = state.map.querySourceFeatures(src, { sourceLayer: layer });
+    } catch (_e) {
+      feats = [];
+    }
+    const out = [];
+    const seen = {};
+    const cos = Math.cos((origin.lat * Math.PI) / 180);
+    for (let i = 0; i < feats.length && out.length < 36; i++) {
+      const f = feats[i];
+      const g = f && f.geometry;
+      if (!g) continue;
+      const lines =
+        g.type === "LineString"
+          ? [g.coordinates]
+          : g.type === "MultiLineString"
+            ? g.coordinates
+            : null;
+      if (!lines) continue;
+      lines.forEach(function (line) {
+        if (!line || line.length < 2 || out.length >= 36) return;
+        const mid = line[Math.floor(line.length / 2)];
+        const dx = (mid[0] - origin.lng) * 111320 * cos;
+        const dy = (mid[1] - origin.lat) * 111320;
+        if (dx * dx + dy * dy > 180 * 180) return;
+        const key = mid[0].toFixed(5) + "," + mid[1].toFixed(5) + ":" + line.length;
+        if (seen[key]) return;
+        seen[key] = 1;
+        out.push(line);
+      });
+    }
+    return out;
+  }
+
   function pushArcadeWorld() {
     if (!window.NavCar3D) return;
     const origin = arcadeOrigin();
@@ -2621,6 +2657,9 @@
     }
     if (window.NavCar3D.setBuildings) {
       window.NavCar3D.setBuildings(state.navigating ? collectArcadeBuildings(origin) : [], origin);
+    }
+    if (window.NavCar3D.setRoads) {
+      window.NavCar3D.setRoads(state.navigating ? collectArcadeRoads(origin) : [], origin);
     }
   }
 
