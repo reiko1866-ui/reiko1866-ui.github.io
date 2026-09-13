@@ -2324,49 +2324,38 @@
 
   function addHouseNumbers() {
     if (!state.map || !state.map.isStyleLoaded()) return;
+    window.NavMap = state.map;
     if (state.map.getLayer("nav-housenumbers")) return;
     const st = state.map.getStyle() || {};
-    let src = "";
-    let sl = "housenumber";
-    (st.layers || []).forEach(function (ly) {
-      const name = String((ly && ly["source-layer"]) || "");
-      if (/housenumber/i.test(name)) {
-        src = ly.source;
-        sl = name;
+    const open = st.sources && st.sources.openmaptiles;
+    if (!open) return;
+    if (!state.map.getSource("nav-houses")) {
+      try {
+        const spec = {
+          type: "vector",
+          maxzoom: 14
+        };
+        if (open.url) spec.url = open.url;
+        if (open.tiles) spec.tiles = open.tiles;
+        if (open.attribution) spec.attribution = open.attribution;
+        state.map.addSource("nav-houses", spec);
+      } catch (_e) {
+        return;
       }
-    });
-    if (!src && st.sources && st.sources.openmaptiles) src = "openmaptiles";
-    if (!src) {
-      Object.keys(st.sources || {}).forEach(function (id) {
-        if (src) return;
-        const s = st.sources[id];
-        if (s && s.type === "vector" && id !== "protomaps") src = id;
-      });
     }
-    if (!src) return;
     const dark = document.documentElement.classList.contains("dark");
     try {
       state.map.addLayer({
         id: "nav-housenumbers",
         type: "symbol",
-        source: src,
-        "source-layer": sl,
+        source: "nav-houses",
+        "source-layer": "housenumber",
         minzoom: 14,
-        filter: [
-          "any",
-          ["has", "housenumber"],
-          ["has", "addr:housenumber"],
-          ["has", "house_number"]
-        ],
         layout: {
-          "text-field": [
-            "to-string",
-            ["coalesce", ["get", "housenumber"], ["get", "addr:housenumber"], ["get", "house_number"]]
-          ],
+          "text-field": ["to-string", ["get", "housenumber"]],
           "text-font": ["Noto Sans Regular"],
-          "text-size": ["interpolate", ["linear"], ["zoom"], 14, 10, 16, 13, 18, 17],
+          "text-size": ["interpolate", ["linear"], ["zoom"], 14, 11, 16, 14, 18, 18],
           "text-padding": 1,
-          "text-optional": true,
           "text-pitch-alignment": "viewport",
           "text-rotation-alignment": "viewport",
           "text-allow-overlap": true,
@@ -2375,10 +2364,12 @@
         paint: {
           "text-color": dark ? "#f8fafc" : "#0f172a",
           "text-halo-color": dark ? "#020617" : "#ffffff",
-          "text-halo-width": 1.6
+          "text-halo-width": 1.8
         }
       });
-    } catch (_e) {}
+    } catch (err) {
+      console.warn("[házszám]", err && err.message ? err.message : err);
+    }
   }
 
   function routeColors() {
