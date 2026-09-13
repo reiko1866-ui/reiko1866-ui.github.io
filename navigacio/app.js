@@ -2325,16 +2325,34 @@
   function addHouseNumbers() {
     if (!state.map || !state.map.isStyleLoaded()) return;
     window.NavMap = state.map;
-    if (state.map.getLayer("nav-housenumbers")) return;
+    try {
+      if (state.map.getLayer("arcade-buildings")) {
+        state.map.setPaintProperty("arcade-buildings", "fill-extrusion-opacity", [
+          "interpolate",
+          ["linear"],
+          ["zoom"],
+          15.2,
+          0.88,
+          16,
+          0.2,
+          16.6,
+          0
+        ]);
+      }
+    } catch (_flat) {}
+    if (state.map.getLayer("nav-housenumbers")) {
+      try {
+        if (state.map.getLayer("nav-housenumbers-dot")) state.map.moveLayer("nav-housenumbers-dot");
+        state.map.moveLayer("nav-housenumbers");
+      } catch (_mv) {}
+      return;
+    }
     const st = state.map.getStyle() || {};
     const open = st.sources && st.sources.openmaptiles;
     if (!open) return;
     if (!state.map.getSource("nav-houses")) {
       try {
-        const spec = {
-          type: "vector",
-          maxzoom: 14
-        };
+        const spec = { type: "vector", maxzoom: 14 };
         if (open.url) spec.url = open.url;
         if (open.tiles) spec.tiles = open.tiles;
         if (open.attribution) spec.attribution = open.attribution;
@@ -2343,8 +2361,32 @@
         return;
       }
     }
+    let fonts = ["Noto Sans Regular"];
+    (st.layers || []).some(function (ly) {
+      const f = ly && ly.layout && ly.layout["text-font"];
+      if (f && f.length) {
+        fonts = f;
+        return true;
+      }
+      return false;
+    });
     const dark = document.documentElement.classList.contains("dark");
     try {
+      if (!state.map.getLayer("nav-housenumbers-dot")) {
+        state.map.addLayer({
+          id: "nav-housenumbers-dot",
+          type: "circle",
+          source: "nav-houses",
+          "source-layer": "housenumber",
+          minzoom: 14,
+          paint: {
+            "circle-radius": ["interpolate", ["linear"], ["zoom"], 14, 2.2, 17, 4],
+            "circle-color": dark ? "#e2e8f0" : "#0f172a",
+            "circle-stroke-width": 1,
+            "circle-stroke-color": dark ? "#020617" : "#ffffff"
+          }
+        });
+      }
       state.map.addLayer({
         id: "nav-housenumbers",
         type: "symbol",
@@ -2353,7 +2395,7 @@
         minzoom: 14,
         layout: {
           "text-field": ["to-string", ["get", "housenumber"]],
-          "text-font": ["Noto Sans Regular"],
+          "text-font": fonts,
           "text-size": ["interpolate", ["linear"], ["zoom"], 14, 11, 16, 14, 18, 18],
           "text-padding": 1,
           "text-pitch-alignment": "viewport",
