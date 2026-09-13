@@ -875,11 +875,9 @@
       layer.routeRoot.add(
         new THREE.Mesh(
           road,
-          new THREE.MeshStandardMaterial({
+          new THREE.MeshBasicMaterial({
             map: asphaltTexture(THREE),
-            color: 0xffffff,
-            roughness: 0.9,
-            metalness: 0.04
+            color: 0xffffff
           })
         )
       );
