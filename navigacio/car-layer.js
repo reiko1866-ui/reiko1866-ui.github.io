@@ -416,6 +416,66 @@
     carRoot.add(beamT);
   }
 
+  function glassTexture(THREE) {
+    var c = document.createElement("canvas");
+    c.width = 128;
+    c.height = 256;
+    var g = c.getContext("2d");
+    g.fillStyle = "#071018";
+    g.fillRect(0, 0, 128, 256);
+    var y;
+    var x;
+    for (y = 8; y < 250; y += 18) {
+      for (x = 8; x < 122; x += 16) {
+        if (Math.random() < 0.18) continue;
+        var lit = Math.random() > 0.62;
+        g.fillStyle = lit ? "rgba(255,214,150,0.55)" : "rgba(70,140,190,0.22)";
+        g.fillRect(x, y, 10, 12);
+      }
+    }
+    var tex = new THREE.CanvasTexture(c);
+    tex.wrapS = THREE.RepeatWrapping;
+    tex.wrapT = THREE.RepeatWrapping;
+    tex.repeat.set(2, 3);
+    tex.needsUpdate = true;
+    return tex;
+  }
+
+  function asphaltShader(THREE, tex) {
+    return new THREE.ShaderMaterial({
+      uniforms: {
+        uMap: { value: tex },
+        uHead: { value: new THREE.Vector3(0, 0.7, 1.8) },
+        uHeadDir: { value: new THREE.Vector3(0, -0.08, 1) },
+        uTail: { value: new THREE.Vector3(0, 0.5, -1.8) },
+        uTime: { value: 0 }
+      },
+      vertexShader:
+        "varying vec2 vUv; varying vec3 vWorld;\n" +
+        "void main(){\n" +
+        "  vUv = uv;\n" +
+        "  vec4 w = modelMatrix * vec4(position,1.0);\n" +
+        "  vWorld = w.xyz;\n" +
+        "  gl_Position = projectionMatrix * viewMatrix * w;\n" +
+        "}",
+      fragmentShader:
+        "uniform sampler2D uMap; uniform vec3 uHead; uniform vec3 uHeadDir; uniform vec3 uTail; uniform float uTime;\n" +
+        "varying vec2 vUv; varying vec3 vWorld;\n" +
+        "void main(){\n" +
+        "  vec3 base = texture2D(uMap, vUv).rgb * 0.78;\n" +
+        "  vec3 toP = vWorld - uHead;\n" +
+        "  float dist = length(toP);\n" +
+        "  float cone = pow(max(0.0, dot(normalize(toP + vec3(0.0001)), normalize(uHeadDir))), 16.0);\n" +
+        "  float spot = cone * smoothstep(32.0, 3.0, dist);\n" +
+        "  vec3 head = vec3(1.0, 0.93, 0.7) * spot * 1.55;\n" +
+        "  float td = length(vWorld - uTail);\n" +
+        "  vec3 tail = vec3(1.0, 0.1, 0.22) * smoothstep(10.0, 0.6, td) * 0.7;\n" +
+        "  float pulse = 0.85 + 0.15 * sin(uTime * 6.0);\n" +
+        "  gl_FragColor = vec4(base + head + tail * pulse, 1.0);\n" +
+        "}"
+    });
+  }
+
   function asphaltTexture(THREE) {
     var c = document.createElement("canvas");
     c.width = 256;
@@ -570,13 +630,14 @@
     var mesh = new THREE.Mesh(
       geo,
       new THREE.MeshStandardMaterial({
-        color: 0x0c1a2c,
+        map: glassTexture(THREE),
+        color: 0x9ecfff,
         emissive: 0x0a3d62,
-        emissiveIntensity: 0.42,
-        metalness: 0.78,
-        roughness: 0.16,
+        emissiveIntensity: 0.38,
+        metalness: 0.82,
+        roughness: 0.12,
         transparent: true,
-        opacity: 0.74,
+        opacity: 0.78,
         side: THREE.DoubleSide
       })
     );
@@ -779,6 +840,7 @@
         this.renderer = null;
       },
       render: function (gl, args) {
+        if (api.arcade) return;
         if (!this.renderer || !this.camera || !this.scene || !this.map) return;
         var vis = lerpPose(typeof performance !== "undefined" ? performance.now() : Date.now());
         var mc = maplibregl.MercatorCoordinate.fromLngLat([vis.lng, vis.lat], pose.alt);
@@ -856,8 +918,11 @@
   }
 
   api.setRoute = function (coords, origin) {
-    if (!layer || !layer.routeRoot || !api.THREE) return;
     var list = coords || [];
+    lastWorld.coords = list;
+    if (origin) lastWorld.origin = origin;
+    if (api.arcade) syncOverlayWorld();
+    if (!layer || !layer.routeRoot || !api.THREE) return;
     var key =
       list.length +
       ":" +
@@ -866,21 +931,17 @@
       (list[list.length - 1] ? list[list.length - 1][0].toFixed(5) : "y");
     if (key === routeCache) return;
     routeCache = key;
+    layer.asphaltMats = [];
     clearGroup(layer.routeRoot);
     if (list.length < 2 || !origin) return;
     adoptOrigin(origin);
     var THREE = api.THREE;
     var road = ribbonGeometry(THREE, list, origin, 11.5, 0.04);
     if (road) {
-      layer.routeRoot.add(
-        new THREE.Mesh(
-          road,
-          new THREE.MeshBasicMaterial({
-            map: asphaltTexture(THREE),
-            color: 0xffffff
-          })
-        )
-      );
+      var roadMat = asphaltShader(THREE, asphaltTexture(THREE));
+      layer.asphaltMats = layer.asphaltMats || [];
+      layer.asphaltMats.push(roadMat);
+      layer.routeRoot.add(new THREE.Mesh(road, roadMat));
     }
     var bloom = ribbonGeometry(THREE, list, origin, 5.6, 0.07);
     if (bloom) {
@@ -903,16 +964,13 @@
       layer.routeRoot.add(
         new THREE.Mesh(
           body,
-          new THREE.MeshStandardMaterial({
+          new THREE.MeshBasicMaterial({
             color: 0x22ff77,
-            emissive: 0x00ff66,
-            emissiveIntensity: 1.35,
             transparent: true,
-            opacity: 0.7,
+            opacity: 0.82,
             side: THREE.DoubleSide,
-            roughness: 0.18,
-            metalness: 0.08,
-            depthWrite: false
+            depthWrite: false,
+            blending: THREE.AdditiveBlending
           })
         )
       );
@@ -925,8 +983,11 @@
   };
 
   api.setMarkers = function (marks, origin) {
-    if (!layer || !layer.markRoot || !api.THREE) return;
     var list = marks || [];
+    lastWorld.marks = list;
+    if (origin) lastWorld.origin = origin;
+    if (api.arcade) syncOverlayWorld();
+    if (!layer || !layer.markRoot || !api.THREE) return;
     var key = list
       .map(function (m) {
         return m.kind + m.label + Math.round(m.lat * 1e4);
@@ -948,8 +1009,11 @@
   };
 
   api.setBuildings = function (buildings, origin) {
-    if (!layer || !layer.buildRoot || !api.THREE) return;
     var list = buildings || [];
+    lastWorld.buildings = list;
+    if (origin) lastWorld.origin = origin;
+    if (api.arcade) syncOverlayWorld();
+    if (!layer || !layer.buildRoot || !api.THREE) return;
     var key =
       list.length +
       ":" +
@@ -969,6 +1033,283 @@
     if (mapRef) mapRef.triggerRepaint();
   };
 
+  var lastWorld = { coords: [], origin: null, marks: [], buildings: [], roads: [] };
+  var overlayWorldKey = "";
+  var overlay = {
+    canvas: null,
+    renderer: null,
+    scene: null,
+    camera: null,
+    carRoot: null,
+    carSlot: null,
+    worldRoot: null,
+    routeRoot: null,
+    markRoot: null,
+    buildRoot: null,
+    roadRoot: null,
+    sky: null,
+    asphaltMats: [],
+    raf: 0
+  };
+
+  function syncOverlayWorld() {
+    if (!overlay.scene || !api.THREE || !lastWorld.origin) return;
+    var origin = lastWorld.origin;
+    var list = lastWorld.coords || [];
+    var key =
+      list.length +
+      ":" +
+      (list[0] ? list[0][0].toFixed(5) : "x") +
+      ":" +
+      (lastWorld.marks || []).length +
+      ":" +
+      (lastWorld.buildings || []).length +
+      ":" +
+      (lastWorld.roads || []).length +
+      ":" +
+      origin.lat.toFixed(4) +
+      origin.lng.toFixed(4);
+    if (key === overlayWorldKey && overlay.routeRoot && overlay.routeRoot.children.length) return;
+    overlayWorldKey = key;
+    var THREE = api.THREE;
+    overlay.worldOrigin = origin;
+    overlay.asphaltMats = [];
+    clearGroup(overlay.routeRoot);
+    clearGroup(overlay.markRoot);
+    clearGroup(overlay.buildRoot);
+    clearGroup(overlay.roadRoot);
+    if (list.length >= 2) {
+      var road = ribbonGeometry(THREE, list, origin, 12.2, 0.03);
+      if (road) {
+        var mat = asphaltShader(THREE, asphaltTexture(THREE));
+        overlay.asphaltMats.push(mat);
+        overlay.routeRoot.add(new THREE.Mesh(road, mat));
+      }
+      var bloom = ribbonGeometry(THREE, list, origin, 6.2, 0.08);
+      if (bloom) {
+        overlay.routeRoot.add(
+          new THREE.Mesh(
+            bloom,
+            new THREE.MeshBasicMaterial({
+              color: 0x00ff66,
+              transparent: true,
+              opacity: 0.28,
+              side: THREE.DoubleSide,
+              depthWrite: false,
+              blending: THREE.AdditiveBlending,
+              fog: false
+            })
+          )
+        );
+      }
+      var neon = ribbonGeometry(THREE, list, origin, 2.8, 0.13);
+      if (neon) {
+        overlay.routeRoot.add(
+          new THREE.Mesh(
+            neon,
+            new THREE.MeshBasicMaterial({
+              color: 0x66ffbb,
+              transparent: true,
+              opacity: 0.9,
+              side: THREE.DoubleSide,
+              depthWrite: false,
+              blending: THREE.AdditiveBlending,
+              fog: false
+            })
+          )
+        );
+      }
+      var yel = edgeLine(THREE, list, origin, -1, 0xf5c518);
+      var wht = edgeLine(THREE, list, origin, 1, 0xf8fafc);
+      if (yel) overlay.routeRoot.add(yel);
+      if (wht) overlay.routeRoot.add(wht);
+    }
+    (lastWorld.roads || []).forEach(function (line) {
+      if (!line || line.length < 2) return;
+      var geo = ribbonGeometry(THREE, line, origin, 8.4, 0.01);
+      if (!geo) return;
+      var mat = asphaltShader(THREE, asphaltTexture(THREE));
+      overlay.asphaltMats.push(mat);
+      overlay.roadRoot.add(new THREE.Mesh(geo, mat));
+    });
+    (lastWorld.marks || []).forEach(function (mark) {
+      var g = makeMarker(THREE, mark);
+      var p = enuOffset(origin, mark.lng, mark.lat);
+      g.position.set(p.x, 0, p.z);
+      overlay.markRoot.add(g);
+    });
+    (lastWorld.buildings || []).forEach(function (b) {
+      var g = buildingGroup(THREE, b, origin);
+      if (g) overlay.buildRoot.add(g);
+    });
+  }
+
+  function bootOverlay() {
+    var canvas = document.getElementById("arcade3d");
+    if (!canvas || !api.THREE) return false;
+    var THREE = api.THREE;
+    overlay.canvas = canvas;
+    var w = canvas.clientWidth || window.innerWidth || 800;
+    var h = canvas.clientHeight || window.innerHeight || 1280;
+    canvas.width = w;
+    canvas.height = h;
+    overlay.renderer = new THREE.WebGLRenderer({
+      canvas: canvas,
+      antialias: true,
+      alpha: false
+    });
+    overlay.renderer.setPixelRatio(Math.min(2, window.devicePixelRatio || 1));
+    overlay.renderer.setSize(w, h, false);
+    overlay.renderer.setClearColor(0x050914, 1);
+    overlay.scene = new THREE.Scene();
+    overlay.scene.fog = new THREE.Fog(0x0b1b33, 22, 160);
+    overlay.sky = makeSky(THREE);
+    overlay.scene.add(overlay.sky);
+    overlay.scene.add(new THREE.AmbientLight(0x6f88aa, 0.32));
+    overlay.scene.add(new THREE.HemisphereLight(0x3d6ca8, 0x0a0c10, 0.4));
+    var sun = new THREE.DirectionalLight(0xffc8a0, 0.45);
+    sun.position.set(10, 24, -8);
+    overlay.scene.add(sun);
+    overlay.carRoot = new THREE.Group();
+    overlay.carSlot = new THREE.Group();
+    overlay.worldRoot = new THREE.Group();
+    overlay.routeRoot = new THREE.Group();
+    overlay.markRoot = new THREE.Group();
+    overlay.buildRoot = new THREE.Group();
+    overlay.roadRoot = new THREE.Group();
+    overlay.carRoot.add(overlay.carSlot);
+    overlay.worldRoot.add(overlay.roadRoot);
+    overlay.worldRoot.add(overlay.routeRoot);
+    overlay.worldRoot.add(overlay.markRoot);
+    overlay.worldRoot.add(overlay.buildRoot);
+    overlay.scene.add(overlay.carRoot);
+    overlay.scene.add(overlay.worldRoot);
+    var ground = new THREE.Mesh(
+      new THREE.CircleGeometry(180, 48),
+      new THREE.MeshStandardMaterial({ color: 0x07090e, roughness: 1, metalness: 0 })
+    );
+    ground.rotation.x = -Math.PI / 2;
+    ground.position.y = -0.02;
+    overlay.scene.add(ground);
+    var local = new THREE.Mesh(
+      new THREE.PlaneGeometry(13, 70),
+      asphaltShader(THREE, asphaltTexture(THREE))
+    );
+    overlay.asphaltMats.push(local.material);
+    local.rotation.x = -Math.PI / 2;
+    local.position.set(0, 0.02, 16);
+    overlay.carRoot.add(local);
+    addCarLights(THREE, overlay.carRoot);
+    overlay.camera = new THREE.PerspectiveCamera(52, w / Math.max(1, h), 0.12, 280);
+    putOverlayCar(api.currentId || savedId());
+    syncOverlayWorld();
+    return true;
+  }
+
+  function putOverlayCar(id) {
+    if (!overlay.carSlot || !api.THREE) return;
+    fetchModel(id)
+      .then(function (src) {
+        if (!overlay.carSlot) return;
+        while (overlay.carSlot.children.length) overlay.carSlot.remove(overlay.carSlot.children[0]);
+        var mesh = cloneGltf(src);
+        mesh.traverse(function (node) {
+          if (node.isMesh) node.frustumCulled = false;
+        });
+        alignAndFit(mesh);
+        overlay.carSlot.add(mesh);
+      })
+      .catch(function () {});
+  }
+
+  function tickOverlay(now) {
+    if (!api.arcade || !overlay.renderer || !overlay.camera) {
+      overlay.raf = 0;
+      return;
+    }
+    overlay.raf = requestAnimationFrame(tickOverlay);
+    var vis = lerpPose(now || performance.now());
+    var headingRad = ((180 - (Number(vis.heading) || 0)) * Math.PI) / 180;
+    var leanRad = ((Number(vis.lean) || 0) * Math.PI) / 180;
+    overlay.carRoot.rotation.y = headingRad;
+    overlay.carSlot.rotation.z = leanRad;
+    if (overlay.worldOrigin) {
+      var w = enuOffset({ lng: vis.lng, lat: vis.lat }, overlay.worldOrigin.lng, overlay.worldOrigin.lat);
+      overlay.worldRoot.position.set(w.x, 0, w.z);
+    }
+    if (overlay.sky) overlay.sky.position.copy(overlay.camera.position);
+    faceMarkers(overlay.markRoot);
+    var t = (now || 0) / 1000;
+    overlay.asphaltMats.forEach(function (m) {
+      if (!m.uniforms) return;
+      m.uniforms.uTime.value = t;
+      var hx = Math.sin(headingRad) * 1.8;
+      var hz = Math.cos(headingRad) * 1.8;
+      m.uniforms.uHead.value.set(-Math.sin(headingRad) * 0.2, 0.7, hz);
+      m.uniforms.uHeadDir.value.set(-Math.sin(headingRad), -0.08, Math.cos(headingRad));
+      m.uniforms.uTail.value.set(Math.sin(headingRad) * 1.8, 0.5, -Math.cos(headingRad) * 1.8);
+    });
+    var canvas = overlay.canvas;
+    var cw = canvas.clientWidth || window.innerWidth;
+    var ch = canvas.clientHeight || window.innerHeight;
+    if (canvas.width !== cw || canvas.height !== ch) {
+      overlay.renderer.setSize(cw, ch, false);
+      overlay.camera.aspect = cw / Math.max(1, ch);
+      overlay.camera.updateProjectionMatrix();
+    }
+    var up = new api.THREE.Vector3(0, 1, 0);
+    var camPos = new api.THREE.Vector3(0, 1.52, -3.55).applyAxisAngle(up, headingRad);
+    var camLook = new api.THREE.Vector3(0, 0.48, 5.4).applyAxisAngle(up, headingRad);
+    overlay.camera.position.copy(camPos);
+    overlay.camera.lookAt(camLook);
+    overlay.renderer.render(overlay.scene, overlay.camera);
+  }
+
+  function dropOverlay() {
+    if (overlay.raf) cancelAnimationFrame(overlay.raf);
+    overlay.raf = 0;
+    if (overlay.renderer) {
+      try { overlay.renderer.dispose(); } catch (_e) {}
+    }
+    overlay.renderer = null;
+    overlay.scene = null;
+    overlay.camera = null;
+    overlay.carRoot = null;
+    overlay.carSlot = null;
+    overlay.worldRoot = null;
+    overlay.routeRoot = null;
+    overlay.markRoot = null;
+    overlay.buildRoot = null;
+    overlay.roadRoot = null;
+    overlay.sky = null;
+    overlay.asphaltMats = [];
+    overlayWorldKey = "";
+  }
+
+  api.setRoads = function (roads, origin) {
+    lastWorld.roads = roads || [];
+    if (origin) lastWorld.origin = origin;
+    if (api.arcade) syncOverlayWorld();
+  };
+
+  api.setArcade = function (on) {
+    api.arcade = !!on;
+    var canvas = document.getElementById("arcade3d");
+    if (canvas) canvas.hidden = !on;
+    document.documentElement.classList.toggle("is-arcade3d", !!on);
+    if (!on) {
+      dropOverlay();
+      if (mapRef) mapRef.triggerRepaint();
+      return;
+    }
+    loadThree().then(function () {
+      if (!api.arcade) return;
+      dropOverlay();
+      if (!bootOverlay()) return;
+      overlay.raf = requestAnimationFrame(tickOverlay);
+    });
+  };
+
   api.setModel = function (id, skipStore) {
     if (!carModels[id]) id = "verso";
     api.currentId = id;
@@ -976,6 +1317,7 @@
     showFallback();
     if (layer && layer.carRoot) putMesh(id);
     else if (mapRef) api.ensure(mapRef);
+    if (api.arcade) putOverlayCar(id);
     return id;
   };
 
