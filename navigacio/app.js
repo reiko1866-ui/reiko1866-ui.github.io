@@ -27,7 +27,10 @@
     dark: "https://tiles.openfreemap.org/styles/dark"
   };
   const OFF_ROUTE_M = 35;
-  const POS_LERP = 0.1;
+  const POS_LERP = 0.14;
+  const HEAD_LERP = 0.12;
+  const GPS_CORRECT = 0.48;
+  const COAST_MIN_SPEED = 0.35;
   const CAR_LS_KEY = "selectedCar";
   const GARAGE_LS_KEY = "nav2_car_model";
 
@@ -1956,7 +1959,7 @@
     return d <= budget * 2.4;
   }
 
-  function setOrigin(lngLat, heading, speed) {
+  function setOrigin(lngLat, heading, speed, fromSmooth) {
     if (Number.isFinite(speed) && speed >= 0) {
       state.speed = speed;
       AppState.speed = speed;
@@ -1971,7 +1974,7 @@
       state.lastSnap = snap;
       snappedPosition();
       const onRoad = snap.dist < snapLimit();
-      if (onRoad) {
+      if (onRoad && !fromSmooth) {
         const prevT = state.traveled || 0;
         let nextT = snap.traveled;
         if (nextT + 8 < prevT && snap.dist < 35) nextT = prevT;
@@ -1984,6 +1987,9 @@
         if (Number.isFinite(br) && (kmh >= 2 || state.navigating) && (!Number.isFinite(heading) || Math.abs(angDelta(heading, br)) < 70)) {
           state.heading = mixHeading(state.heading, br, kmh >= 2 ? 0.48 : 0.22);
         }
+      } else if (onRoad) {
+        const along = alongLine(state.coords, state.traveled || snap.traveled);
+        if (along) display = along;
       } else if (snap.dist < offRouteLimit() && state.traveled > 0) {
         const along = alongLine(state.coords, state.traveled);
         if (along) display = along;
@@ -2545,10 +2551,11 @@
     state.puck.setRotation((Number.isFinite(heading) ? heading : 0) - mapBearing);
   }
 
-  const CAM_LERP = 0.05;
+  const CAM_LERP = 0.16;
   const CAM_PITCH_NAV = 78;
   let lastPoiTick = 0;
   let lastOffTick = 0;
+  let lastSmoothT = 0;
 
   function lerp(start, end, amt) {
     if (!Number.isFinite(start)) return end;
@@ -2573,33 +2580,74 @@
     startSmooth();
   }
 
-  function animateFrame() {
+  function followK(dt, tau) {
+    return 1 - Math.exp(-Math.max(0.008, dt) / Math.max(0.04, tau));
+  }
+
+  function coastTarget(dt) {
+    const tgt = AppState.targetPos;
+    if (!Number.isFinite(tgt.lat) || !Number.isFinite(tgt.lng)) return;
+    const speed = Number(AppState.speed);
+    if (!(speed > COAST_MIN_SPEED) || !(dt > 0)) return;
+    const heading = Number.isFinite(tgt.bearing) ? tgt.bearing : state.heading || 0;
+    if (state.coords.length && (state.traveled > 0 || state.navigating)) {
+      state.traveled = (state.traveled || 0) + speed * dt;
+      const along = alongLine(state.coords, state.traveled);
+      if (along) {
+        tgt.lat = along.lat;
+        tgt.lng = along.lng;
+      }
+      const snap = nearest(state.coords, { lat: tgt.lat, lng: tgt.lng });
+      if (Number.isFinite(snap.bearing)) {
+        tgt.bearing = mixHeading(heading, snap.bearing, 0.22);
+      }
+      return;
+    }
+    const next = offsetLngLat({ lng: tgt.lng, lat: tgt.lat }, heading, speed * dt);
+    if (next) {
+      tgt.lat = next.lat;
+      tgt.lng = next.lng;
+    }
+  }
+
+  function animateFrame(stamp) {
     smoothRaf = requestAnimationFrame(animateFrame);
+    const now = stamp || (typeof performance !== "undefined" ? performance.now() : Date.now());
+    const dt = lastSmoothT ? Math.min(0.05, Math.max(0.008, (now - lastSmoothT) / 1000)) : 0.016;
+    lastSmoothT = now;
     const tgt = AppState.targetPos;
     const cur = AppState.currentPos;
     if (Number.isFinite(tgt.lat) && Number.isFinite(tgt.lng)) {
-      if (!cur.lat && !cur.lng) {
+      coastTarget(dt);
+      if (!cur._seeded) {
         cur.lat = tgt.lat;
         cur.lng = tgt.lng;
         cur.bearing = tgt.bearing || 0;
+        cur._seeded = true;
       } else {
-        cur.lat = lerp(cur.lat, tgt.lat, POS_LERP);
-        cur.lng = lerp(cur.lng, tgt.lng, POS_LERP);
-        cur.bearing = mixHeading(cur.bearing || 0, tgt.bearing || 0, POS_LERP);
+        const pk = followK(dt, POS_LERP);
+        const rk = followK(dt, HEAD_LERP);
+        cur.lat = lerp(cur.lat, tgt.lat, pk);
+        cur.lng = lerp(cur.lng, tgt.lng, pk);
+        cur.bearing = mixHeading(cur.bearing || 0, tgt.bearing || 0, rk);
       }
+      const pose = { lng: cur.lng, lat: cur.lat };
+      state.heading = Number.isFinite(cur.bearing) ? cur.bearing : state.heading;
       if (state.map) {
-        setOrigin({ lng: cur.lng, lat: cur.lat }, cur.bearing, AppState.speed);
-        placePuck(state.origin || { lng: cur.lng, lat: cur.lat }, state.heading || cur.bearing);
+        placePuck(pose, state.heading || cur.bearing);
       }
     }
-    const now = Date.now();
-    if (now - lastPoiTick > 400) {
-      lastPoiTick = now;
+    const wall = Date.now();
+    if (wall - lastPoiTick > 400) {
+      lastPoiTick = wall;
       maybeLoadFunPois();
       if (!state.navigating) maybeSpeakFunPoi(cur.lat, cur.lng);
     }
-    if (now - lastOffTick > 400) {
-      lastOffTick = now;
+    if (wall - lastOffTick > 220) {
+      lastOffTick = wall;
+      if (state.map && Number.isFinite(cur.lat) && Number.isFinite(cur.lng)) {
+        setOrigin({ lng: cur.lng, lat: cur.lat }, cur.bearing, AppState.speed, true);
+      }
       tickGpsHud();
       if (state.pendingPlan && state.dest && state.origin && !state.route && !state.planning) {
         state.pendingPlan = false;
@@ -2611,24 +2659,25 @@
     if (!state.map) return;
     paintCompass();
     if (!state.follow) return;
-    const pose = state.origin || { lng: cur.lng, lat: cur.lat };
+    const pose = { lng: cur.lng, lat: cur.lat };
     const heading = state.heading || cur.bearing || 0;
     if (!state.view) state.view = copyPose(pose, heading);
     const v = state.view;
-    v.lat = pose.lat;
-    v.lng = pose.lng;
-    v.heading = heading;
-    state.camHeading = heading;
+    const ck = followK(dt, CAM_LERP);
+    v.lat = lerp(v.lat, pose.lat, ck);
+    v.lng = lerp(v.lng, pose.lng, ck);
+    v.heading = mixHeading(v.heading || 0, heading, ck);
+    state.camHeading = v.heading;
     const kmh = (state.speed || AppState.speed || 0) * 3.6;
     const wantZoom = state.navigating
         ? kmh > 110 ? 17.85 : kmh > 70 ? 18.2 : 18.5
         : kmh > 90 ? 17.6 : 18.15;
     v.zoom = lerp(Number.isFinite(v.zoom) ? v.zoom : wantZoom, wantZoom, 0.04);
-    const ahead = lookAhead(v, heading);
+    const ahead = lookAhead(v, v.heading);
     try {
       state.map.jumpTo({
         center: [ahead.lng, ahead.lat],
-        bearing: heading || 0,
+        bearing: v.heading || 0,
         pitch: CAM_PITCH_NAV,
         zoom: v.zoom,
         padding: camPad()
@@ -3796,14 +3845,41 @@
       if (state.fixRejects < 3) return;
     }
     state.fixRejects = 0;
-    state.lastFix = { ll: raw, t: now, speed: spd || 0 };
+    const kmh = (spd || 0) * 3.6;
+    const gpsHeading = Number.isFinite(c.heading) && kmh >= 2 ? c.heading : AppState.targetPos.bearing;
+    state.lastFix = { ll: raw, t: now, speed: spd || 0, heading: gpsHeading };
     AppState.accuracy = acc;
     state.gpsAcc = acc;
     AppState.speed = spd;
-    AppState.targetPos.lat = raw.lat;
-    AppState.targetPos.lng = raw.lng;
-    const kmh = (spd || 0) * 3.6;
-    if (Number.isFinite(c.heading) && kmh >= 2) AppState.targetPos.bearing = c.heading;
+    const tgt = AppState.targetPos;
+    if (tgt._coasting && Number.isFinite(tgt.lat) && Number.isFinite(tgt.lng)) {
+      tgt.lat = lerp(tgt.lat, raw.lat, GPS_CORRECT);
+      tgt.lng = lerp(tgt.lng, raw.lng, GPS_CORRECT);
+    } else {
+      tgt.lat = raw.lat;
+      tgt.lng = raw.lng;
+      AppState.currentPos.lat = raw.lat;
+      AppState.currentPos.lng = raw.lng;
+      AppState.currentPos.bearing = gpsHeading || 0;
+      AppState.currentPos._seeded = true;
+    }
+    tgt._coasting = true;
+    if (Number.isFinite(gpsHeading)) tgt.bearing = mixHeading(tgt.bearing || gpsHeading, gpsHeading, 0.55);
+    if (state.coords.length) {
+      const snap = nearest(state.coords, raw);
+      if (snap.dist < snapLimit()) {
+        const prevT = state.traveled || snap.traveled;
+        let nextT = snap.traveled;
+        if (nextT + 8 < prevT && snap.dist < 35) nextT = prevT;
+        const maxFwd = Math.max(40, (spd || 0) * 3 + 25);
+        if (prevT > 0 && nextT > prevT + maxFwd) nextT = prevT + maxFwd;
+        state.traveled = lerp(prevT, nextT, 0.42);
+        if (Number.isFinite(snap.bearing) && (kmh >= 2 || state.navigating)) {
+          tgt.bearing = mixHeading(tgt.bearing || snap.bearing, snap.bearing, 0.4);
+        }
+      }
+    }
+    startSmooth();
   }
 
   function tickGpsHud() {
