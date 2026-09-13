@@ -2861,8 +2861,8 @@
     state.camHeading = v.heading;
     const kmh = (state.speed || AppState.speed || 0) * 3.6;
     const wantZoom = state.navigating
-        ? kmh > 110 ? 19.85 : kmh > 70 ? 20.15 : 20.35
-        : kmh > 90 ? 19.55 : 19.9;
+        ? kmh > 110 ? 20.35 : kmh > 70 ? 20.7 : 20.95
+        : kmh > 90 ? 20.1 : 20.45;
     v.zoom = lerp(Number.isFinite(v.zoom) ? v.zoom : wantZoom, wantZoom, 0.08);
     const ahead = lookAhead(v, v.heading);
     const pad = camPad();
@@ -3915,12 +3915,16 @@
     state.steps = [];
     state.traveled = 30;
     state.limits = [
-      { start: 0, end: 420, limit: 50, urban: true, cls: "residential" },
-      { start: 420, end: 1400, limit: 70, urban: false, cls: "primary" },
+      { start: 0, end: 90, limit: 50, urban: true, cls: "residential" },
+      { start: 90, end: 420, limit: 70, urban: false, cls: "primary" },
+      { start: 420, end: 1400, limit: 50, urban: true, cls: "residential" },
       { start: 1400, end: 99999, limit: 50, urban: true, cls: "residential" }
     ];
-    const cam = alongLine(coords, 520);
-    state.cameras = cam ? [{ lng: cam.lng, lat: cam.lat, traveled: 520 }] : [];
+    const cam = alongLine(coords, 160);
+    const cam2 = alongLine(coords, 380);
+    state.cameras = [];
+    if (cam) state.cameras.push({ lng: cam.lng, lat: cam.lat, traveled: 160 });
+    if (cam2) state.cameras.push({ lng: cam2.lng, lat: cam2.lat, traveled: 380 });
     state.road = { limit: 50, urban: true, cls: "residential" };
     state.speed = 18.3;
     AppState.speed = 18.3;
