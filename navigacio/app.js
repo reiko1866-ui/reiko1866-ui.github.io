@@ -2499,6 +2499,7 @@
   }
 
   function setArcadeMapMode(on) {
+    if (window.NavCar3D && window.NavCar3D.setArcade) window.NavCar3D.setArcade(on);
     if (!state.map || !state.map.isStyleLoaded()) return;
     const layers = (state.map.getStyle() && state.map.getStyle().layers) || [];
     layers.forEach(function (ly) {
@@ -2507,7 +2508,6 @@
         state.map.setLayoutProperty(ly.id, "visibility", on ? "none" : "visible");
       } catch (_e) {}
     });
-    if (window.NavCar3D && window.NavCar3D.setArcade) window.NavCar3D.setArcade(on);
   }
 
   function collectArcadeBuildings(origin) {

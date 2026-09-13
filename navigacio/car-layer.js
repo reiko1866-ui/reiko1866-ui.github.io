@@ -1149,8 +1149,9 @@
     if (!canvas || !api.THREE) return false;
     var THREE = api.THREE;
     overlay.canvas = canvas;
-    var w = canvas.clientWidth || window.innerWidth || 800;
-    var h = canvas.clientHeight || window.innerHeight || 1280;
+    var host = canvas.parentNode;
+    var w = Math.max(320, canvas.clientWidth || (host && host.clientWidth) || window.innerWidth || 800);
+    var h = Math.max(480, canvas.clientHeight || (host && host.clientHeight) || window.innerHeight || 1280);
     canvas.width = w;
     canvas.height = h;
     overlay.renderer = new THREE.WebGLRenderer({
@@ -1215,6 +1216,9 @@
         var mesh = cloneGltf(src);
         mesh.traverse(function (node) {
           if (node.isMesh) node.frustumCulled = false;
+        });
+        mesh.traverse(function (node) {
+          if (node.isMesh && node.geometry) node.geometry = node.geometry.clone();
         });
         alignAndFit(mesh);
         overlay.carSlot.add(mesh);
@@ -1295,18 +1299,20 @@
   api.setArcade = function (on) {
     api.arcade = !!on;
     var canvas = document.getElementById("arcade3d");
-    if (canvas) canvas.hidden = !on;
     document.documentElement.classList.toggle("is-arcade3d", !!on);
     if (!on) {
+      if (canvas) canvas.hidden = true;
       dropOverlay();
       if (mapRef) mapRef.triggerRepaint();
       return;
     }
+    if (canvas) canvas.hidden = false;
+    if (overlay.renderer && overlay.raf) return;
     loadThree().then(function () {
       if (!api.arcade) return;
-      dropOverlay();
-      if (!bootOverlay()) return;
-      overlay.raf = requestAnimationFrame(tickOverlay);
+      if (overlay.renderer && overlay.raf) return;
+      if (!overlay.renderer && !bootOverlay()) return;
+      if (!overlay.raf) overlay.raf = requestAnimationFrame(tickOverlay);
     });
   };
 
