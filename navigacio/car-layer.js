@@ -705,8 +705,10 @@
       onAdd: function (map, gl) {
         this.camera = new THREE.Camera();
         this.scene = new THREE.Scene();
-        this.scene.fog = new THREE.Fog(0x0b1b33, 18, 150);
+        this.scene.fog = new THREE.Fog(0x0b1b33, 28, 220);
         this.sky = makeSky(THREE);
+        this.sky.scale.set(1, 0.42, 1);
+        this.sky.position.y = 40;
         this.scene.add(this.sky);
         this.scene.add(new THREE.AmbientLight(0x8aa0c0, 0.38));
         this.scene.add(new THREE.HemisphereLight(0x4a7ab0, 0x12141a, 0.42));
@@ -729,7 +731,7 @@
         this.scene.add(this.carRoot);
         this.scene.add(this.worldRoot);
         var asphalt = new THREE.Mesh(
-          new THREE.PlaneGeometry(22, 72),
+          new THREE.PlaneGeometry(14, 90),
           new THREE.MeshStandardMaterial({
             map: asphaltTexture(THREE),
             color: 0xffffff,
@@ -868,7 +870,7 @@
     if (list.length < 2 || !origin) return;
     adoptOrigin(origin);
     var THREE = api.THREE;
-    var road = ribbonGeometry(THREE, list, origin, 8.6, 0.03);
+    var road = ribbonGeometry(THREE, list, origin, 11.5, 0.04);
     if (road) {
       layer.routeRoot.add(
         new THREE.Mesh(
