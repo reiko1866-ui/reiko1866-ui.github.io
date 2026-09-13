@@ -404,11 +404,11 @@
     var tailGlow = new THREE.PointLight(0xff2244, 1.35, 8.2);
     tailGlow.position.set(0, 0.52, -1.85);
     carRoot.add(tailGlow);
-    var beamL = lightCone(THREE, 0xffe7b0, 16, 2.6, 0.16);
+    var beamL = lightCone(THREE, 0xffe7b0, 14, 1.7, 0.1);
     beamL.position.set(-0.5, 0.55, 1.7);
-    var beamR = lightCone(THREE, 0xffe7b0, 16, 2.6, 0.16);
+    var beamR = lightCone(THREE, 0xffe7b0, 14, 1.7, 0.1);
     beamR.position.set(0.5, 0.55, 1.7);
-    var beamT = lightCone(THREE, 0xff2244, 7, 1.35, 0.22);
+    var beamT = lightCone(THREE, 0xff2244, 5.5, 0.85, 0.16);
     beamT.rotation.y = Math.PI;
     beamT.position.set(0, 0.48, -1.55);
     carRoot.add(beamL);
@@ -466,8 +466,8 @@
         "  vec3 toP = vWorld - uHead;\n" +
         "  float dist = length(toP);\n" +
         "  float cone = pow(max(0.0, dot(normalize(toP + vec3(0.0001)), normalize(uHeadDir))), 16.0);\n" +
-        "  float spot = cone * smoothstep(32.0, 3.0, dist);\n" +
-        "  vec3 head = vec3(1.0, 0.93, 0.7) * spot * 1.55;\n" +
+        "            float spot = cone * smoothstep(28.0, 4.0, dist);\n" +
+        "  vec3 head = vec3(1.0, 0.93, 0.7) * spot * 0.85;\n" +
         "  float td = length(vWorld - uTail);\n" +
         "  vec3 tail = vec3(1.0, 0.1, 0.22) * smoothstep(10.0, 0.6, td) * 0.7;\n" +
         "  float pulse = 0.85 + 0.15 * sin(uTime * 6.0);\n" +
@@ -1201,7 +1201,7 @@
     local.position.set(0, 0.02, 16);
     overlay.carRoot.add(local);
     addCarLights(THREE, overlay.carRoot);
-    overlay.camera = new THREE.PerspectiveCamera(52, w / Math.max(1, h), 0.12, 280);
+    overlay.camera = new THREE.PerspectiveCamera(48, w / Math.max(1, h), 0.2, 280);
     putOverlayCar(api.currentId || savedId());
     syncOverlayWorld();
     return true;
@@ -1262,8 +1262,8 @@
       overlay.camera.updateProjectionMatrix();
     }
     var up = new api.THREE.Vector3(0, 1, 0);
-    var camPos = new api.THREE.Vector3(0, 1.52, -3.55).applyAxisAngle(up, headingRad);
-    var camLook = new api.THREE.Vector3(0, 0.48, 5.4).applyAxisAngle(up, headingRad);
+    var camPos = new api.THREE.Vector3(0, 1.85, -7.6).applyAxisAngle(up, headingRad);
+    var camLook = new api.THREE.Vector3(0, 0.55, 6.2).applyAxisAngle(up, headingRad);
     overlay.camera.position.copy(camPos);
     overlay.camera.lookAt(camLook);
     overlay.renderer.render(overlay.scene, overlay.camera);
