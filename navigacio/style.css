@@ -2143,6 +2143,7 @@ noscript {
 #app.is-nav #tripMeta,
 #app.is-nav #tripMeta em {
   color: #111 !important;
+  white-space: nowrap;
 }
 
 #app.is-nav #compassN {
