@@ -76,6 +76,32 @@
   };
 
   var pose = { lng: 19.0402, lat: 47.4979, heading: 0, lean: 0, alt: 0 };
+  var shown = { lng: 19.0402, lat: 47.4979, heading: 0, lean: 0, seeded: false };
+  var lastPoseT = 0;
+
+  function angDeltaDeg(from, to) {
+    return ((to - from + 540) % 360) - 180;
+  }
+
+  function lerpPose(now) {
+    if (!shown.seeded) {
+      shown.lng = pose.lng;
+      shown.lat = pose.lat;
+      shown.heading = pose.heading;
+      shown.lean = pose.lean;
+      shown.seeded = true;
+      lastPoseT = now;
+      return shown;
+    }
+    var dt = lastPoseT ? Math.min(0.05, Math.max(0.008, (now - lastPoseT) / 1000)) : 0.016;
+    lastPoseT = now;
+    var k = 1 - Math.exp(-dt / 0.1);
+    shown.lng += (pose.lng - shown.lng) * k;
+    shown.lat += (pose.lat - shown.lat) * k;
+    shown.heading = (shown.heading + angDeltaDeg(shown.heading, pose.heading) * k + 360) % 360;
+    shown.lean += (pose.lean - shown.lean) * k;
+    return shown;
+  }
   var cache = {};
   var loadingId = "";
   var layer = null;
@@ -406,10 +432,11 @@
       },
       render: function (gl, args) {
         if (!this.renderer || !this.camera || !this.scene || !this.map) return;
-        var mc = maplibregl.MercatorCoordinate.fromLngLat([pose.lng, pose.lat], pose.alt);
+        var vis = lerpPose(typeof performance !== "undefined" ? performance.now() : Date.now());
+        var mc = maplibregl.MercatorCoordinate.fromLngLat([vis.lng, vis.lat], pose.alt);
         var scale = mc.meterInMercatorCoordinateUnits();
-        var headingRad = ((180 - (Number(pose.heading) || 0)) * Math.PI) / 180;
-        var leanRad = ((Number(pose.lean) || 0) * Math.PI) / 180;
+        var headingRad = ((180 - (Number(vis.heading) || 0)) * Math.PI) / 180;
+        var leanRad = ((Number(vis.lean) || 0) * Math.PI) / 180;
         var raw =
           args && args.defaultProjectionData && args.defaultProjectionData.mainMatrix
             ? args.defaultProjectionData.mainMatrix
