@@ -60,7 +60,7 @@
       <form id="searchForm" hidden autocomplete="off">
         <button type="button" id="hamburgerBtn" class="search-menu" title="Menü" aria-expanded="false" aria-controls="mobileDrawer">☰</button>
         <label class="sr-only" for="q">Cél</label>
-        <input id="q" type="search" name="q" placeholder="Cím, utca, város…" enterkeyhint="search" inputmode="search" spellcheck="false" autocapitalize="off">
+        <input id="q" type="search" name="q" placeholder="Utca 12, város…" enterkeyhint="search" inputmode="search" spellcheck="false" autocapitalize="off">
         <button type="submit" id="go">Menj</button>
       </form>
       <ul id="results" hidden></ul>
@@ -143,7 +143,8 @@
       <h1>Funkciók</h1>
       <ul>
         <li>Felül a kanyartábla: táv, utasítás, utca, alatta a következő kanyar.</li>
-        <li>A kereső címlistája: név felül, város/utca alatta. Koppints a találatra — nem az elsőt indítja.</li>
+        <li>A kereső házszámot is talál: írd be az utcát és a számot, pl. Kossuth utca 12. Közelítéskor a házszámok a térképen is látszanak.</li>
+        <li>A térképet húzhatod, nagyíthatod. Ekkor a követés kikapcsol; a térkép gomb visszateszi. A kereső címlistája: név felül, város/házszám alatta — koppints a találatra.</li>
         <li>A kanyarnál a feltöltött hangcsomag szól, egyszerre csak egy hang. Letéréskor újratervez.</li>
         <li>Arcade 3D nézet: éjszakai vektoros aszfalt, 78° kamera, égbolt/köd. A Garázsban low-poly chibi mini autók, kártyán forgó 3D előnézet. Kanyarban a karosszéria megdől. Jobbra három gomb: térkép, útvonal, hang.</li>
         <li>Kaland mód: OSRM alternatives, a kanyargósabb út, arany neon, autópálya nélkül. Poénos hang: csak körforgalomnál, éles kanyarnál, meredek utcán vagy túllépéskor — az OSRM útvonalra illesztve.</li>
@@ -169,7 +170,7 @@
     </section>
 
     <div id="fabBar">
-      <button type="button" id="follow" class="fab is-on" title="Térkép nézet — hosszú nyomás: menü" aria-pressed="true" aria-label="Térkép nézet">
+      <button type="button" id="follow" class="fab is-on" title="Követés — húzd a térképet körbenézéshez, hosszú nyomás: menü" aria-pressed="true" aria-label="Térkép követés">
         <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
           <rect x="3.2" y="5" width="17.6" height="14" rx="2.2" fill="#34d399"/>
           <path d="M3.2 12.5h17.6" stroke="#60a5fa" stroke-width="5"/>
