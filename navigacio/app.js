@@ -2565,9 +2565,22 @@
       const dx = (cx - origin.lng) * 111320 * cos;
       const dy = (cy - origin.lat) * 111320;
       if (dx * dx + dy * dy > 210 * 210) continue;
+      if (dx * dx + dy * dy < 12 * 12) continue;
       const key = cx.toFixed(5) + "," + cy.toFixed(5);
       if (seen[key]) continue;
       seen[key] = 1;
+      let minX = Infinity;
+      let maxX = -Infinity;
+      let minY = Infinity;
+      let maxY = -Infinity;
+      for (let k = 0; k < ring.length; k++) {
+        if (ring[k][0] < minX) minX = ring[k][0];
+        if (ring[k][0] > maxX) maxX = ring[k][0];
+        if (ring[k][1] < minY) minY = ring[k][1];
+        if (ring[k][1] > maxY) maxY = ring[k][1];
+      }
+      const span = Math.hypot((maxX - minX) * 111320 * cos, (maxY - minY) * 111320);
+      if (span > 90) continue;
       const props = f.properties || {};
       out.push({
         ring: ring,
@@ -2665,7 +2678,7 @@
       ? { top: 6, bottom: 10, left: 6, right: 6 }
       : {
           top: Math.round(h * (state.navigating ? 0.04 : 0.07)),
-          bottom: Math.round(h * (state.navigating ? 0.36 : 0.28)),
+          bottom: Math.round(h * (state.navigating ? 0.22 : 0.26)),
           left: 8,
           right: right
         };
@@ -2848,8 +2861,8 @@
     state.camHeading = v.heading;
     const kmh = (state.speed || AppState.speed || 0) * 3.6;
     const wantZoom = state.navigating
-        ? kmh > 110 ? 18.85 : kmh > 70 ? 19.05 : 19.25
-        : kmh > 90 ? 18.7 : 19.05;
+        ? kmh > 110 ? 19.85 : kmh > 70 ? 20.15 : 20.35
+        : kmh > 90 ? 19.55 : 19.9;
     v.zoom = lerp(Number.isFinite(v.zoom) ? v.zoom : wantZoom, wantZoom, 0.08);
     const ahead = lookAhead(v, v.heading);
     const pad = camPad();
@@ -3948,7 +3961,7 @@
     try {
       if (state.map) {
         state.map.setPitch(CAM_PITCH_NAV);
-        state.map.setZoom(19.15);
+        state.map.setZoom(20.25);
       }
     } catch (_cam) {}
     if (state.coords.length >= 2) {
