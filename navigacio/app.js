@@ -2508,12 +2508,12 @@
       }
       const sl = ly["source-layer"] || "";
       const hide =
-        ly.type === "symbol" ||
         ly.type === "fill-extrusion" ||
         ly.id === "arcade-buildings" ||
         ly.id === "arcade-lanes" ||
         ly.id === "building" ||
-        (ly.type === "line" && (sl === "transportation" || sl === "roads" || /highway|road|street|path/i.test(ly.id)));
+        (ly.type === "line" && (sl === "transportation" || sl === "roads" || /highway|road|street|path/i.test(ly.id))) ||
+        (on && ly.type === "symbol" && /housenumber|road_label|highway_name/i.test(ly.id));
       if (!hide) return;
       try {
         state.map.setLayoutProperty(ly.id, "visibility", on ? "none" : "visible");
@@ -2836,7 +2836,7 @@
     }
     if (!state.map) return;
     paintCompass();
-    if (!state.follow) return;
+    if (!state.follow && !state.arcadePreview) return;
     const pose = { lng: cur.lng, lat: cur.lat };
     const heading = state.heading || cur.bearing || 0;
     if (!state.view) state.view = copyPose(pose, heading);
@@ -2848,19 +2848,27 @@
     state.camHeading = v.heading;
     const kmh = (state.speed || AppState.speed || 0) * 3.6;
     const wantZoom = state.navigating
-        ? kmh > 110 ? 19.55 : kmh > 70 ? 19.8 : 20.05
-        : kmh > 90 ? 19.35 : 19.7;
-    v.zoom = lerp(Number.isFinite(v.zoom) ? v.zoom : wantZoom, wantZoom, 0.04);
+        ? kmh > 110 ? 18.85 : kmh > 70 ? 19.05 : 19.25
+        : kmh > 90 ? 18.7 : 19.05;
+    v.zoom = lerp(Number.isFinite(v.zoom) ? v.zoom : wantZoom, wantZoom, 0.08);
     const ahead = lookAhead(v, v.heading);
+    const pad = camPad();
     try {
       state.map.jumpTo({
         center: [ahead.lng, ahead.lat],
         bearing: v.heading || 0,
         pitch: CAM_PITCH_NAV,
         zoom: v.zoom,
-        padding: camPad()
+        padding: pad
       });
-    } catch (_e) {}
+    } catch (_e) {
+      try {
+        state.map.setPitch(CAM_PITCH_NAV);
+        state.map.setZoom(v.zoom);
+        state.map.setBearing(v.heading || 0);
+        state.map.setCenter([ahead.lng, ahead.lat]);
+      } catch (_e2) {}
+    }
   }
 
   function updateCamera(force) {
@@ -3866,11 +3874,9 @@
   }
 
   function maybeArcadePreview() {
-    if (!/[?&]arcade=1/.test(location.search) || state.navigating || state.route) return;
-    const o = {
-      lng: Number.isFinite(AppState.currentPos.lng) ? AppState.currentPos.lng : BUDAPEST[0],
-      lat: Number.isFinite(AppState.currentPos.lat) ? AppState.currentPos.lat : BUDAPEST[1]
-    };
+    if (!/[?&]arcade=1/.test(location.search) || state.navigating || state.arcadePreview) return;
+    const o = { lng: BUDAPEST[0], lat: BUDAPEST[1] };
+    state.arcadePreview = true;
     state.origin = o;
     const coords = [];
     let heading = 12;
@@ -3905,13 +3911,16 @@
     state.road = { limit: 50, urban: true, cls: "residential" };
     state.speed = 18.3;
     AppState.speed = 18.3;
+    state.follow = true;
     AppState.targetPos.lat = o.lat;
     AppState.targetPos.lng = o.lng;
-    AppState.targetPos.bearing = heading;
+    AppState.targetPos.bearing = 12;
     AppState.currentPos.lat = o.lat;
     AppState.currentPos.lng = o.lng;
-    AppState.currentPos.bearing = heading;
+    AppState.currentPos.bearing = 12;
     AppState.currentPos._seeded = true;
+    state.heading = 12;
+    state.camHeading = 12;
     addLayers();
     drawRoute();
     startNav();
@@ -3936,6 +3945,12 @@
     state.follow = true;
     $("follow").classList.add("is-on");
     $("follow").setAttribute("aria-pressed", "true");
+    try {
+      if (state.map) {
+        state.map.setPitch(CAM_PITCH_NAV);
+        state.map.setZoom(19.15);
+      }
+    } catch (_cam) {}
     if (state.coords.length >= 2) {
       state.heading = bearing(
         { lng: state.coords[0][0], lat: state.coords[0][1] },
@@ -4043,6 +4058,7 @@
   }
 
   function maybeReroute() {
+    if (state.arcadePreview) return;
     if (!state.navigating || !state.dest || state.planning) return;
     const coords =
       (AppState.activeRoute && AppState.activeRoute.coords) || state.coords || [];
@@ -4069,6 +4085,7 @@
   }
 
   function ingestGps(pos) {
+    if (state.arcadePreview) return;
     const c = pos && pos.coords;
     if (!c || !Number.isFinite(c.latitude) || !Number.isFinite(c.longitude)) return;
     const acc = Number(c.accuracy);

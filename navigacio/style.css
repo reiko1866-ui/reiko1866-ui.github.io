@@ -853,8 +853,10 @@ html.dark #results button.is-shortcut .result-title {
   max-width: min(16rem, calc(100% - 96px));
 }
 
-#app.is-nav #infoCard:not(:has(#status.is-err)) {
-  display: none;
+#app.is-nav #infoCard,
+#app.is-nav #infoCard:not(:has(#status.is-err)),
+#app.is-nav #weather {
+  display: none !important;
 }
 
 #app.is-nav:has(#thenRow:not([hidden])) #infoCard {
@@ -1942,7 +1944,8 @@ noscript {
 
 #app.is-nav #hudLeft {
   top: calc(0.7rem + var(--safe-top));
-  bottom: auto;
+  bottom: calc(0.7rem + var(--safe-bottom));
+  justify-content: space-between;
 }
 
 #app.is-nav #banner,
