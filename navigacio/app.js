@@ -2138,11 +2138,15 @@
       } catch (_e) {}
     }
     if (bSrc) {
-      try {
-        if (state.map.getLayer("building")) {
-          state.map.setLayoutProperty("building", "visibility", "none");
-        }
-      } catch (_e2) {}
+      layers.forEach(function (ly) {
+        if (!ly || ly.type !== "fill-extrusion") return;
+        if (ly.id === "arcade-buildings") return;
+        const sl = ly["source-layer"] || "";
+        if (sl !== "building" && sl !== "buildings") return;
+        try {
+          state.map.setLayoutProperty(ly.id, "visibility", "none");
+        } catch (_e2) {}
+      });
       insert({
         id: "arcade-data-buildings",
         type: "fill",
