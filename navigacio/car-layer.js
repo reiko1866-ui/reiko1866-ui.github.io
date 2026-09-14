@@ -544,13 +544,12 @@
       transparent: true,
       envMap: envMap || null
     });
-    var tailMat = new THREE.MeshPhysicalMaterial({
-      color: 0xc81028,
-      emissive: 0xff2030,
-      emissiveIntensity: 1.7,
-      roughness: 0.28,
-      metalness: 0.05,
-      envMap: envMap || null
+    var tailMat = new THREE.MeshStandardMaterial({
+      color: 0x330000,
+      emissive: 0xff0000,
+      emissiveIntensity: 1.15,
+      roughness: 0.4,
+      metalness: 0
     });
     var yLamp = box.min.y + size.y * 0.54;
     var xLamp = size.x * 0.33;
@@ -578,7 +577,6 @@
     var yLamp = box.min.y + size.y * 0.38;
     var xLamp = size.x * 0.3;
     var zf = box.max.z - 0.02;
-    var zb = box.min.z + 0.02;
     var fx = new THREE.Group();
     fx.userData.carLights = true;
     var spotL = new THREE.SpotLight(0xfff1c8, 12, 46, 0.38, 0.35, 0.5);
@@ -597,13 +595,6 @@
     beamR.position.set(xLamp, yLamp, zf);
     fx.add(beamL);
     fx.add(beamR);
-    var tailGlow = new THREE.PointLight(0xff2244, 0.35, 4.5);
-    tailGlow.position.set(0, yLamp, zb - 0.06);
-    fx.add(tailGlow);
-    var beamT = lightCone(THREE, 0xff2244, 2.4, 0.42, 0.08);
-    beamT.rotation.y = Math.PI;
-    beamT.position.set(0, yLamp, zb);
-    fx.add(beamT);
     host.add(fx);
   }
 
@@ -726,9 +717,7 @@
       {
         uMap: { value: tex },
         uHead: { value: new THREE.Vector3(0, 0.7, 1.8) },
-        uHeadDir: { value: new THREE.Vector3(0, -0.08, 1) },
-        uTail: { value: new THREE.Vector3(0, 0.5, -1.8) },
-        uTime: { value: 0 }
+        uHeadDir: { value: new THREE.Vector3(0, -0.08, 1) }
       }
     ]);
     return new THREE.ShaderMaterial({
@@ -746,7 +735,7 @@
         "  #include <fog_vertex>\n" +
         "}",
       fragmentShader:
-        "uniform sampler2D uMap; uniform vec3 uHead; uniform vec3 uHeadDir; uniform vec3 uTail; uniform float uTime;\n" +
+        "uniform sampler2D uMap; uniform vec3 uHead; uniform vec3 uHeadDir;\n" +
         "varying vec2 vUv; varying vec3 vWorld;\n" +
         "#include <fog_pars_fragment>\n" +
         "void main(){\n" +
@@ -756,10 +745,7 @@
         "  float cone = pow(max(0.0, dot(normalize(toP + vec3(0.0001)), normalize(uHeadDir))), 16.0);\n" +
         "  float spot = cone * smoothstep(28.0, 4.0, dist);\n" +
         "  vec3 head = vec3(1.0, 0.93, 0.7) * spot * 0.85;\n" +
-        "  float td = length(vWorld - uTail);\n" +
-        "  vec3 tail = vec3(1.0, 0.1, 0.22) * smoothstep(10.0, 0.6, td) * 0.7;\n" +
-        "  float pulse = 0.85 + 0.15 * sin(uTime * 6.0);\n" +
-        "  gl_FragColor = vec4(base + head + tail * pulse, 1.0);\n" +
+        "  gl_FragColor = vec4(base + head, 1.0);\n" +
         "  #include <fog_fragment>\n" +
         "}"
     });
@@ -1663,15 +1649,11 @@
     }
     if (overlay.sky) overlay.sky.position.copy(overlay.camera.position);
     faceMarkers(overlay.markRoot);
-    var t = (now || 0) / 1000;
     overlay.asphaltMats.forEach(function (m) {
-      if (!m.uniforms) return;
-      m.uniforms.uTime.value = t;
-      var hx = Math.sin(headingRad) * 1.8;
+      if (!m.uniforms || !m.uniforms.uHead) return;
       var hz = Math.cos(headingRad) * 1.8;
       m.uniforms.uHead.value.set(-Math.sin(headingRad) * 0.2, 0.7, hz);
       m.uniforms.uHeadDir.value.set(-Math.sin(headingRad), -0.08, Math.cos(headingRad));
-      m.uniforms.uTail.value.set(Math.sin(headingRad) * 1.8, 0.5, -Math.cos(headingRad) * 1.8);
     });
     var canvas = overlay.canvas;
     var cw = canvas.clientWidth || window.innerWidth;
@@ -1682,8 +1664,8 @@
       overlay.camera.updateProjectionMatrix();
     }
     var up = new api.THREE.Vector3(0, 1, 0);
-    var camPos = new api.THREE.Vector3(0, 2.35, -11.2).applyAxisAngle(up, headingRad);
-    var camLook = new api.THREE.Vector3(0, 0.4, 14).applyAxisAngle(up, headingRad);
+    var camPos = new api.THREE.Vector3(0, 5, -10).applyAxisAngle(up, headingRad);
+    var camLook = new api.THREE.Vector3(0, 0.45, 16).applyAxisAngle(up, headingRad);
     var carPos = new api.THREE.Vector3(0, 1.15, 0);
     if (overlay.worldRoot) overlay.worldRoot.updateMatrixWorld(true);
     if (overlay.buildRoot) {
@@ -1706,17 +1688,13 @@
         camPos.y += 1.25;
       }
       if (hits.length) {
-        var dir = camPos.clone().sub(carPos).normalize();
-        var safe = Math.max(6.8, hits[0].distance - 1.1);
-        camPos.copy(carPos).add(dir.multiplyScalar(safe));
-        camPos.y = Math.max(camPos.y, 3.1);
+        camPos.y = Math.max(camPos.y, 5.4);
       }
       overlay.buildRoot.children.forEach(function (g) {
         overlay.hitBox.setFromObject(g);
         if (overlay.hitBox.containsPoint(camPos)) {
           ghostBuilding(g);
           camPos.y = Math.max(camPos.y, overlay.hitBox.max.y + 1.15);
-          if (camPos.distanceTo(carPos) > 8.2) camPos.lerp(carPos, 0.12);
         }
       });
       var lookFar = new api.THREE.Vector3(0, 0.4, 80).applyAxisAngle(up, headingRad);
