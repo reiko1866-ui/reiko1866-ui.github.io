@@ -268,7 +268,9 @@
 
   function cloneGltf(root) {
     var copy = root.clone(true);
+    var drop = [];
     copy.traverse(function (node) {
+      if (node.isLight) drop.push(node);
       if (node.isMesh) {
         node.castShadow = false;
         node.receiveShadow = false;
@@ -280,6 +282,9 @@
           } else node.material = node.material.clone();
         }
       }
+    });
+    drop.forEach(function (light) {
+      if (light.parent) light.parent.remove(light);
     });
     copy.rotation.set(0, 0, 0);
     copy.position.set(0, 0, 0);
@@ -544,13 +549,10 @@
       transparent: true,
       envMap: envMap || null
     });
-    var tailMat = new THREE.MeshStandardMaterial({
-      color: 0x330000,
-      emissive: 0xff0000,
-      emissiveIntensity: 1.15,
-      roughness: 0.4,
-      metalness: 0
+    var tailMat = new THREE.MeshBasicMaterial({
+      color: 0xff0000
     });
+    if (tailMat.emissive) tailMat.emissive.setHex(0xff0000);
     var yLamp = box.min.y + size.y * 0.54;
     var xLamp = size.x * 0.33;
     var headGeo = new THREE.BoxGeometry(size.x * 0.15, size.y * 0.08, 0.1);
@@ -1566,19 +1568,16 @@
     overlay.scene.add(ground);
     var local = new THREE.Mesh(
       new THREE.PlaneGeometry(13, 70),
-      new THREE.MeshStandardMaterial({
+      new THREE.MeshBasicMaterial({
         map: asphaltTexture(THREE),
-        color: 0xffffff,
-        roughness: 0.88,
-        metalness: 0.06,
-        envMapIntensity: 0.15
+        color: 0xffffff
       })
     );
     overlay.asphaltMats.push(local.material);
     local.rotation.x = -Math.PI / 2;
     local.position.set(0, 0.02, 16);
     overlay.carRoot.add(local);
-    overlay.camera = new THREE.PerspectiveCamera(50, w / Math.max(1, h), 0.2, 320);
+    overlay.camera = new THREE.PerspectiveCamera(56, w / Math.max(1, h), 0.2, 320);
     putOverlayCar(api.currentId || savedId());
     syncOverlayWorld();
     return true;
@@ -1658,15 +1657,19 @@
     var canvas = overlay.canvas;
     var cw = canvas.clientWidth || window.innerWidth;
     var ch = canvas.clientHeight || window.innerHeight;
+    overlay.camera.aspect = cw / Math.max(1, ch);
+    overlay.camera.fov = ch > cw ? 58 : 52;
+    overlay.camera.updateProjectionMatrix();
     if (canvas.width !== cw || canvas.height !== ch) {
       overlay.renderer.setSize(cw, ch, false);
-      overlay.camera.aspect = cw / Math.max(1, ch);
-      overlay.camera.updateProjectionMatrix();
     }
-    var up = new api.THREE.Vector3(0, 1, 0);
-    var camPos = new api.THREE.Vector3(0, 5, -10).applyAxisAngle(up, headingRad);
-    var camLook = new api.THREE.Vector3(0, 0.45, 16).applyAxisAngle(up, headingRad);
-    var carPos = new api.THREE.Vector3(0, 1.15, 0);
+    overlay.carRoot.updateMatrixWorld(true);
+    // 7.2 m-es arcade autó: -14 a far mögött ~10 m, y=5.5 a 4–6 m sávban.
+    var camPos = new api.THREE.Vector3(0, 5.5, -14);
+    var camLook = new api.THREE.Vector3(0, 0.25, 22);
+    overlay.carRoot.localToWorld(camPos);
+    overlay.carRoot.localToWorld(camLook);
+    var carPos = overlay.carRoot.localToWorld(new api.THREE.Vector3(0, 1.15, 0));
     if (overlay.worldRoot) overlay.worldRoot.updateMatrixWorld(true);
     if (overlay.buildRoot) {
       overlay.buildRoot.children.forEach(function (g) {
@@ -1697,7 +1700,7 @@
           camPos.y = Math.max(camPos.y, overlay.hitBox.max.y + 1.15);
         }
       });
-      var lookFar = new api.THREE.Vector3(0, 0.4, 80).applyAxisAngle(up, headingRad);
+      var lookFar = overlay.carRoot.localToWorld(new api.THREE.Vector3(0, 0.4, 80));
       var block = rayHits(camPos, lookFar);
       for (i = 0; i < block.length; i++) ghostBuilding(buildingFromHit(block[i].object));
       if (block.length) camPos.y = Math.max(camPos.y, 3.4);
