@@ -421,7 +421,7 @@
     c.width = 128;
     c.height = 256;
     var g = c.getContext("2d");
-    g.fillStyle = "#071018";
+    g.fillStyle = "#10263d";
     g.fillRect(0, 0, 128, 256);
     var y;
     var x;
@@ -526,7 +526,7 @@
     grd.addColorStop(0.42, "#071428");
     grd.addColorStop(0.68, "#163c72");
     grd.addColorStop(0.84, "#c06a3e");
-    grd.addColorStop(1, "#0c1018");
+    grd.addColorStop(1, "#1a1a2e");
     g.fillStyle = grd;
     g.fillRect(0, 0, 8, 256);
     var tex = new THREE.CanvasTexture(c);
@@ -608,16 +608,68 @@
     return geo;
   }
 
+  function nearestOnRoute(px, pz, origin) {
+    var coords = lastWorld.coords;
+    if (!coords || coords.length < 2 || !origin) {
+      var len = Math.hypot(px, pz) || 1;
+      return { x: 0, z: 0, nx: px / len, nz: pz / len, dist: len };
+    }
+    var best = 1e9;
+    var cx = 0;
+    var cz = 0;
+    var nx = 0;
+    var nz = 1;
+    var i;
+    for (i = 1; i < coords.length; i++) {
+      var a = enuOffset(origin, coords[i - 1][0], coords[i - 1][1]);
+      var b = enuOffset(origin, coords[i][0], coords[i][1]);
+      var abx = b.x - a.x;
+      var abz = b.z - a.z;
+      var ab2 = abx * abx + abz * abz || 1;
+      var t = ((px - a.x) * abx + (pz - a.z) * abz) / ab2;
+      if (t < 0) t = 0;
+      else if (t > 1) t = 1;
+      var qx = a.x + abx * t;
+      var qz = a.z + abz * t;
+      var d = Math.hypot(px - qx, pz - qz);
+      if (d < best) {
+        best = d;
+        cx = qx;
+        cz = qz;
+        var alen = Math.hypot(abx, abz) || 1;
+        nx = -abz / alen;
+        nz = abx / alen;
+        if (nx * (px - qx) + nz * (pz - qz) < 0) {
+          nx = -nx;
+          nz = -nz;
+        }
+      }
+    }
+    if (best < 0.4) {
+      return { x: cx, z: cz, nx: nx, nz: nz, dist: best };
+    }
+    var lx = px - cx;
+    var lz = pz - cz;
+    var ll = Math.hypot(lx, lz) || 1;
+    return { x: cx, z: cz, nx: lx / ll, nz: lz / ll, dist: best };
+  }
+
   function buildingGroup(THREE, building, origin) {
     var ring = building.ring || [];
     if (ring.length < 3) return null;
     var shape = new THREE.Shape();
     var i;
+    var sx = 0;
+    var sz = 0;
     for (i = 0; i < ring.length; i++) {
       var p = enuOffset(origin, ring[i][0], ring[i][1]);
+      sx += p.x;
+      sz += p.z;
       if (i === 0) shape.moveTo(p.x, -p.z);
       else shape.lineTo(p.x, -p.z);
     }
+    sx /= ring.length;
+    sz /= ring.length;
     var h = Math.max(7, Number(building.h) || 14);
     var geo;
     try {
@@ -627,31 +679,43 @@
     }
     geo.rotateX(-Math.PI / 2);
     if (building.minH) geo.translate(0, Number(building.minH) || 0, 0);
-    var mesh = new THREE.Mesh(
-      geo,
-      new THREE.MeshStandardMaterial({
-        map: glassTexture(THREE),
-        color: 0x9ecfff,
-        emissive: 0x0a3d62,
-        emissiveIntensity: 0.38,
-        metalness: 0.82,
-        roughness: 0.12,
-        transparent: true,
-        opacity: 0.78,
-        side: THREE.DoubleSide
-      })
-    );
+    var glass = new THREE.MeshStandardMaterial({
+      color: 0x1a3d63,
+      emissive: 0x0c4a7a,
+      emissiveIntensity: 0.46,
+      metalness: 0.78,
+      roughness: 0.14,
+      transparent: true,
+      opacity: 0.38,
+      side: THREE.DoubleSide,
+      depthWrite: true
+    });
+    if (glass.map) glass.map = null;
+    var mesh = new THREE.Mesh(geo, glass);
     var edges = new THREE.LineSegments(
-      new THREE.EdgesGeometry(geo, 18),
+      new THREE.EdgesGeometry(geo, 22),
       new THREE.LineBasicMaterial({
-        color: 0x5ee7ff,
+        color: 0x7af0ff,
         transparent: true,
-        opacity: 0.48
+        opacity: 0.82,
+        fog: true
       })
     );
     var g = new THREE.Group();
     g.add(mesh);
     g.add(edges);
+    var off = nearestOnRoute(sx, sz, origin);
+    var want = 22;
+    if (off.dist < want) {
+      var push = want - off.dist;
+      g.position.x += off.nx * push;
+      g.position.z += off.nz * push;
+    }
+    g.userData.glass = glass;
+    g.userData.edgeMat = edges.material;
+    g.userData.baseOpacity = 0.38;
+    g.userData.baseEdge = 0.82;
+    mesh.userData.building = g;
     return g;
   }
 
@@ -766,7 +830,7 @@
       onAdd: function (map, gl) {
         this.camera = new THREE.Camera();
         this.scene = new THREE.Scene();
-        this.scene.fog = new THREE.Fog(0x0b1b33, 28, 220);
+        this.scene.fog = new THREE.FogExp2(0x1a1a2e, 0.015);
         this.sky = makeSky(THREE);
         this.sky.scale.set(1, 0.42, 1);
         this.sky.position.y = 40;
@@ -1049,6 +1113,8 @@
     roadRoot: null,
     sky: null,
     asphaltMats: [],
+    raycaster: null,
+    hitBox: null,
     raf: 0
   };
 
@@ -1161,9 +1227,9 @@
     });
     overlay.renderer.setPixelRatio(Math.min(2, window.devicePixelRatio || 1));
     overlay.renderer.setSize(w, h, false);
-    overlay.renderer.setClearColor(0x050914, 1);
+    overlay.renderer.setClearColor(0x1a1a2e, 1);
     overlay.scene = new THREE.Scene();
-    overlay.scene.fog = new THREE.Fog(0x0b1b33, 22, 160);
+    overlay.scene.fog = new THREE.FogExp2(0x1a1a2e, 0.015);
     overlay.sky = makeSky(THREE);
     overlay.scene.add(overlay.sky);
     overlay.scene.add(new THREE.AmbientLight(0x6f88aa, 0.32));
@@ -1264,6 +1330,70 @@
     var up = new api.THREE.Vector3(0, 1, 0);
     var camPos = new api.THREE.Vector3(0, 1.85, -7.6).applyAxisAngle(up, headingRad);
     var camLook = new api.THREE.Vector3(0, 0.55, 6.2).applyAxisAngle(up, headingRad);
+    var carPos = new api.THREE.Vector3(0, 1.15, 0);
+    if (overlay.worldRoot) overlay.worldRoot.updateMatrixWorld(true);
+    if (overlay.buildRoot) {
+      overlay.buildRoot.children.forEach(function (g) {
+        if (!g.userData.glass) return;
+        g.userData.glass.opacity = g.userData.baseOpacity;
+        g.userData.glass.depthWrite = true;
+        if (g.userData.edgeMat) g.userData.edgeMat.opacity = g.userData.baseEdge;
+      });
+      if (!overlay.raycaster) overlay.raycaster = new api.THREE.Raycaster();
+      if (!overlay.hitBox) overlay.hitBox = new api.THREE.Box3();
+      var toCam = camPos.clone().sub(carPos);
+      var wantDist = toCam.length();
+      var dir = toCam.normalize();
+      overlay.raycaster.set(carPos, dir);
+      overlay.raycaster.far = wantDist + 0.6;
+      overlay.raycaster.near = 0.2;
+      var hits = overlay.raycaster.intersectObjects(overlay.buildRoot.children, true);
+      var i;
+      for (i = 0; i < hits.length; i++) {
+        var hg = hits[i].object && hits[i].object.userData && hits[i].object.userData.building
+          ? hits[i].object.userData.building
+          : hits[i].object.parent;
+        if (hg && hg.userData && hg.userData.glass) {
+          hg.userData.glass.opacity = 0.12;
+          hg.userData.glass.depthWrite = false;
+          if (hg.userData.edgeMat) hg.userData.edgeMat.opacity = 0.95;
+        }
+      }
+      if (hits.length && hits[0].distance < wantDist) {
+        var safe = Math.max(4.2, hits[0].distance - 0.9);
+        camPos.copy(carPos).add(dir.multiplyScalar(safe));
+        camPos.y = Math.max(camPos.y, 2.35);
+      }
+      overlay.buildRoot.children.forEach(function (g) {
+        overlay.hitBox.setFromObject(g);
+        if (overlay.hitBox.containsPoint(camPos)) {
+          if (g.userData.glass) {
+            g.userData.glass.opacity = 0.1;
+            g.userData.glass.depthWrite = false;
+          }
+          camPos.y = Math.max(camPos.y, overlay.hitBox.max.y + 0.7);
+          camPos.lerp(carPos, 0.18);
+        }
+      });
+      var lookDir = camLook.clone().sub(camPos);
+      var lookLen = lookDir.length();
+      if (lookLen > 0.4) {
+        overlay.raycaster.set(camPos, lookDir.normalize());
+        overlay.raycaster.far = lookLen;
+        overlay.raycaster.near = 0.15;
+        var block = overlay.raycaster.intersectObjects(overlay.buildRoot.children, true);
+        for (i = 0; i < block.length; i++) {
+          var bg = block[i].object && block[i].object.userData && block[i].object.userData.building
+            ? block[i].object.userData.building
+            : block[i].object.parent;
+          if (bg && bg.userData && bg.userData.glass) {
+            bg.userData.glass.opacity = 0.12;
+            bg.userData.glass.depthWrite = false;
+            if (bg.userData.edgeMat) bg.userData.edgeMat.opacity = 0.95;
+          }
+        }
+      }
+    }
     overlay.camera.position.copy(camPos);
     overlay.camera.lookAt(camLook);
     overlay.renderer.render(overlay.scene, overlay.camera);

@@ -2554,7 +2554,14 @@
       const dx = (cx - origin.lng) * 111320 * cos;
       const dy = (cy - origin.lat) * 111320;
       if (dx * dx + dy * dy > 210 * 210) continue;
-      if (dx * dx + dy * dy < 28 * 28) continue;
+      let minD = Infinity;
+      for (let k = 0; k < ring.length; k++) {
+        const vx = (ring[k][0] - origin.lng) * 111320 * cos;
+        const vy = (ring[k][1] - origin.lat) * 111320;
+        const vd = Math.hypot(vx, vy);
+        if (vd < minD) minD = vd;
+      }
+      if (minD < 18) continue;
       const key = cx.toFixed(5) + "," + cy.toFixed(5);
       if (seen[key]) continue;
       seen[key] = 1;
