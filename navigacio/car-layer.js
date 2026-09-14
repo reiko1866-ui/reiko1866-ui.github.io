@@ -427,41 +427,34 @@
           envMapIntensity: 0.55
         });
       } else if (kind === "glass") {
-        next = new THREE.MeshPhysicalMaterial({
+        next = new THREE.MeshStandardMaterial({
           color: 0x152033,
-          metalness: 0,
-          roughness: 0.1,
-          transmission: 0.8,
-          thickness: 0.32,
-          ior: 1.45,
+          metalness: 0.08,
+          roughness: 0.18,
           transparent: true,
-          opacity: 1,
+          opacity: 0.42,
           envMap: envMap || null,
-          envMapIntensity: 1.5,
+          envMapIntensity: 0.7,
           side: THREE.DoubleSide,
           depthWrite: false
         });
       } else if (kind === "lamp") {
-        next = new THREE.MeshPhysicalMaterial({
+        next = new THREE.MeshStandardMaterial({
           color: color,
           map: map,
           emissive: color.clone().multiplyScalar(0.8),
-          emissiveIntensity: 2.4,
-          roughness: 0.22,
-          metalness: 0.1,
-          envMap: envMap || null
+          emissiveIntensity: 1.6,
+          roughness: 0.35,
+          metalness: 0.1
         });
       } else {
-        next = new THREE.MeshPhysicalMaterial({
+        next = new THREE.MeshStandardMaterial({
           color: map ? 0xffffff : color,
           map: map,
-          metalness: 0.8,
-          roughness: 0.2,
-          clearcoat: 1.0,
-          clearcoatRoughness: 0.1,
+          metalness: 0.65,
+          roughness: 0.32,
           envMap: envMap || null,
-          envMapIntensity: 1.85,
-          reflectivity: 0.85
+          envMapIntensity: 1.1
         });
       }
       if (src.normalMap) next.normalMap = src.normalMap;
@@ -501,17 +494,14 @@
     var box = boxInLocal(THREE, mesh);
     var size = box.getSize(new THREE.Vector3());
     var c = box.getCenter(new THREE.Vector3());
-    var glassMat = new THREE.MeshPhysicalMaterial({
+    var glassMat = new THREE.MeshStandardMaterial({
       color: 0x121c28,
-      metalness: 0,
-      roughness: 0.1,
-      transmission: 0.8,
-      thickness: 0.28,
-      ior: 1.45,
+      metalness: 0.08,
+      roughness: 0.2,
       transparent: true,
-      opacity: 1,
+      opacity: 0.4,
       envMap: envMap || null,
-      envMapIntensity: 1.55,
+      envMapIntensity: 0.7,
       side: THREE.DoubleSide,
       depthWrite: false
     });
@@ -539,15 +529,12 @@
     right.rotation.y = -Math.PI / 2;
     cabin.add(right);
     mesh.add(cabin);
-    var headMat = new THREE.MeshPhysicalMaterial({
+    var headMat = new THREE.MeshStandardMaterial({
       color: 0xfff3d0,
       emissive: 0xffe7a8,
-      emissiveIntensity: 2.4,
-      roughness: 0.12,
-      metalness: 0.05,
-      transmission: 0.35,
-      transparent: true,
-      envMap: envMap || null
+      emissiveIntensity: 1.8,
+      roughness: 0.28,
+      metalness: 0
     });
     var tailMat = new THREE.MeshBasicMaterial({
       color: 0xff0000
@@ -581,21 +568,9 @@
     var zf = box.max.z - 0.02;
     var fx = new THREE.Group();
     fx.userData.carLights = true;
-    var spotL = new THREE.SpotLight(0xfff1c8, 18, 24, 0.17, 0.38, 1.1);
-    spotL.position.set(-xLamp, yLamp + 0.06, zf + 0.08);
-    var spotR = new THREE.SpotLight(0xfff1c8, 18, 24, 0.17, 0.38, 1.1);
-    spotR.position.set(xLamp, yLamp + 0.06, zf + 0.08);
-    var aim = new THREE.Object3D();
-    aim.position.set(0, 0.04, 15);
-    aim.userData.headAim = true;
-    spotL.target = aim;
-    spotR.target = aim;
-    fx.add(spotL);
-    fx.add(spotR);
-    fx.add(aim);
-    var beamL = lightCone(THREE, 0xffe7b0, 15, 0.92, 0.1);
+    var beamL = lightCone(THREE, 0xffffff, 15, 0.95, 0.3);
     beamL.position.set(-xLamp, yLamp, zf);
-    var beamR = lightCone(THREE, 0xffe7b0, 15, 0.92, 0.1);
+    var beamR = lightCone(THREE, 0xffffff, 15, 0.95, 0.3);
     beamR.position.set(xLamp, yLamp, zf);
     fx.add(beamL);
     fx.add(beamR);
@@ -673,7 +648,7 @@
   }
 
   function lightCone(THREE, color, len, radius, opacity) {
-    var geo = new THREE.ConeGeometry(radius, len, 18, 1, true);
+    var geo = new THREE.ConeGeometry(radius, len, 12, 1, true);
     geo.rotateX(-Math.PI / 2);
     geo.translate(0, 0, len / 2);
     return new THREE.Mesh(
@@ -683,9 +658,7 @@
         transparent: true,
         opacity: opacity,
         side: THREE.DoubleSide,
-        depthWrite: false,
-        blending: THREE.AdditiveBlending,
-        fog: false
+        depthWrite: false
       })
     );
   }
@@ -1176,7 +1149,7 @@
         );
         asphalt.rotation.x = -Math.PI / 2;
         asphalt.position.set(0, 0.02, 18);
-        asphalt.receiveShadow = true;
+        asphalt.receiveShadow = false;
         this.carRoot.add(asphalt);
         this.map = map;
         try {
@@ -1191,6 +1164,7 @@
           return;
         }
         this.renderer.autoClear = false;
+        if (this.renderer.shadowMap) this.renderer.shadowMap.enabled = false;
         if (this.renderer.outputEncoding !== undefined && THREE.sRGBEncoding) {
           this.renderer.outputEncoding = THREE.sRGBEncoding;
         }
@@ -1200,6 +1174,11 @@
         }
         this.envMap = makeStudioEnv(THREE, this.renderer);
         if (this.envMap) this.scene.environment = this.envMap;
+        this._matProj = new THREE.Matrix4();
+        this._matLocal = new THREE.Matrix4();
+        this._matRotX = new THREE.Matrix4().makeRotationAxis(new THREE.Vector3(1, 0, 0), Math.PI / 2);
+        this._scaleVec = new THREE.Vector3();
+        this._matArr = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
         putMesh(api.currentId || savedId());
       },
       onRemove: function () {
@@ -1226,14 +1205,17 @@
             ? args.defaultProjectionData.mainMatrix
             : args;
         if (!raw) return;
-        var arr = raw.length ? Array.prototype.slice.call(raw, 0, 16) : (raw.elements ? Array.prototype.slice.call(raw.elements, 0, 16) : []);
-        if (!arr.length || arr.some(function (n) { return !Number.isFinite(n); })) return;
-        var m = new THREE.Matrix4().fromArray(arr);
-        var rotationX = new THREE.Matrix4().makeRotationAxis(new THREE.Vector3(1, 0, 0), Math.PI / 2);
-        var l = new THREE.Matrix4()
+        var src = raw.length ? raw : raw.elements;
+        if (!src) return;
+        var i;
+        var arr = this._matArr;
+        for (i = 0; i < 16; i++) arr[i] = src[i];
+        if (arr.some(function (n) { return !Number.isFinite(n); })) return;
+        var m = this._matProj.fromArray(arr);
+        var l = this._matLocal
           .makeTranslation(mc.x, mc.y, mc.z)
-          .scale(new THREE.Vector3(scale, -scale, scale))
-          .multiply(rotationX);
+          .scale(this._scaleVec.set(scale, -scale, scale))
+          .multiply(this._matRotX);
         this.camera.projectionMatrix = m.multiply(l);
         this.renderer.resetState();
         this.renderer.render(this.scene, this.camera);
@@ -1438,8 +1420,24 @@
       down: false,
       px: 0,
       py: 0
-    }
+    },
+    tmp: null
   };
+
+  function overlayTmp() {
+    if (overlay.tmp) return overlay.tmp;
+    var THREE = api.THREE;
+    overlay.tmp = {
+      camLocal: new THREE.Vector3(),
+      camPos: new THREE.Vector3(),
+      camLook: new THREE.Vector3(),
+      carPos: new THREE.Vector3(),
+      lookFar: new THREE.Vector3(),
+      rayDelta: new THREE.Vector3(),
+      ndc: new THREE.Vector3()
+    };
+    return overlay.tmp;
+  }
 
   function kmhNow() {
     return (Number(pose.speed) || 0) * 3.6;
@@ -1448,7 +1446,7 @@
   function bootSpeedBlur(THREE, renderer, w, h) {
     if (!renderer || !THREE.WebGLRenderTarget) return;
     try {
-      var pr = Math.min(2, renderer.getPixelRatio ? renderer.getPixelRatio() : 1);
+      var pr = Math.min(1.5, renderer.getPixelRatio ? renderer.getPixelRatio() : 1);
       overlay.rt = new THREE.WebGLRenderTarget(Math.max(2, Math.floor(w * pr)), Math.max(2, Math.floor(h * pr)));
       if (overlay.rt.texture && THREE.LinearFilter) {
         overlay.rt.texture.minFilter = THREE.LinearFilter;
@@ -1494,7 +1492,7 @@
 
   function resizeSpeedBlur(w, h) {
     if (!overlay.rt || !overlay.renderer) return;
-    var pr = Math.min(2, overlay.renderer.getPixelRatio ? overlay.renderer.getPixelRatio() : 1);
+    var pr = Math.min(1.5, overlay.renderer.getPixelRatio ? overlay.renderer.getPixelRatio() : 1);
     overlay.rt.setSize(Math.max(2, Math.floor(w * pr)), Math.max(2, Math.floor(h * pr)));
   }
 
@@ -1508,7 +1506,7 @@
     var useBlur = overlay.rt && overlay.postMat && overlay.postScene && overlay.blur > 0.012 && kmh >= 1;
     if (useBlur) {
       if (overlay.postMat.uniforms.uCenter && camLook) {
-        var ndc = camLook.clone().project(overlay.camera);
+        var ndc = overlayTmp().ndc.copy(camLook).project(overlay.camera);
         overlay.postMat.uniforms.uCenter.value.set(ndc.x * 0.5 + 0.5, ndc.y * 0.5 + 0.5);
       }
       overlay.postMat.uniforms.uStrength.value = overlay.blur;
@@ -1709,9 +1707,10 @@
       antialias: true,
       alpha: false
     });
-    overlay.renderer.setPixelRatio(Math.min(2, window.devicePixelRatio || 1));
+    overlay.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
     overlay.renderer.setSize(w, h, false);
     overlay.renderer.setClearColor(0x1a1a2e, 1);
+    if (overlay.renderer.shadowMap) overlay.renderer.shadowMap.enabled = false;
     if (overlay.renderer.outputEncoding !== undefined && THREE.sRGBEncoding) {
       overlay.renderer.outputEncoding = THREE.sRGBEncoding;
     }
@@ -1809,7 +1808,8 @@
   }
 
   function rayHits(from, to) {
-    var delta = to.clone().sub(from);
+    var tmp = overlayTmp();
+    var delta = tmp.rayDelta.copy(to).sub(from);
     var len = delta.length();
     if (len < 0.3) return [];
     overlay.raycaster.set(from, delta.normalize());
@@ -1843,9 +1843,13 @@
     var canvas = overlay.canvas;
     var cw = canvas.clientWidth || window.innerWidth;
     var ch = canvas.clientHeight || window.innerHeight;
-    overlay.camera.aspect = cw / Math.max(1, ch);
-    overlay.camera.fov = ch > cw ? 58 : 52;
-    overlay.camera.updateProjectionMatrix();
+    var fov = ch > cw ? 58 : 52;
+    var aspect = cw / Math.max(1, ch);
+    if (overlay.camera.aspect !== aspect || overlay.camera.fov !== fov) {
+      overlay.camera.aspect = aspect;
+      overlay.camera.fov = fov;
+      overlay.camera.updateProjectionMatrix();
+    }
     if (canvas.width !== cw || canvas.height !== ch) {
       overlay.renderer.setSize(cw, ch, false);
       resizeSpeedBlur(cw, ch);
@@ -1853,25 +1857,27 @@
     overlay.carRoot.updateMatrixWorld(true);
     var kmh = kmhNow();
     syncLookUi();
-    var camPos;
-    var camLook;
+    var tmp = overlayTmp();
+    var camPos = tmp.camPos;
+    var camLook = tmp.camLook;
     if (overlay.look.enabled && kmh < 1) {
       var yaw = overlay.look.yaw;
       var pitch = overlay.look.pitch;
       var dist = overlay.look.dist;
-      camPos = overlay.carRoot.localToWorld(
-        new api.THREE.Vector3(
+      overlay.carRoot.localToWorld(
+        tmp.camLocal.set(
           Math.sin(yaw) * Math.cos(pitch) * dist,
           Math.sin(pitch) * dist + 1.2,
           -Math.cos(yaw) * Math.cos(pitch) * dist
         )
       );
-      camLook = overlay.carRoot.localToWorld(new api.THREE.Vector3(0, 1.05, 0));
+      camPos.copy(tmp.camLocal);
+      overlay.carRoot.localToWorld(camLook.set(0, 1.05, 0));
     } else {
-      camPos = overlay.carRoot.localToWorld(new api.THREE.Vector3(0, 5.5, -14));
-      camLook = overlay.carRoot.localToWorld(new api.THREE.Vector3(0, 0.25, 22));
+      overlay.carRoot.localToWorld(camPos.set(0, 5.5, -14));
+      overlay.carRoot.localToWorld(camLook.set(0, 0.25, 22));
     }
-    var carPos = overlay.carRoot.localToWorld(new api.THREE.Vector3(0, 1.15, 0));
+    var carPos = overlay.carRoot.localToWorld(tmp.carPos.set(0, 1.15, 0));
     if (overlay.worldRoot) overlay.worldRoot.updateMatrixWorld(true);
     if (overlay.buildRoot) {
       overlay.buildRoot.children.forEach(function (g) {
@@ -1901,7 +1907,7 @@
             camPos.y = Math.max(camPos.y, overlay.hitBox.max.y + 1.15);
           }
         });
-        var lookFar = overlay.carRoot.localToWorld(new api.THREE.Vector3(0, 0.4, 80));
+        var lookFar = overlay.carRoot.localToWorld(tmp.lookFar.set(0, 0.4, 80));
         var block = rayHits(camPos, lookFar);
         for (i = 0; i < block.length; i++) ghostBuilding(buildingFromHit(block[i].object));
         if (block.length) camPos.y = Math.max(camPos.y, 3.4);
@@ -1914,14 +1920,6 @@
     }
     overlay.camera.position.copy(camPos);
     overlay.camera.lookAt(camLook);
-    if (overlay.carSlot) {
-      overlay.carSlot.children.forEach(function (g) {
-        if (!g.userData || !g.userData.carLights) return;
-        g.children.forEach(function (n) {
-          if (n.userData && n.userData.headAim) n.position.set(0, 0.04, 15);
-        });
-      });
-    }
     renderOverlay(camLook);
   }
 
@@ -2099,7 +2097,8 @@
           preserveDrawingBuffer: true
         });
         garage.renderer.setClearColor(0x000000, 0);
-        garage.renderer.setPixelRatio(1);
+        garage.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
+        if (garage.renderer.shadowMap) garage.renderer.shadowMap.enabled = false;
         if (garage.renderer.outputEncoding !== undefined && THREE.sRGBEncoding) {
           garage.renderer.outputEncoding = THREE.sRGBEncoding;
         }
