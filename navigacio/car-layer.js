@@ -683,49 +683,52 @@
     }
     geo.rotateX(-Math.PI / 2);
     if (building.minH) geo.translate(0, Number(building.minH) || 0, 0);
-    var glass = new THREE.MeshStandardMaterial({
-      color: 0x4eb4e6,
-      emissive: 0x1a7ec4,
-      emissiveIntensity: 0.58,
-      metalness: 0.12,
-      roughness: 0.06,
+    var glass = new THREE.MeshBasicMaterial({
+      color: 0x3ec6f0,
       transparent: true,
-      opacity: 0.16,
+      opacity: 0.2,
       side: THREE.DoubleSide,
       depthWrite: false,
       fog: true
     });
     var mesh = new THREE.Mesh(geo, glass);
+    mesh.renderOrder = 1;
     var wire = new THREE.Mesh(
       geo,
       new THREE.MeshBasicMaterial({
-        color: 0x8af6ff,
+        color: 0xb8ffff,
         wireframe: true,
         transparent: true,
-        opacity: 0.5,
+        opacity: 0.88,
         depthWrite: false,
-        fog: true
+        fog: true,
+        blending: THREE.AdditiveBlending
       })
     );
+    wire.renderOrder = 2;
     var edges = new THREE.LineSegments(
-      new THREE.EdgesGeometry(geo, 22),
+      new THREE.EdgesGeometry(geo, 18),
       new THREE.LineBasicMaterial({
-        color: 0xb4ffff,
+        color: 0xeaffff,
         transparent: true,
-        opacity: 0.95,
-        fog: true
+        opacity: 1,
+        fog: true,
+        blending: THREE.AdditiveBlending
       })
     );
+    edges.renderOrder = 3;
     wire.raycast = function () {};
     edges.raycast = function () {};
     var g = new THREE.Group();
     g.add(mesh);
     g.add(wire);
     g.add(edges);
-    var want = 32;
+    var want = 30;
     var nearest = 1e9;
     var nx = 0;
     var nz = 1;
+    var push = 0;
+    var guard;
     for (i = 0; i < ring.length; i++) {
       var rp = enuOffset(origin, ring[i][0], ring[i][1]);
       var off = nearestOnRoute(rp.x, rp.z, origin);
@@ -735,16 +738,24 @@
         nz = off.nz;
       }
     }
-    if (nearest < want) {
-      var push = want - nearest;
-      g.position.x += nx * push;
-      g.position.z += nz * push;
+    for (guard = 0; guard < 10; guard++) {
+      nearest = 1e9;
+      for (i = 0; i < ring.length; i++) {
+        var rp2 = enuOffset(origin, ring[i][0], ring[i][1]);
+        var off2 = nearestOnRoute(rp2.x + nx * push, rp2.z + nz * push, origin);
+        if (off2.dist < nearest) nearest = off2.dist;
+      }
+      if (nearest >= want) break;
+      push += want - nearest + 1.5;
     }
+    if (nearest < 14) return null;
+    g.position.x += nx * push;
+    g.position.z += nz * push;
     g.userData.glass = glass;
     g.userData.edgeMat = edges.material;
     g.userData.wireMat = wire.material;
-    g.userData.baseOpacity = 0.16;
-    g.userData.baseEdge = 0.95;
+    g.userData.baseOpacity = 0.2;
+    g.userData.baseEdge = 1;
     mesh.userData.building = g;
     return g;
   }
@@ -1295,7 +1306,7 @@
     local.position.set(0, 0.02, 16);
     overlay.carRoot.add(local);
     addCarLights(THREE, overlay.carRoot);
-    overlay.camera = new THREE.PerspectiveCamera(48, w / Math.max(1, h), 0.2, 320);
+    overlay.camera = new THREE.PerspectiveCamera(50, w / Math.max(1, h), 0.2, 320);
     putOverlayCar(api.currentId || savedId());
     syncOverlayWorld();
     return true;
@@ -1384,8 +1395,8 @@
       overlay.camera.updateProjectionMatrix();
     }
     var up = new api.THREE.Vector3(0, 1, 0);
-    var camPos = new api.THREE.Vector3(0, 2.2, -9.6).applyAxisAngle(up, headingRad);
-    var camLook = new api.THREE.Vector3(0, 0.45, 11).applyAxisAngle(up, headingRad);
+    var camPos = new api.THREE.Vector3(0, 2.35, -11.2).applyAxisAngle(up, headingRad);
+    var camLook = new api.THREE.Vector3(0, 0.4, 14).applyAxisAngle(up, headingRad);
     var carPos = new api.THREE.Vector3(0, 1.15, 0);
     if (overlay.worldRoot) overlay.worldRoot.updateMatrixWorld(true);
     if (overlay.buildRoot) {
@@ -1394,7 +1405,7 @@
         g.userData.glass.opacity = g.userData.baseOpacity;
         g.userData.glass.depthWrite = false;
         if (g.userData.edgeMat) g.userData.edgeMat.opacity = g.userData.baseEdge;
-        if (g.userData.wireMat) g.userData.wireMat.opacity = 0.5;
+        if (g.userData.wireMat) g.userData.wireMat.opacity = 0.88;
       });
       if (!overlay.raycaster) overlay.raycaster = new api.THREE.Raycaster();
       if (!overlay.hitBox) overlay.hitBox = new api.THREE.Box3();
@@ -1421,7 +1432,8 @@
           if (camPos.distanceTo(carPos) > 8.2) camPos.lerp(carPos, 0.12);
         }
       });
-      var block = rayHits(camPos, camLook);
+      var lookFar = new api.THREE.Vector3(0, 0.4, 80).applyAxisAngle(up, headingRad);
+      var block = rayHits(camPos, lookFar);
       for (i = 0; i < block.length; i++) ghostBuilding(buildingFromHit(block[i].object));
       if (block.length) camPos.y = Math.max(camPos.y, 3.4);
     }
