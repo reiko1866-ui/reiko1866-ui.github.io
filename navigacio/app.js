@@ -2157,7 +2157,7 @@
         type: "fill-extrusion",
         source: bSrc,
         "source-layer": bLayer,
-        minzoom: 13,
+        minzoom: 15,
         paint: {
             "fill-extrusion-color": "#243044",
           "fill-extrusion-height": [
@@ -2176,7 +2176,9 @@
             "interpolate",
             ["linear"],
             ["zoom"],
-            14,
+            15,
+            0,
+            15.15,
             0.86,
             18,
             0.8,
@@ -2385,7 +2387,9 @@
           "interpolate",
           ["linear"],
           ["zoom"],
-          14,
+          15,
+          0,
+          15.15,
           0.86,
           18,
           0.8,
@@ -2636,7 +2640,7 @@
       cy /= ring.length;
       const dx = (cx - origin.lng) * 111320 * cos;
       const dy = (cy - origin.lat) * 111320;
-      if (dx * dx + dy * dy > 210 * 210) continue;
+      if (dx * dx + dy * dy > 250 * 250) continue;
       let minD = Infinity;
       for (let k = 0; k < ring.length; k++) {
         const vx = (ring[k][0] - origin.lng) * 111320 * cos;
