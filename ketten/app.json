@@ -1,0 +1,58 @@
+{
+  "expo": {
+    "name": "Ketten",
+    "slug": "ketten",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "dark",
+    "newArchEnabled": true,
+    "scheme": "ketten",
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#10141A"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "hu.ketten.app",
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "A Ketten a térképen megmutatja, hol vagytok a pároddal.",
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "A Ketten akkor is megosztja a helyzeted a pároddal, ha az app a háttérben van.",
+        "UIBackgroundModes": ["location"]
+      }
+    },
+    "android": {
+      "package": "hu.ketten.app",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#10141A"
+      },
+      "edgeToEdgeEnabled": true,
+      "predictiveBackGestureEnabled": false,
+      "permissions": [
+        "ACCESS_COARSE_LOCATION",
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_BACKGROUND_LOCATION",
+        "FOREGROUND_SERVICE",
+        "FOREGROUND_SERVICE_LOCATION"
+      ]
+    },
+    "web": {
+      "favicon": "./assets/favicon.png",
+      "bundler": "metro"
+    },
+    "plugins": [
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "A Ketten akkor is megosztja a helyzeted a pároddal, ha az app a háttérben van.",
+          "locationWhenInUsePermission": "A Ketten a térképen megmutatja, hol vagytok a pároddal.",
+          "isIosBackgroundLocationEnabled": true,
+          "isAndroidBackgroundLocationEnabled": true,
+          "isAndroidForegroundServiceEnabled": true
+        }
+      ]
+    ]
+  }
+}

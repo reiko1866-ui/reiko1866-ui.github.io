@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="hu">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#0f766e" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <title>My English Journey</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🌿</text></svg>" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,400;0,500;0,600;0,700;0,800;1,500&display=swap" rel="stylesheet" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['"Plus Jakarta Sans"', 'system-ui', 'sans-serif']
+          },
+          boxShadow: {
+            card: '0 18px 40px -18px rgba(15, 118, 110, 0.28), 0 8px 16px -10px rgba(15, 23, 42, 0.12)',
+            soft: '0 10px 30px -12px rgba(15, 23, 42, 0.12)'
+          }
+        }
+      }
+    };
+  </script>
+  <style>
+    :root {
+      --safe-bottom: env(safe-area-inset-bottom, 0px);
+    }
+
+    html, body {
+      min-height: 100%;
+    }
+
+    body {
+      background:
+        radial-gradient(900px 420px at 12% -10%, rgba(45, 212, 191, 0.22), transparent 55%),
+        radial-gradient(700px 380px at 100% 0%, rgba(251, 191, 36, 0.16), transparent 50%),
+        linear-gradient(180deg, #f3f7f4 0%, #eef4f2 42%, #f7f4ee 100%);
+    }
+
+    .app-shell {
+      min-height: 100dvh;
+    }
+
+    .perspective {
+      perspective: 1400px;
+    }
+
+    .flip-card {
+      position: relative;
+      min-height: 22.5rem;
+      transform-style: preserve-3d;
+      -webkit-transform-style: preserve-3d;
+      transition: transform 0.62s cubic-bezier(0.4, 0.15, 0.2, 1);
+    }
+
+    .flip-card.is-flipped {
+      transform: rotateY(180deg);
+    }
+
+    .flip-face {
+      position: absolute;
+      inset: 0;
+      backface-visibility: hidden;
+      -webkit-backface-visibility: hidden;
+      transform: rotateY(0deg);
+      -webkit-transform: rotateY(0deg);
+    }
+
+    .flip-face-back {
+      transform: rotateY(180deg);
+      -webkit-transform: rotateY(180deg);
+    }
+
+    #speak-btn.is-speaking {
+      background: #0f766e;
+      transform: scale(0.97);
+    }
+
+    .tab-panel[hidden] {
+      display: none !important;
+    }
+
+    .nav-btn[aria-current="page"] {
+      color: #0f766e;
+      background: rgba(13, 148, 136, 0.12);
+    }
+
+    .nav-btn[aria-current="page"] .nav-icon {
+      transform: translateY(-1px) scale(1.06);
+    }
+
+    .progress-ring {
+      transform: rotate(-90deg);
+    }
+
+    .week-dot.is-today {
+      box-shadow: 0 0 0 3px rgba(13, 148, 136, 0.22);
+    }
+
+    @keyframes pop-in {
+      from { opacity: 0; transform: translateY(10px) scale(0.98); }
+      to { opacity: 1; transform: translateY(0) scale(1); }
+    }
+
+    .animate-pop {
+      animation: pop-in 0.35s ease-out;
+    }
+
+    @keyframes shake-x {
+      0%, 100% { transform: translateX(0); }
+      25% { transform: translateX(-7px); }
+      75% { transform: translateX(7px); }
+    }
+
+    .shake-x {
+      animation: shake-x 0.38s ease;
+    }
+
+    .word-chip {
+      border: 0;
+      cursor: pointer;
+      border-radius: 999px;
+      padding: 0.55rem 0.9rem;
+      font-size: 0.95rem;
+      font-weight: 700;
+      transition: transform 0.15s ease, background 0.15s ease, color 0.15s ease;
+    }
+
+    .word-chip:active {
+      transform: scale(0.96);
+    }
+
+    .word-chip.is-bank {
+      background: #fff;
+      color: #334155;
+      box-shadow: 0 8px 16px -10px rgba(15, 23, 42, 0.18);
+      outline: 1px solid rgba(226, 232, 240, 0.95);
+    }
+
+    .word-chip.is-selected {
+      background: #5b21b6;
+      color: #fff;
+    }
+
+    .word-chip.is-correct {
+      background: #059669;
+      color: #fff;
+      cursor: default;
+    }
+
+    .word-chip:disabled {
+      cursor: default;
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .flip-card, .animate-pop, .nav-icon, .shake-x, .word-chip {
+        transition: none !important;
+        animation: none !important;
+      }
+    }
+  </style>
+</head>
+<body class="font-sans text-slate-800 antialiased">
+  <div class="app-shell mx-auto flex w-full max-w-md flex-col px-4 pb-[calc(6.2rem+var(--safe-bottom))] pt-[max(0.85rem,env(safe-area-inset-top))] sm:max-w-lg">
+    <header class="mb-4 flex items-start justify-between gap-3">
+      <div class="min-w-0">
+        <p class="text-[11px] font-bold uppercase tracking-[0.18em] text-teal-700/70">A0 – A1</p>
+        <h1 class="truncate text-[1.55rem] font-extrabold leading-tight tracking-tight text-slate-900">My English Journey</h1>
+        <p id="header-subtitle" class="mt-0.5 text-sm text-slate-500">Kezdd a mai mini-leckét.</p>
+      </div>
+      <div class="flex shrink-0 items-center gap-2">
+        <div class="flex items-center gap-1.5 rounded-2xl bg-white/80 px-2.5 py-2 shadow-soft ring-1 ring-slate-200/70">
+          <span class="flex items-center gap-1 rounded-xl bg-amber-50 px-2 py-1 text-sm font-bold text-amber-700" title="Napi streak">
+            <span aria-hidden="true">🔥</span>
+            <span id="streak-count">0</span>
+          </span>
+          <span class="flex items-center gap-1 rounded-xl bg-teal-50 px-2 py-1 text-sm font-bold text-teal-800" title="Mai teljesítmény">
+            <span aria-hidden="true">⚡</span>
+            <span id="today-count">0</span>
+          </span>
+        </div>
+        <button id="profile-btn" type="button" class="grid h-11 w-11 place-items-center rounded-2xl bg-white text-lg shadow-soft ring-1 ring-slate-200/80 transition active:scale-95" aria-label="Profil megnyitása">
+          <span id="profile-avatar">🌱</span>
+        </button>
+      </div>
+    </header>
+
+    <main class="relative flex-1">
+      <section id="panel-flashcards" class="tab-panel animate-pop" role="tabpanel" aria-labelledby="tab-flashcards"></section>
+      <section id="panel-builder" class="tab-panel animate-pop" role="tabpanel" aria-labelledby="tab-builder" hidden></section>
+      <section id="panel-chat" class="tab-panel animate-pop" role="tabpanel" aria-labelledby="tab-chat" hidden></section>
+
+      <section id="panel-progress" class="tab-panel animate-pop" role="tabpanel" aria-labelledby="tab-progress" hidden>
+        <h2 class="text-lg font-bold text-slate-900">Haladás</h2>
+        <p class="mt-1 text-sm text-slate-500">A mai út és a megtanult szavak.</p>
+
+        <div class="mt-5 grid grid-cols-2 gap-3">
+          <article class="rounded-[1.5rem] bg-white p-4 shadow-soft ring-1 ring-slate-200/70">
+            <div class="relative mx-auto h-28 w-28">
+              <svg viewBox="0 0 36 36" class="progress-ring h-28 w-28">
+                <circle cx="18" cy="18" r="15.5" fill="none" stroke="#e2e8f0" stroke-width="3.2"></circle>
+                <circle id="progress-arc" cx="18" cy="18" r="15.5" fill="none" stroke="#0f766e" stroke-width="3.2" stroke-linecap="round" stroke-dasharray="0 100"></circle>
+              </svg>
+              <div class="absolute inset-0 grid place-items-center">
+                <span id="known-percent" class="text-xl font-extrabold text-slate-900">0%</span>
+              </div>
+            </div>
+            <p class="mt-2 text-center text-xs font-semibold text-slate-500">Ismert szavak</p>
+          </article>
+          <article class="flex flex-col justify-between rounded-[1.5rem] bg-white p-4 shadow-soft ring-1 ring-slate-200/70">
+            <p class="text-xs font-bold uppercase tracking-wider text-slate-400">Heti streak</p>
+            <div id="week-row" class="mt-3 flex justify-between gap-1"></div>
+            <p id="streak-copy" class="mt-3 text-sm font-semibold text-slate-700">Még nincs streak.</p>
+          </article>
+        </div>
+
+        <div class="mt-3 grid grid-cols-2 gap-3">
+          <article class="rounded-2xl bg-white p-3 text-center shadow-soft ring-1 ring-slate-200/70">
+            <p id="stat-known" class="text-2xl font-extrabold text-emerald-700">0</p>
+            <p class="text-[11px] font-semibold text-slate-500">Tudom</p>
+          </article>
+          <article class="rounded-2xl bg-white p-3 text-center shadow-soft ring-1 ring-slate-200/70">
+            <p id="stat-practice" class="text-2xl font-extrabold text-amber-600">0</p>
+            <p class="text-[11px] font-semibold text-slate-500">Gyakorlom</p>
+          </article>
+          <article class="rounded-2xl bg-white p-3 text-center shadow-soft ring-1 ring-slate-200/70">
+            <p id="stat-sentences" class="text-2xl font-extrabold text-violet-700">0</p>
+            <p class="text-[11px] font-semibold text-slate-500">Mondatok</p>
+          </article>
+          <article class="rounded-2xl bg-white p-3 text-center shadow-soft ring-1 ring-slate-200/70">
+            <p id="stat-today" class="text-2xl font-extrabold text-teal-700">0</p>
+            <p class="text-[11px] font-semibold text-slate-500">Ma</p>
+          </article>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <nav class="fixed inset-x-0 bottom-0 z-30 border-t border-slate-200/80 bg-white/90 px-3 pt-2 backdrop-blur-md" style="padding-bottom: calc(0.55rem + var(--safe-bottom));" role="tablist" aria-label="Fő navigáció">
+    <div class="mx-auto grid max-w-md grid-cols-4 gap-1 sm:max-w-lg">
+      <button id="tab-flashcards" class="nav-btn flex flex-col items-center gap-0.5 rounded-2xl px-2 py-2 text-[11px] font-bold text-slate-500" type="button" role="tab" aria-controls="panel-flashcards" aria-current="page">
+        <span class="nav-icon text-lg transition" aria-hidden="true">🎴</span>
+        Szókincs
+      </button>
+      <button id="tab-builder" class="nav-btn flex flex-col items-center gap-0.5 rounded-2xl px-2 py-2 text-[11px] font-bold text-slate-500" type="button" role="tab" aria-controls="panel-builder">
+        <span class="nav-icon text-lg transition" aria-hidden="true">🧩</span>
+        Mondatok
+      </button>
+      <button id="tab-chat" class="nav-btn flex flex-col items-center gap-0.5 rounded-2xl px-2 py-2 text-[11px] font-bold text-slate-500" type="button" role="tab" aria-controls="panel-chat">
+        <span class="nav-icon text-lg transition" aria-hidden="true">🤖</span>
+        AI Tanár
+      </button>
+      <button id="tab-progress" class="nav-btn flex flex-col items-center gap-0.5 rounded-2xl px-2 py-2 text-[11px] font-bold text-slate-500" type="button" role="tab" aria-controls="panel-progress">
+        <span class="nav-icon text-lg transition" aria-hidden="true">📊</span>
+        Haladás
+      </button>
+    </div>
+  </nav>
+
+  <div id="profile-modal" class="fixed inset-0 z-40 hidden items-end justify-center bg-slate-900/40 p-4 sm:items-center" role="dialog" aria-modal="true" aria-labelledby="profile-title">
+    <div class="w-full max-w-md rounded-[1.75rem] bg-white p-5 shadow-card">
+      <div class="mb-4 flex items-start justify-between">
+        <div>
+          <h2 id="profile-title" class="text-lg font-extrabold text-slate-900">Profil</h2>
+          <p class="text-sm text-slate-500" id="profile-hint">A haladásod ezen az eszközön marad. Bejelentkezve a felhőbe is mentünk.</p>
+        </div>
+        <button id="profile-close" type="button" class="grid h-9 w-9 place-items-center rounded-xl bg-slate-100 text-slate-600" aria-label="Bezárás">✕</button>
+      </div>
+      <p id="auth-status" class="mb-3 rounded-xl bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-500">Helyi mód</p>
+      <label for="learner-name" class="text-xs font-bold uppercase tracking-wider text-slate-400">Neved</label>
+      <input id="learner-name" type="text" maxlength="24" class="mt-1.5 w-full rounded-2xl bg-slate-100 px-4 py-3 text-sm font-semibold text-slate-800 outline-none focus:bg-white focus:ring-2 focus:ring-teal-500" placeholder="Pl. Anna" />
+      <div id="auth-fields" class="mt-3 space-y-2">
+        <label for="learner-email" class="text-xs font-bold uppercase tracking-wider text-slate-400">Email</label>
+        <input id="learner-email" type="email" autocomplete="email" class="mt-1 w-full rounded-2xl bg-slate-100 px-4 py-3 text-sm font-semibold text-slate-800 outline-none focus:bg-white focus:ring-2 focus:ring-teal-500" placeholder="te@email.com" />
+        <label for="learner-password" class="text-xs font-bold uppercase tracking-wider text-slate-400">Jelszó</label>
+        <input id="learner-password" type="password" autocomplete="current-password" minlength="6" class="mt-1 w-full rounded-2xl bg-slate-100 px-4 py-3 text-sm font-semibold text-slate-800 outline-none focus:bg-white focus:ring-2 focus:ring-teal-500" placeholder="Legalább 6 karakter" />
+      </div>
+      <p class="mt-3 text-sm text-slate-500">Szint: <span id="profile-level" class="font-bold text-teal-800">A0 – A1 kezdő</span></p>
+      <p id="profile-points" class="mt-1 text-sm font-semibold text-violet-700">0 pont</p>
+      <div class="mt-5 grid grid-cols-2 gap-2">
+        <button id="save-profile" type="button" class="rounded-2xl bg-teal-700 py-3.5 text-sm font-bold text-white hover:bg-teal-600">Mentés</button>
+        <button id="auth-primary" type="button" class="rounded-2xl bg-slate-900 py-3.5 text-sm font-bold text-white hover:bg-slate-800">Belépés</button>
+      </div>
+      <div class="mt-2 grid grid-cols-2 gap-2">
+        <button id="auth-register" type="button" class="rounded-2xl bg-white py-3 text-sm font-bold text-slate-700 ring-1 ring-slate-200 hover:bg-slate-50">Regisztráció</button>
+        <button id="auth-signout" type="button" class="hidden rounded-2xl bg-white py-3 text-sm font-bold text-rose-700 ring-1 ring-rose-100 hover:bg-rose-50">Kilépés</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="./supabaseConfig.js"></script>
+  <script src="./supabaseClient.js"></script>
+  <script src="./seedVocabulary.js"></script>
+  <script src="./components/Flashcards.js"></script>
+  <script src="./components/SentenceBuilder.js"></script>
+  <script src="./components/AiTeacher.js"></script>
+  <script src="./components/mount.js"></script>
+  <script src="./app.js"></script>
+</body>
+</html>
