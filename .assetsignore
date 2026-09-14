@@ -2,3 +2,5 @@
 # europe.pmtiles (~48 MiB) stays in git for GitHub Pages offline maps.
 *.pmtiles
 navigacio/map/*.pmtiles
+.wrangler
+.git
