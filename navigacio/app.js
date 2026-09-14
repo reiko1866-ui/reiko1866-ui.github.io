@@ -2006,6 +2006,7 @@
 
     $("speed").hidden = false;
     $("kmh").textContent = String(Math.round(kmh));
+    if (window.NavCar3D && window.NavCar3D.setSpeed) window.NavCar3D.setSpeed(state.speed);
     paintCar();
     if (state.navigating) syncFloatMarks();
   }
@@ -2533,6 +2534,23 @@
         state.map.setLayoutProperty(ly.id, "visibility", on ? "none" : "visible");
       } catch (_e) {}
     });
+    try {
+      if (on) {
+        state.map.dragPan.disable();
+        if (state.map.dragRotate) state.map.dragRotate.disable();
+        if (state.map.keyboard) state.map.keyboard.disable();
+        if (state.map.touchPitch) state.map.touchPitch.disable();
+        if (state.map.touchZoomRotate && state.map.touchZoomRotate.disableRotation) {
+          state.map.touchZoomRotate.disableRotation();
+        }
+      } else {
+        state.map.dragPan.enable();
+        if (state.map.dragRotate) state.map.dragRotate.enable();
+        if (state.map.keyboard) state.map.keyboard.enable();
+        if (state.map.touchPitch) state.map.touchPitch.enable();
+        state.map.touchZoomRotate.enable();
+      }
+    } catch (_ctl) {}
   }
 
   function boxRing(center, heading, alongM, acrossM) {
@@ -2834,7 +2852,7 @@
   function placePuck(ll, heading) {
     if (!state.map || !ll) return;
     const lean = updateCarLean(heading);
-    if (window.NavCar3D) window.NavCar3D.setPose(ll.lng, ll.lat, heading, lean);
+    if (window.NavCar3D) window.NavCar3D.setPose(ll.lng, ll.lat, heading, lean, state.speed);
     const use3d = window.NavCar3D && window.NavCar3D.ready;
     if (use3d) {
       if (state.puck) {
