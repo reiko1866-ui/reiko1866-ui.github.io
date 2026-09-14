@@ -4175,6 +4175,11 @@
   function stopNav(opts) {
     state.navigating = false;
     state.arcadePreview = false;
+    state.follow = false;
+    if ($("follow")) {
+      $("follow").classList.remove("is-on");
+      $("follow").setAttribute("aria-pressed", "false");
+    }
     state.pendingPlan = false;
     $("app").classList.remove("is-nav");
     $("trip").hidden = true;
