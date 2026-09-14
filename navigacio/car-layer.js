@@ -1805,7 +1805,7 @@
     overlay.scene.add(overlay.carRoot);
     overlay.scene.add(overlay.worldRoot);
     var ground = new THREE.Mesh(
-      new THREE.CircleGeometry(180, 48),
+      new THREE.CircleGeometry(CAM_FAR - 10, 48),
       new THREE.MeshStandardMaterial({ color: 0x07090e, roughness: 1, metalness: 0, envMapIntensity: 0 })
     );
     ground.rotation.x = -Math.PI / 2;
