@@ -2561,7 +2561,7 @@
         const vd = Math.hypot(vx, vy);
         if (vd < minD) minD = vd;
       }
-      if (minD < 18) continue;
+      if (minD < 8) continue;
       const key = cx.toFixed(5) + "," + cy.toFixed(5);
       if (seen[key]) continue;
       seen[key] = 1;
