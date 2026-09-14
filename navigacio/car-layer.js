@@ -387,9 +387,12 @@
       var pmrem = new THREE.PMREMGenerator(renderer);
       if (pmrem.compileEquirectangularShader) pmrem.compileEquirectangularShader();
       var rt = pmrem.fromEquirectangular(tex);
-      tex.dispose();
       pmrem.dispose();
-      return rt && rt.texture ? rt.texture : null;
+      if (rt && rt.texture) {
+        tex.dispose();
+        return rt.texture;
+      }
+      return tex;
     } catch (_e) {
       return null;
     }
