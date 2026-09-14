@@ -5,6 +5,11 @@
   var LAYER_ID = "ego-car-3d";
   var TARGET_METERS = 7.2;
   var CHIBI_SCALE = 1;
+  var CAM_FAR = 250;
+  var BUILD_RANGE = 250;
+  var BUILD_ZOOM_MIN = 15;
+  var FOG_COLOR = 0x0f172a;
+  var FOG_DENSITY = 0.008;
   var THREE_LOCAL = "./vendor/three.min.js";
   var GLTF_LOCAL = "./vendor/GLTFLoader.js";
   var THREE_CDN = "https://cdn.jsdelivr.net/npm/three@0.147.0/build/three.min.js";
@@ -778,7 +783,7 @@
     grd.addColorStop(0.42, "#071428");
     grd.addColorStop(0.68, "#163c72");
     grd.addColorStop(0.84, "#c06a3e");
-    grd.addColorStop(1, "#1a1a2e");
+    grd.addColorStop(1, "#0f172a");
     g.fillStyle = grd;
     g.fillRect(0, 0, 8, 256);
     var tex = new THREE.CanvasTexture(c);
@@ -789,9 +794,55 @@
       fog: false,
       depthWrite: false
     });
-    var mesh = new THREE.Mesh(new THREE.SphereGeometry(260, 28, 18), mat);
+    var mesh = new THREE.Mesh(new THREE.SphereGeometry(CAM_FAR - 10, 24, 14), mat);
     mesh.renderOrder = -8;
     return mesh;
+  }
+
+  var _cullDx = 0;
+  var _cullDz = 0;
+  function setRangeVisible(root, ox, oz, range) {
+    if (!root) return;
+    var r2 = range * range;
+    var kids = root.children;
+    var i;
+    var obj;
+    var x;
+    var z;
+    for (i = 0; i < kids.length; i++) {
+      obj = kids[i];
+      x = obj.userData && Number.isFinite(obj.userData.cullX) ? obj.userData.cullX : obj.position.x;
+      z = obj.userData && Number.isFinite(obj.userData.cullZ) ? obj.userData.cullZ : obj.position.z;
+      _cullDx = x - ox;
+      _cullDz = z - oz;
+      obj.visible = (_cullDx * _cullDx + _cullDz * _cullDz) <= r2;
+    }
+  }
+
+  function envClose() {
+    if (api.arcade) return true;
+    return !!(mapRef && typeof mapRef.getZoom === "function" && mapRef.getZoom() >= BUILD_ZOOM_MIN);
+  }
+
+  function applyWorldLod(scene, worldRoot, buildRoot, markRoot, sky, extraHeavy) {
+    var close = envClose();
+    if (scene && api.THREE) {
+      if (close) {
+        if (!scene.fog) scene.fog = new api.THREE.FogExp2(FOG_COLOR, FOG_DENSITY);
+      } else {
+        scene.fog = null;
+      }
+    }
+    if (buildRoot) buildRoot.visible = close;
+    if (markRoot) markRoot.visible = close;
+    if (sky) sky.visible = close;
+    if (extraHeavy) extraHeavy.visible = close;
+    if (close && worldRoot) {
+      var ox = -worldRoot.position.x;
+      var oz = -worldRoot.position.z;
+      setRangeVisible(buildRoot, ox, oz, BUILD_RANGE);
+      setRangeVisible(markRoot, ox, oz, BUILD_RANGE);
+    }
   }
 
   function enuOffset(origin, lng, lat) {
@@ -993,6 +1044,15 @@
     if (nearest < 14) return null;
     g.position.x += nx * push;
     g.position.z += nz * push;
+    var cx = 0;
+    var cz = 0;
+    for (i = 0; i < ring.length; i++) {
+      var cp = enuOffset(origin, ring[i][0], ring[i][1]);
+      cx += cp.x;
+      cz += cp.z;
+    }
+    g.userData.cullX = cx / ring.length + g.position.x;
+    g.userData.cullZ = cz / ring.length + g.position.z;
     g.userData.glass = glass;
     g.userData.edgeMat = edges.material;
     g.userData.wireMat = wire.material;
@@ -1113,7 +1173,7 @@
       onAdd: function (map, gl) {
         this.camera = new THREE.Camera();
         this.scene = new THREE.Scene();
-        this.scene.fog = new THREE.FogExp2(0x1a1a2e, 0.015);
+        this.scene.fog = new THREE.FogExp2(FOG_COLOR, FOG_DENSITY);
         this.sky = makeSky(THREE);
         this.sky.scale.set(1, 0.42, 1);
         this.sky.position.y = 40;
@@ -1217,6 +1277,7 @@
           .scale(this._scaleVec.set(scale, -scale, scale))
           .multiply(this._matRotX);
         this.camera.projectionMatrix = m.multiply(l);
+        applyWorldLod(this.scene, this.worldRoot, this.buildRoot, this.markRoot, this.sky, null);
         this.renderer.resetState();
         this.renderer.render(this.scene, this.camera);
         this.renderer.resetState();
@@ -1709,7 +1770,7 @@
     });
     overlay.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
     overlay.renderer.setSize(w, h, false);
-    overlay.renderer.setClearColor(0x1a1a2e, 1);
+    overlay.renderer.setClearColor(FOG_COLOR, 1);
     if (overlay.renderer.shadowMap) overlay.renderer.shadowMap.enabled = false;
     if (overlay.renderer.outputEncoding !== undefined && THREE.sRGBEncoding) {
       overlay.renderer.outputEncoding = THREE.sRGBEncoding;
@@ -1719,7 +1780,7 @@
       overlay.renderer.toneMappingExposure = 1.08;
     }
     overlay.scene = new THREE.Scene();
-    overlay.scene.fog = new THREE.FogExp2(0x1a1a2e, 0.015);
+    overlay.scene.fog = new THREE.FogExp2(FOG_COLOR, FOG_DENSITY);
     overlay.sky = makeSky(THREE);
     overlay.scene.add(overlay.sky);
     overlay.scene.add(new THREE.AmbientLight(0x6f88aa, 0.32));
@@ -1761,7 +1822,9 @@
     local.rotation.x = -Math.PI / 2;
     local.position.set(0, 0.02, 16);
     overlay.carRoot.add(local);
-    overlay.camera = new THREE.PerspectiveCamera(56, w / Math.max(1, h), 0.2, 320);
+    overlay.camera = new THREE.PerspectiveCamera(56, w / Math.max(1, h), 0.2, CAM_FAR);
+    overlay.camera.far = CAM_FAR;
+    overlay.camera.updateProjectionMatrix();
     bootSpeedBlur(THREE, overlay.renderer, w, h);
     bindLookUi();
     putOverlayCar(api.currentId || savedId());
@@ -1815,7 +1878,21 @@
     overlay.raycaster.set(from, delta.normalize());
     overlay.raycaster.near = 0.15;
     overlay.raycaster.far = len + 0.4;
-    return overlay.raycaster.intersectObjects(overlay.buildRoot.children, true);
+    var hits = overlay.raycaster.intersectObjects(overlay.buildRoot.children, true);
+    var kept = overlay._lodHits;
+    if (!kept) kept = overlay._lodHits = [];
+    kept.length = 0;
+    var i;
+    var hit;
+    var bldg;
+    for (i = 0; i < hits.length; i++) {
+      hit = hits[i];
+      if (!hit.object || hit.object.visible === false) continue;
+      bldg = buildingFromHit(hit.object);
+      if (bldg && bldg.visible === false) continue;
+      kept.push(hit);
+    }
+    return kept;
   }
 
   function tickOverlay(now) {
@@ -1833,6 +1910,7 @@
       var w = enuOffset({ lng: vis.lng, lat: vis.lat }, overlay.worldOrigin.lng, overlay.worldOrigin.lat);
       overlay.worldRoot.position.set(w.x, 0, w.z);
     }
+    applyWorldLod(overlay.scene, overlay.worldRoot, overlay.buildRoot, overlay.markRoot, overlay.sky, overlay.roadRoot);
     if (overlay.sky) overlay.sky.position.copy(overlay.camera.position);
     faceMarkers(overlay.markRoot);
     overlay.asphaltMats.forEach(function (m) {
@@ -1845,9 +1923,16 @@
     var ch = canvas.clientHeight || window.innerHeight;
     var fov = ch > cw ? 58 : 52;
     var aspect = cw / Math.max(1, ch);
-    if (overlay.camera.aspect !== aspect || overlay.camera.fov !== fov) {
+    if (
+      overlay.camera.aspect !== aspect ||
+      overlay.camera.fov !== fov ||
+      overlay.camera.far !== CAM_FAR ||
+      overlay.camera.near !== 0.2
+    ) {
       overlay.camera.aspect = aspect;
       overlay.camera.fov = fov;
+      overlay.camera.near = 0.2;
+      overlay.camera.far = CAM_FAR;
       overlay.camera.updateProjectionMatrix();
     }
     if (canvas.width !== cw || canvas.height !== ch) {
@@ -1879,9 +1964,9 @@
     }
     var carPos = overlay.carRoot.localToWorld(tmp.carPos.set(0, 1.15, 0));
     if (overlay.worldRoot) overlay.worldRoot.updateMatrixWorld(true);
-    if (overlay.buildRoot) {
+    if (overlay.buildRoot && overlay.buildRoot.visible) {
       overlay.buildRoot.children.forEach(function (g) {
-        if (!g.userData.glass) return;
+        if (!g.visible || !g.userData.glass) return;
         g.userData.glass.opacity = g.userData.baseOpacity;
         g.userData.glass.depthWrite = false;
         if (g.userData.edgeMat) g.userData.edgeMat.opacity = g.userData.baseEdge;
@@ -1901,6 +1986,7 @@
         }
         if (hits.length) camPos.y = Math.max(camPos.y, 5.4);
         overlay.buildRoot.children.forEach(function (g) {
+          if (!g.visible) return;
           overlay.hitBox.setFromObject(g);
           if (overlay.hitBox.containsPoint(camPos)) {
             ghostBuilding(g);
@@ -1913,6 +1999,7 @@
         if (block.length) camPos.y = Math.max(camPos.y, 3.4);
       } else {
         overlay.buildRoot.children.forEach(function (g) {
+          if (!g.visible) return;
           overlay.hitBox.setFromObject(g);
           if (overlay.hitBox.containsPoint(camPos)) ghostBuilding(g);
         });
