@@ -2143,6 +2143,15 @@
         }
       } catch (_e2) {}
       insert({
+        id: "arcade-data-buildings",
+        type: "fill",
+        source: bSrc,
+        "source-layer": bLayer,
+        minzoom: 12,
+        layout: { visibility: "visible" },
+        paint: { "fill-color": "#000000", "fill-opacity": 0 }
+      });
+      insert({
         id: "arcade-buildings",
         type: "fill-extrusion",
         source: bSrc,
@@ -2177,6 +2186,15 @@
       });
     }
     if (tSrc) {
+      insert({
+        id: "arcade-data-roads",
+        type: "line",
+        source: tSrc,
+        "source-layer": tLayer,
+        minzoom: 12,
+        layout: { visibility: "visible" },
+        paint: { "line-color": "#000000", "line-opacity": 0, "line-width": 1 }
+      });
       insert({
         id: "arcade-lanes",
         type: "line",
@@ -2501,32 +2519,79 @@
   function setArcadeMapMode(on) {
     if (window.NavCar3D && window.NavCar3D.setArcade) window.NavCar3D.setArcade(on);
     if (!state.map || !state.map.isStyleLoaded()) return;
+    addArcadeExtras();
     const layers = (state.map.getStyle() && state.map.getStyle().layers) || [];
     layers.forEach(function (ly) {
       if (!ly || !ly.id) return;
+      if (ly.id.indexOf("arcade-data-") === 0) {
+        try {
+          state.map.setLayoutProperty(ly.id, "visibility", "visible");
+        } catch (_keep) {}
+        return;
+      }
       try {
         state.map.setLayoutProperty(ly.id, "visibility", on ? "none" : "visible");
       } catch (_e) {}
     });
   }
 
+  function boxRing(center, heading, alongM, acrossM) {
+    const left = (heading + 270) % 360;
+    const corners = [
+      offsetLngLat(offsetLngLat(center, heading, alongM / 2), left, acrossM / 2),
+      offsetLngLat(offsetLngLat(center, heading, alongM / 2), left, -acrossM / 2),
+      offsetLngLat(offsetLngLat(center, heading, -alongM / 2), left, -acrossM / 2),
+      offsetLngLat(offsetLngLat(center, heading, -alongM / 2), left, acrossM / 2)
+    ];
+    const ring = corners.map(function (p) {
+      return [p.lng, p.lat];
+    });
+    ring.push(ring[0]);
+    return ring;
+  }
+
+  function seedGlassBlocks(origin) {
+    const coords = remainingCoords() || state.coords || [];
+    const extra = [];
+    if (!origin || coords.length < 5) return extra;
+    for (let i = 2; i < coords.length && extra.length < 22; i += 3) {
+      const a = { lng: coords[i - 1][0], lat: coords[i - 1][1] };
+      const b = { lng: coords[i][0], lat: coords[i][1] };
+      const hdg = bearing(a, b);
+      extra.push({
+        ring: boxRing(offsetLngLat(b, (hdg + 270) % 360, 32 + (i % 3) * 3), hdg, 15, 11),
+        h: 12 + (i % 6) * 4
+      });
+      extra.push({
+        ring: boxRing(offsetLngLat(b, (hdg + 90) % 360, 34 + ((i + 1) % 3) * 3), hdg, 13, 10),
+        h: 10 + ((i + 3) % 6) * 5
+      });
+    }
+    return extra;
+  }
+
   function collectArcadeBuildings(origin) {
-    if (!state.map || !origin) return [];
-    const layers = (state.map.getStyle() && state.map.getStyle().layers) || [];
-    let src = null;
-    let layer = null;
+    if (!origin) return seedGlassBlocks(origin);
+    const layers = (state.map && state.map.getStyle() && state.map.getStyle().layers) || [];
+    const tried = {};
+    let feats = [];
     layers.forEach(function (ly) {
       const sl = ly["source-layer"] || "";
-      if (!src && (sl === "building" || sl === "buildings")) {
-        src = ly.source;
-        layer = sl;
-      }
+      if (sl !== "building" && sl !== "buildings") return;
+      const key = ly.source + ":" + sl;
+      if (tried[key]) return;
+      tried[key] = 1;
+      try {
+        const got = state.map.querySourceFeatures(ly.source, { sourceLayer: sl });
+        for (let i = 0; i < got.length; i++) feats.push(got[i]);
+      } catch (_e) {}
     });
-    let feats = [];
-    try {
-      if (src) feats = state.map.querySourceFeatures(src, { sourceLayer: layer });
-    } catch (_e) {
-      feats = [];
+    if (!feats.length && state.map && state.map.getLayer("arcade-data-buildings")) {
+      try {
+        feats = state.map.queryRenderedFeatures({ layers: ["arcade-data-buildings"] });
+      } catch (_e2) {
+        feats = [];
+      }
     }
     const out = [];
     const seen = {};
@@ -2582,6 +2647,11 @@
         ring: ring,
         h: Math.max(8, Number(props.render_height || props.height) || 16),
         minH: Number(props.render_min_height || props.min_height) || 0
+      });
+    }
+    if (out.length < 8) {
+      seedGlassBlocks(origin).forEach(function (b) {
+        out.push(b);
       });
     }
     return out;
