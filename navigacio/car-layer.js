@@ -537,7 +537,7 @@
     var headMat = new THREE.MeshPhysicalMaterial({
       color: 0xfff3d0,
       emissive: 0xffe7a8,
-      emissiveIntensity: 4.2,
+      emissiveIntensity: 2.4,
       roughness: 0.12,
       metalness: 0.05,
       transmission: 0.35,
@@ -545,25 +545,25 @@
       envMap: envMap || null
     });
     var tailMat = new THREE.MeshPhysicalMaterial({
-      color: 0xff1a3c,
-      emissive: 0xff1028,
-      emissiveIntensity: 3.6,
-      roughness: 0.22,
-      metalness: 0.08,
+      color: 0xc81028,
+      emissive: 0xff2030,
+      emissiveIntensity: 1.7,
+      roughness: 0.28,
+      metalness: 0.05,
       envMap: envMap || null
     });
-    var yLamp = box.min.y + size.y * 0.42;
-    var xLamp = size.x * 0.34;
-    var headGeo = new THREE.BoxGeometry(size.x * 0.18, size.y * 0.1, 0.12);
+    var yLamp = box.min.y + size.y * 0.54;
+    var xLamp = size.x * 0.33;
+    var headGeo = new THREE.BoxGeometry(size.x * 0.15, size.y * 0.08, 0.1);
     var headL = new THREE.Mesh(headGeo, headMat);
-    headL.position.set(-xLamp, yLamp, box.max.z + 0.02);
+    headL.position.set(-xLamp, box.min.y + size.y * 0.4, box.max.z + 0.02);
     var headR = new THREE.Mesh(headGeo, headMat);
-    headR.position.set(xLamp, yLamp, box.max.z + 0.02);
-    var tailGeo = new THREE.BoxGeometry(size.x * 0.2, size.y * 0.1, 0.1);
+    headR.position.set(xLamp, box.min.y + size.y * 0.4, box.max.z + 0.02);
+    var tailGeo = new THREE.BoxGeometry(size.x * 0.13, size.y * 0.065, 0.05);
     var tailL = new THREE.Mesh(tailGeo, tailMat);
-    tailL.position.set(-xLamp * 0.95, yLamp, box.min.z - 0.03);
+    tailL.position.set(-xLamp * 0.92, yLamp, box.min.z - 0.04);
     var tailR = new THREE.Mesh(tailGeo, tailMat);
-    tailR.position.set(xLamp * 0.95, yLamp, box.min.z - 0.03);
+    tailR.position.set(xLamp * 0.92, yLamp, box.min.z - 0.04);
     mesh.add(headL);
     mesh.add(headR);
     mesh.add(tailL);
@@ -597,10 +597,10 @@
     beamR.position.set(xLamp, yLamp, zf);
     fx.add(beamL);
     fx.add(beamR);
-    var tailGlow = new THREE.PointLight(0xff2244, 0.7, 6);
-    tailGlow.position.set(0, yLamp, zb - 0.08);
+    var tailGlow = new THREE.PointLight(0xff2244, 0.35, 4.5);
+    tailGlow.position.set(0, yLamp, zb - 0.06);
     fx.add(tailGlow);
-    var beamT = lightCone(THREE, 0xff2244, 3.2, 0.55, 0.1);
+    var beamT = lightCone(THREE, 0xff2244, 2.4, 0.42, 0.08);
     beamT.rotation.y = Math.PI;
     beamT.position.set(0, yLamp, zb);
     fx.add(beamT);
