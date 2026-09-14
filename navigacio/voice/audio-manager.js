@@ -125,8 +125,15 @@
       return list && list.length ? list : [];
     }
 
-    pickName(cat) {
-      const matches = this.filesFor(cat);
+    allowedFiles(cat, force) {
+      const list = this.filesFor(cat);
+      if (force || !this.fileOk) return list.slice();
+      return list.filter((n) => this.fileOk(n));
+    }
+
+    pickName(cat, force) {
+      if (!force && this.catOk && !this.catOk(cat)) return "";
+      const matches = this.allowedFiles(cat, force);
       if (!matches.length) return "";
       if (matches.length === 1) return matches[0];
       let name = matches[Math.floor(Math.random() * matches.length)];
@@ -210,20 +217,23 @@
       this.warm[cat] = { name, href };
     }
 
-    playCat(cat) {
+    playCat(cat, force) {
       this.clearQueue();
       hushSpeech();
       if (!cat) return false;
       const order = [cat].concat(FALLBACK[cat] || []);
+      const hadOwn = this.filesFor(cat).length > 0;
       for (let i = 0; i < order.length; i++) {
         const key = order[i];
+        if (!force && this.catOk && !this.catOk(key)) continue;
+        if (i > 0 && hadOwn && !force) break;
         const held = this.warm[key];
-        const name = held && held.name ? held.name : this.pickName(key);
+        const name = held && held.name && (force || !this.fileOk || this.fileOk(held.name)) ? held.name : this.pickName(key, force);
         if (held) delete this.warm[key];
         if (!name) continue;
         return this.playNow(this.hrefsForName(name));
       }
-      this.log("Nincs feltöltött hang: " + cat, true);
+      this.log("Nincs engedélyezett hang: " + cat, true);
       return false;
     }
 
@@ -279,7 +289,7 @@
         return;
       }
       this.started = true;
-      this.playCat(phrase.cat);
+      this.playCat(phrase.cat, true);
     }
 
     announceTurn(copy) {
@@ -319,12 +329,21 @@
       return this.playNow(this.hrefsForName(name));
     }
 
-    skipJoke() {
+    playOne(name) {
+      if (!name) return false;
+      this.clearQueue();
+      this.started = true;
+      hushSpeech();
+      return this.playNow(this.hrefsForName(name));
+    }
+
+    skipJoke(cat) {
       if (this.queueOn) return this.playNextJoke();
-      const extra = this.filesFor("start");
+      const key = cat || "start";
+      const extra = this.filesFor(key);
       if (!extra.length) return false;
       this.started = true;
-      const name = this.pickName("start");
+      const name = this.pickName(key, true);
       if (this.onJoke) this.onJoke(name, 1, extra.length);
       return this.playNow(this.hrefsForName(name));
     }
