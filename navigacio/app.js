@@ -4170,6 +4170,7 @@
 
   function stopNav(opts) {
     state.navigating = false;
+    state.arcadePreview = false;
     state.pendingPlan = false;
     $("app").classList.remove("is-nav");
     $("trip").hidden = true;
