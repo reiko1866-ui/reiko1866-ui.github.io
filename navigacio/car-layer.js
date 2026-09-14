@@ -359,53 +359,37 @@
   function makeStudioEnv(THREE, renderer) {
     if (!renderer || !THREE.PMREMGenerator) return null;
     try {
-    var room = new THREE.Scene();
-    function glow(hex, intensity) {
-      return new THREE.MeshStandardMaterial({
-        color: hex,
-        emissive: hex,
-        emissiveIntensity: intensity,
-        roughness: 1,
-        metalness: 0
-      });
-    }
-    var shell = new THREE.Mesh(
-      new THREE.BoxGeometry(14, 10, 14),
-      new THREE.MeshStandardMaterial({
-        color: 0x1a2230,
-        roughness: 0.85,
-        metalness: 0.05,
-        side: THREE.BackSide
-      })
-    );
-    room.add(shell);
-    var ceil = new THREE.Mesh(new THREE.PlaneGeometry(11, 11), glow(0xf4f7ff, 5.5));
-    ceil.rotation.x = Math.PI / 2;
-    ceil.position.y = 4.6;
-    room.add(ceil);
-    var window = new THREE.Mesh(new THREE.PlaneGeometry(7, 3.6), glow(0xffe4c2, 8));
-    window.position.set(0, 0.9, -6.8);
-    room.add(window);
-    var warm = new THREE.Mesh(new THREE.PlaneGeometry(2.8, 5), glow(0xff7a3a, 4.2));
-    warm.position.set(-6.8, 0.3, 0.8);
-    warm.rotation.y = Math.PI / 2;
-    room.add(warm);
-    var cool = new THREE.Mesh(new THREE.PlaneGeometry(2.8, 5), glow(0x6ea8ff, 3.6));
-    cool.position.set(6.8, 0.3, 0.8);
-    cool.rotation.y = -Math.PI / 2;
-    room.add(cool);
-    var floor = new THREE.Mesh(
-      new THREE.PlaneGeometry(12, 12),
-      new THREE.MeshStandardMaterial({ color: 0x2a3140, roughness: 0.35, metalness: 0.4 })
-    );
-    floor.rotation.x = -Math.PI / 2;
-    floor.position.y = -4.8;
-    room.add(floor);
-    room.add(new THREE.AmbientLight(0xffffff, 0.35));
-    var pmrem = new THREE.PMREMGenerator(renderer);
-    var rt = pmrem.fromScene(room, 0.04, 0.1, 24);
-    pmrem.dispose();
-    return rt && rt.texture ? rt.texture : null;
+      var c = document.createElement("canvas");
+      c.width = 512;
+      c.height = 256;
+      var g = c.getContext("2d");
+      var grd = g.createLinearGradient(0, 0, 0, 256);
+      grd.addColorStop(0, "#dbe6f5");
+      grd.addColorStop(0.42, "#4a5c78");
+      grd.addColorStop(0.5, "#151820");
+      grd.addColorStop(1, "#2c3340");
+      g.fillStyle = grd;
+      g.fillRect(0, 0, 512, 256);
+      g.fillStyle = "#fff4dc";
+      g.fillRect(168, 18, 176, 78);
+      g.fillStyle = "#ffe9b0";
+      g.fillRect(200, 28, 110, 48);
+      g.fillStyle = "#ff7a38";
+      g.fillRect(8, 70, 64, 100);
+      g.fillStyle = "#6ea8ff";
+      g.fillRect(440, 70, 64, 100);
+      g.fillStyle = "rgba(255,255,255,0.55)";
+      g.fillRect(240, 200, 90, 18);
+      var tex = new THREE.CanvasTexture(c);
+      tex.mapping = THREE.EquirectangularReflectionMapping;
+      if (THREE.sRGBEncoding) tex.encoding = THREE.sRGBEncoding;
+      tex.needsUpdate = true;
+      var pmrem = new THREE.PMREMGenerator(renderer);
+      if (pmrem.compileEquirectangularShader) pmrem.compileEquirectangularShader();
+      var rt = pmrem.fromEquirectangular(tex);
+      tex.dispose();
+      pmrem.dispose();
+      return rt && rt.texture ? rt.texture : null;
     } catch (_e) {
       return null;
     }
@@ -468,7 +452,7 @@
           clearcoat: 1.0,
           clearcoatRoughness: 0.1,
           envMap: envMap || null,
-          envMapIntensity: 1.35,
+          envMapIntensity: 1.85,
           reflectivity: 0.85
         });
       }
@@ -532,8 +516,8 @@
     wind.rotation.x = -0.52;
     cabin.add(wind);
     var rear = new THREE.Mesh(new THREE.PlaneGeometry(windW * 0.88, windH * 0.82), glassMat);
-    rear.position.set(c.x, box.min.y + size.y * 0.72, box.min.z + size.z * 0.16);
-    rear.rotation.x = 0.48;
+    rear.position.set(c.x, box.min.y + size.y * 0.78, box.min.z - 0.06);
+    rear.rotation.x = 0.22;
     rear.rotation.y = Math.PI;
     cabin.add(rear);
     var sideH = Math.max(0.22, size.y * 0.16);
@@ -565,18 +549,18 @@
       metalness: 0.08,
       envMap: envMap || null
     });
-    var yLamp = box.min.y + size.y * 0.36;
-    var xLamp = size.x * 0.3;
-    var headGeo = new THREE.BoxGeometry(size.x * 0.16, size.y * 0.09, 0.1);
+    var yLamp = box.min.y + size.y * 0.42;
+    var xLamp = size.x * 0.34;
+    var headGeo = new THREE.BoxGeometry(size.x * 0.18, size.y * 0.1, 0.12);
     var headL = new THREE.Mesh(headGeo, headMat);
-    headL.position.set(-xLamp, yLamp, box.max.z - 0.04);
+    headL.position.set(-xLamp, yLamp, box.max.z + 0.02);
     var headR = new THREE.Mesh(headGeo, headMat);
-    headR.position.set(xLamp, yLamp, box.max.z - 0.04);
-    var tailGeo = new THREE.BoxGeometry(size.x * 0.18, size.y * 0.08, 0.08);
+    headR.position.set(xLamp, yLamp, box.max.z + 0.02);
+    var tailGeo = new THREE.BoxGeometry(size.x * 0.2, size.y * 0.1, 0.1);
     var tailL = new THREE.Mesh(tailGeo, tailMat);
-    tailL.position.set(-xLamp * 0.92, yLamp, box.min.z + 0.04);
+    tailL.position.set(-xLamp * 0.95, yLamp, box.min.z - 0.03);
     var tailR = new THREE.Mesh(tailGeo, tailMat);
-    tailR.position.set(xLamp * 0.92, yLamp, box.min.z + 0.04);
+    tailR.position.set(xLamp * 0.95, yLamp, box.min.z - 0.03);
     mesh.add(headL);
     mesh.add(headR);
     mesh.add(tailL);
@@ -610,10 +594,10 @@
     beamR.position.set(xLamp, yLamp, zf);
     fx.add(beamL);
     fx.add(beamR);
-    var tailGlow = new THREE.PointLight(0xff2244, 1.7, 9);
-    tailGlow.position.set(0, yLamp, zb - 0.12);
+    var tailGlow = new THREE.PointLight(0xff2244, 0.7, 6);
+    tailGlow.position.set(0, yLamp, zb - 0.08);
     fx.add(tailGlow);
-    var beamT = lightCone(THREE, 0xff2244, 5.2, 0.8, 0.15);
+    var beamT = lightCone(THREE, 0xff2244, 3.2, 0.55, 0.1);
     beamT.rotation.y = Math.PI;
     beamT.position.set(0, yLamp, zb);
     fx.add(beamT);
@@ -627,17 +611,17 @@
     var box = boxInParent(THREE, mesh, carRoot);
     var size = box.getSize(new THREE.Vector3());
     var shadow = new THREE.Mesh(
-      new THREE.PlaneGeometry(Math.max(2.4, size.x * 1.18), Math.max(4.2, size.z * 1.14)),
+      new THREE.PlaneGeometry(Math.max(2.1, size.x * 0.95), Math.max(3.6, size.z * 0.92)),
       new THREE.MeshBasicMaterial({
         map: contactShadowTexture(THREE),
         transparent: true,
-        opacity: 0.92,
+        opacity: 0.82,
         depthWrite: false,
         fog: true
       })
     );
     shadow.rotation.x = -Math.PI / 2;
-    shadow.position.set(0, 0.035, 0);
+    shadow.position.set(0, 0.032, size.z * 0.02);
     shadow.renderOrder = 2;
     shadow.userData.contactShadow = true;
     carRoot.add(shadow);
