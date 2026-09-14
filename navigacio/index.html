@@ -25,7 +25,7 @@
   <link rel="icon" href="./icons/icon-192.png" type="image/png">
   <link rel="apple-touch-icon" href="./icons/apple-touch-icon.png">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/maplibre-gl@5.5.0/dist/maplibre-gl.css">
-  <link rel="stylesheet" href="./style.css">
+  <link rel="stylesheet" href="./style.css?v=94">
 </head>
 <body>
   <div id="app">
@@ -114,6 +114,10 @@
       <div id="placeChip" hidden>
         <span id="placeText"></span>
       </div>
+      <button type="button" id="lookAroundBtn" hidden aria-pressed="false" title="360° Street View">
+        <strong>360°</strong>
+        <span>Körbenézés</span>
+      </button>
 
       <a class="peek nav-link" href="#funkciok">Funkciók ↓</a>
     </section>
@@ -266,7 +270,7 @@
   <script src="./voice/audio-manager.js"></script>
   <script src="./vendor/three.min.js"></script>
   <script src="./vendor/GLTFLoader.js"></script>
-  <script src="./car-layer.js?v=93"></script>
-  <script src="./app.js"></script>
+  <script src="./car-layer.js?v=94"></script>
+  <script src="./app.js?v=94"></script>
 </body>
 </html>

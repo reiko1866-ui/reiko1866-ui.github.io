@@ -75,7 +75,7 @@
     GLTFLoader: null
   };
 
-  var pose = { lng: 19.0402, lat: 47.4979, heading: 0, lean: 0, alt: 0 };
+  var pose = { lng: 19.0402, lat: 47.4979, heading: 0, lean: 0, alt: 0, speed: 0 };
   var shown = { lng: 19.0402, lat: 47.4979, heading: 0, lean: 0, seeded: false };
   var lastPoseT = 0;
 
@@ -581,19 +581,21 @@
     var zf = box.max.z - 0.02;
     var fx = new THREE.Group();
     fx.userData.carLights = true;
-    var spotL = new THREE.SpotLight(0xfff1c8, 12, 46, 0.38, 0.35, 0.5);
+    var spotL = new THREE.SpotLight(0xfff1c8, 18, 24, 0.17, 0.38, 1.1);
     spotL.position.set(-xLamp, yLamp + 0.06, zf + 0.08);
-    spotL.target.position.set(-xLamp * 0.3, 0.03, zf + 18);
-    var spotR = new THREE.SpotLight(0xfff1c8, 12, 46, 0.38, 0.35, 0.5);
+    var spotR = new THREE.SpotLight(0xfff1c8, 18, 24, 0.17, 0.38, 1.1);
     spotR.position.set(xLamp, yLamp + 0.06, zf + 0.08);
-    spotR.target.position.set(xLamp * 0.3, 0.03, zf + 18);
+    var aim = new THREE.Object3D();
+    aim.position.set(0, 0.04, 15);
+    aim.userData.headAim = true;
+    spotL.target = aim;
+    spotR.target = aim;
     fx.add(spotL);
-    fx.add(spotL.target);
     fx.add(spotR);
-    fx.add(spotR.target);
-    var beamL = lightCone(THREE, 0xffe7b0, 16, 1.85, 0.12);
+    fx.add(aim);
+    var beamL = lightCone(THREE, 0xffe7b0, 15, 0.92, 0.1);
     beamL.position.set(-xLamp, yLamp, zf);
-    var beamR = lightCone(THREE, 0xffe7b0, 16, 1.85, 0.12);
+    var beamR = lightCone(THREE, 0xffe7b0, 15, 0.92, 0.1);
     beamR.position.set(xLamp, yLamp, zf);
     fx.add(beamL);
     fx.add(beamR);
@@ -744,8 +746,8 @@
         "  vec3 base = texture2D(uMap, vUv).rgb * 0.78;\n" +
         "  vec3 toP = vWorld - uHead;\n" +
         "  float dist = length(toP);\n" +
-        "  float cone = pow(max(0.0, dot(normalize(toP + vec3(0.0001)), normalize(uHeadDir))), 16.0);\n" +
-        "  float spot = cone * smoothstep(28.0, 4.0, dist);\n" +
+        "  float cone = pow(max(0.0, dot(normalize(toP + vec3(0.0001)), normalize(uHeadDir))), 28.0);\n" +
+        "  float spot = cone * smoothstep(22.0, 3.0, dist);\n" +
         "  vec3 head = vec3(1.0, 0.93, 0.7) * spot * 0.85;\n" +
         "  gl_FragColor = vec4(base + head, 1.0);\n" +
         "  #include <fog_fragment>\n" +
@@ -1268,13 +1270,18 @@
       });
   };
 
-  api.setPose = function (lng, lat, heading, lean) {
+  api.setPose = function (lng, lat, heading, lean, speed) {
     if (!Number.isFinite(lng) || !Number.isFinite(lat)) return;
     pose.lng = lng;
     pose.lat = lat;
     if (Number.isFinite(heading)) pose.heading = heading;
     if (Number.isFinite(lean)) pose.lean = lean;
+    if (Number.isFinite(speed) && speed >= 0) pose.speed = speed;
     if (mapRef) mapRef.triggerRepaint();
+  };
+
+  api.setSpeed = function (speed) {
+    if (Number.isFinite(speed) && speed >= 0) pose.speed = speed;
   };
 
   function adoptOrigin(origin) {
@@ -1416,8 +1423,186 @@
     asphaltMats: [],
     raycaster: null,
     hitBox: null,
-    raf: 0
+    raf: 0,
+    rt: null,
+    postScene: null,
+    postCam: null,
+    postMat: null,
+    blur: 0,
+    lookBound: false,
+    look: {
+      enabled: false,
+      yaw: 0,
+      pitch: 0.38,
+      dist: 15,
+      down: false,
+      px: 0,
+      py: 0
+    }
   };
+
+  function kmhNow() {
+    return (Number(pose.speed) || 0) * 3.6;
+  }
+
+  function bootSpeedBlur(THREE, renderer, w, h) {
+    if (!renderer || !THREE.WebGLRenderTarget) return;
+    try {
+      var pr = Math.min(2, renderer.getPixelRatio ? renderer.getPixelRatio() : 1);
+      overlay.rt = new THREE.WebGLRenderTarget(Math.max(2, Math.floor(w * pr)), Math.max(2, Math.floor(h * pr)));
+      if (overlay.rt.texture && THREE.LinearFilter) {
+        overlay.rt.texture.minFilter = THREE.LinearFilter;
+        overlay.rt.texture.magFilter = THREE.LinearFilter;
+      }
+      overlay.postCam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
+      overlay.postMat = new THREE.ShaderMaterial({
+        uniforms: {
+          tDiffuse: { value: null },
+          uStrength: { value: 0 },
+          uCenter: { value: new THREE.Vector2(0.5, 0.42) }
+        },
+        vertexShader:
+          "varying vec2 vUv;\nvoid main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }",
+        fragmentShader:
+          "uniform sampler2D tDiffuse; uniform float uStrength; uniform vec2 uCenter;\n" +
+          "varying vec2 vUv;\n" +
+          "void main(){\n" +
+          "  vec2 d = vUv - uCenter;\n" +
+          "  float radial = length(d * vec2(1.62, 0.68));\n" +
+          "  float mask = smoothstep(0.08, 0.46, radial);\n" +
+          "  float str = uStrength * mask;\n" +
+          "  vec4 col = texture2D(tDiffuse, vUv);\n" +
+          "  if (str < 0.003) { gl_FragColor = col; return; }\n" +
+          "  float acc = 1.0;\n" +
+          "  for (int i = 1; i <= 8; i++) {\n" +
+          "    float t = float(i) / 8.0;\n" +
+          "    col += texture2D(tDiffuse, vUv - d * str * t * 0.24);\n" +
+          "    acc += 1.0;\n" +
+          "  }\n" +
+          "  gl_FragColor = col / acc;\n" +
+          "}"
+      });
+      overlay.postMat.depthTest = false;
+      overlay.postMat.depthWrite = false;
+      overlay.postScene = new THREE.Scene();
+      overlay.postScene.add(new THREE.Mesh(new THREE.PlaneGeometry(2, 2), overlay.postMat));
+    } catch (_e) {
+      overlay.rt = null;
+      overlay.postMat = null;
+    }
+  }
+
+  function resizeSpeedBlur(w, h) {
+    if (!overlay.rt || !overlay.renderer) return;
+    var pr = Math.min(2, overlay.renderer.getPixelRatio ? overlay.renderer.getPixelRatio() : 1);
+    overlay.rt.setSize(Math.max(2, Math.floor(w * pr)), Math.max(2, Math.floor(h * pr)));
+  }
+
+  function renderOverlay(camLook) {
+    var r = overlay.renderer;
+    var THREE = api.THREE;
+    var kmh = kmhNow();
+    var t = Math.max(0, Math.min(1, (kmh - 0.5) / 88));
+    var want = t * t * 0.7;
+    overlay.blur = overlay.blur * 0.8 + want * 0.2;
+    var useBlur = overlay.rt && overlay.postMat && overlay.postScene && overlay.blur > 0.012 && kmh >= 1;
+    if (useBlur) {
+      if (overlay.postMat.uniforms.uCenter && camLook) {
+        var ndc = camLook.clone().project(overlay.camera);
+        overlay.postMat.uniforms.uCenter.value.set(ndc.x * 0.5 + 0.5, ndc.y * 0.5 + 0.5);
+      }
+      overlay.postMat.uniforms.uStrength.value = overlay.blur;
+      overlay.postMat.uniforms.tDiffuse.value = overlay.rt.texture;
+      var tm = r.toneMapping;
+      var enc = r.outputEncoding;
+      r.setRenderTarget(overlay.rt);
+      if (THREE.LinearEncoding) r.outputEncoding = THREE.LinearEncoding;
+      r.render(overlay.scene, overlay.camera);
+      r.setRenderTarget(null);
+      r.toneMapping = THREE.NoToneMapping || 0;
+      if (THREE.sRGBEncoding) r.outputEncoding = THREE.sRGBEncoding;
+      r.render(overlay.postScene, overlay.postCam);
+      r.toneMapping = tm;
+      if (enc !== undefined) r.outputEncoding = enc;
+      return;
+    }
+    r.render(overlay.scene, overlay.camera);
+  }
+
+  function syncLookUi() {
+    var btn = document.getElementById("lookAroundBtn");
+    var canvas = overlay.canvas || document.getElementById("arcade3d");
+    var stopped = !!(api.arcade && kmhNow() < 1);
+    var app = document.getElementById("app");
+    if (app) app.classList.toggle("is-arcade-stopped", stopped);
+    if (!stopped && overlay.look.enabled) {
+      overlay.look.enabled = false;
+      overlay.look.yaw = 0;
+      overlay.look.pitch = 0.38;
+      overlay.look.down = false;
+    }
+    if (btn) {
+      btn.hidden = !stopped;
+      btn.classList.toggle("is-on", stopped && overlay.look.enabled);
+      btn.setAttribute("aria-pressed", stopped && overlay.look.enabled ? "true" : "false");
+    }
+    if (canvas) {
+      canvas.style.pointerEvents = stopped && overlay.look.enabled ? "auto" : "none";
+      canvas.style.touchAction = stopped && overlay.look.enabled ? "none" : "";
+    }
+  }
+
+  function onLookDown(ev) {
+    if (!overlay.look.enabled || kmhNow() >= 1) return;
+    overlay.look.down = true;
+    overlay.look.px = ev.clientX;
+    overlay.look.py = ev.clientY;
+    try {
+      ev.currentTarget.setPointerCapture(ev.pointerId);
+    } catch (_e) {}
+    ev.preventDefault();
+  }
+
+  function onLookMove(ev) {
+    if (!overlay.look.down || !overlay.look.enabled) return;
+    var dx = ev.clientX - overlay.look.px;
+    var dy = ev.clientY - overlay.look.py;
+    overlay.look.px = ev.clientX;
+    overlay.look.py = ev.clientY;
+    overlay.look.yaw -= dx * 0.005;
+    overlay.look.pitch = Math.max(0.12, Math.min(1.22, overlay.look.pitch + dy * 0.004));
+    ev.preventDefault();
+  }
+
+  function onLookUp(ev) {
+    overlay.look.down = false;
+    try {
+      ev.currentTarget.releasePointerCapture(ev.pointerId);
+    } catch (_e) {}
+  }
+
+  function bindLookUi() {
+    if (overlay.lookBound) return;
+    overlay.lookBound = true;
+    var btn = document.getElementById("lookAroundBtn");
+    if (btn) {
+      btn.addEventListener("click", function () {
+        if (kmhNow() >= 1) return;
+        overlay.look.enabled = !overlay.look.enabled;
+        if (!overlay.look.enabled) {
+          overlay.look.yaw = 0;
+          overlay.look.pitch = 0.38;
+        }
+        syncLookUi();
+      });
+    }
+    var canvas = document.getElementById("arcade3d");
+    if (!canvas) return;
+    canvas.addEventListener("pointerdown", onLookDown);
+    canvas.addEventListener("pointermove", onLookMove);
+    canvas.addEventListener("pointerup", onLookUp);
+    canvas.addEventListener("pointercancel", onLookUp);
+  }
 
   function syncOverlayWorld() {
     if (!overlay.scene || !api.THREE || !lastWorld.origin) return;
@@ -1578,6 +1763,8 @@
     local.position.set(0, 0.02, 16);
     overlay.carRoot.add(local);
     overlay.camera = new THREE.PerspectiveCamera(56, w / Math.max(1, h), 0.2, 320);
+    bootSpeedBlur(THREE, overlay.renderer, w, h);
+    bindLookUi();
     putOverlayCar(api.currentId || savedId());
     syncOverlayWorld();
     return true;
@@ -1650,9 +1837,8 @@
     faceMarkers(overlay.markRoot);
     overlay.asphaltMats.forEach(function (m) {
       if (!m.uniforms || !m.uniforms.uHead) return;
-      var hz = Math.cos(headingRad) * 1.8;
-      m.uniforms.uHead.value.set(-Math.sin(headingRad) * 0.2, 0.7, hz);
-      m.uniforms.uHeadDir.value.set(-Math.sin(headingRad), -0.08, Math.cos(headingRad));
+      m.uniforms.uHead.value.set(-Math.sin(headingRad) * 0.2, 0.65, Math.cos(headingRad) * 1.6);
+      m.uniforms.uHeadDir.value.set(-Math.sin(headingRad), -0.12, Math.cos(headingRad));
     });
     var canvas = overlay.canvas;
     var cw = canvas.clientWidth || window.innerWidth;
@@ -1662,13 +1848,29 @@
     overlay.camera.updateProjectionMatrix();
     if (canvas.width !== cw || canvas.height !== ch) {
       overlay.renderer.setSize(cw, ch, false);
+      resizeSpeedBlur(cw, ch);
     }
     overlay.carRoot.updateMatrixWorld(true);
-    // 7.2 m-es arcade autó: -14 a far mögött ~10 m, y=5.5 a 4–6 m sávban.
-    var camPos = new api.THREE.Vector3(0, 5.5, -14);
-    var camLook = new api.THREE.Vector3(0, 0.25, 22);
-    overlay.carRoot.localToWorld(camPos);
-    overlay.carRoot.localToWorld(camLook);
+    var kmh = kmhNow();
+    syncLookUi();
+    var camPos;
+    var camLook;
+    if (overlay.look.enabled && kmh < 1) {
+      var yaw = overlay.look.yaw;
+      var pitch = overlay.look.pitch;
+      var dist = overlay.look.dist;
+      camPos = overlay.carRoot.localToWorld(
+        new api.THREE.Vector3(
+          Math.sin(yaw) * Math.cos(pitch) * dist,
+          Math.sin(pitch) * dist + 1.2,
+          -Math.cos(yaw) * Math.cos(pitch) * dist
+        )
+      );
+      camLook = overlay.carRoot.localToWorld(new api.THREE.Vector3(0, 1.05, 0));
+    } else {
+      camPos = overlay.carRoot.localToWorld(new api.THREE.Vector3(0, 5.5, -14));
+      camLook = overlay.carRoot.localToWorld(new api.THREE.Vector3(0, 0.25, 22));
+    }
     var carPos = overlay.carRoot.localToWorld(new api.THREE.Vector3(0, 1.15, 0));
     if (overlay.worldRoot) overlay.worldRoot.updateMatrixWorld(true);
     if (overlay.buildRoot) {
@@ -1684,30 +1886,43 @@
       var i;
       var hits = rayHits(carPos, camPos);
       for (i = 0; i < hits.length; i++) ghostBuilding(buildingFromHit(hits[i].object));
-      var step;
-      for (step = 0; step < 8; step++) {
-        hits = rayHits(carPos, camPos);
-        if (!hits.length) break;
-        camPos.y += 1.25;
-      }
-      if (hits.length) {
-        camPos.y = Math.max(camPos.y, 5.4);
-      }
-      overlay.buildRoot.children.forEach(function (g) {
-        overlay.hitBox.setFromObject(g);
-        if (overlay.hitBox.containsPoint(camPos)) {
-          ghostBuilding(g);
-          camPos.y = Math.max(camPos.y, overlay.hitBox.max.y + 1.15);
+      if (!(overlay.look.enabled && kmh < 1)) {
+        var step;
+        for (step = 0; step < 8; step++) {
+          hits = rayHits(carPos, camPos);
+          if (!hits.length) break;
+          camPos.y += 1.25;
         }
-      });
-      var lookFar = overlay.carRoot.localToWorld(new api.THREE.Vector3(0, 0.4, 80));
-      var block = rayHits(camPos, lookFar);
-      for (i = 0; i < block.length; i++) ghostBuilding(buildingFromHit(block[i].object));
-      if (block.length) camPos.y = Math.max(camPos.y, 3.4);
+        if (hits.length) camPos.y = Math.max(camPos.y, 5.4);
+        overlay.buildRoot.children.forEach(function (g) {
+          overlay.hitBox.setFromObject(g);
+          if (overlay.hitBox.containsPoint(camPos)) {
+            ghostBuilding(g);
+            camPos.y = Math.max(camPos.y, overlay.hitBox.max.y + 1.15);
+          }
+        });
+        var lookFar = overlay.carRoot.localToWorld(new api.THREE.Vector3(0, 0.4, 80));
+        var block = rayHits(camPos, lookFar);
+        for (i = 0; i < block.length; i++) ghostBuilding(buildingFromHit(block[i].object));
+        if (block.length) camPos.y = Math.max(camPos.y, 3.4);
+      } else {
+        overlay.buildRoot.children.forEach(function (g) {
+          overlay.hitBox.setFromObject(g);
+          if (overlay.hitBox.containsPoint(camPos)) ghostBuilding(g);
+        });
+      }
     }
     overlay.camera.position.copy(camPos);
     overlay.camera.lookAt(camLook);
-    overlay.renderer.render(overlay.scene, overlay.camera);
+    if (overlay.carSlot) {
+      overlay.carSlot.children.forEach(function (g) {
+        if (!g.userData || !g.userData.carLights) return;
+        g.children.forEach(function (n) {
+          if (n.userData && n.userData.headAim) n.position.set(0, 0.04, 15);
+        });
+      });
+    }
+    renderOverlay(camLook);
   }
 
   function dropOverlay() {
@@ -1716,6 +1931,16 @@
     if (overlay.renderer) {
       try { overlay.renderer.dispose(); } catch (_e) {}
     }
+    if (overlay.rt) {
+      try { overlay.rt.dispose(); } catch (_rt) {}
+    }
+    overlay.rt = null;
+    overlay.postScene = null;
+    overlay.postCam = null;
+    overlay.postMat = null;
+    overlay.blur = 0;
+    overlay.look.enabled = false;
+    overlay.look.down = false;
     overlay.renderer = null;
     overlay.scene = null;
     overlay.camera = null;
@@ -1742,12 +1967,17 @@
     var canvas = document.getElementById("arcade3d");
     document.documentElement.classList.toggle("is-arcade3d", !!on);
     if (!on) {
-      if (canvas) canvas.hidden = true;
+      if (canvas) {
+        canvas.hidden = true;
+        canvas.style.pointerEvents = "none";
+      }
       dropOverlay();
+      syncLookUi();
       if (mapRef) mapRef.triggerRepaint();
       return;
     }
     if (canvas) canvas.hidden = false;
+    bindLookUi();
     if (overlay.renderer && overlay.raf) return;
     loadThree().then(function () {
       if (!api.arcade) return;
