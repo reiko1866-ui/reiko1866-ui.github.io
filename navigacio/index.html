@@ -14,8 +14,8 @@
   <title>Navigáció</title>
   <style>
     html, body { margin: 0; background: #06101f; color: #E2E8F0; font-family: system-ui, sans-serif; }
-    #kezdolap { position: relative; height: 100dvh; min-height: 100vh; overflow: hidden; background: #06101f; }
-    #map { position: absolute; inset: 0; background: #06101f; }
+    #kezdolap { position: relative; height: 100vh; height: 100dvh; min-height: 100vh; overflow: hidden; background: #06101f; }
+    #map { position: absolute; top: 0; right: 0; bottom: 0; left: 0; background: #06101f; }
     #infoCard { position: absolute; top: 16px; left: 16px; z-index: 20; max-width: 22rem; padding: 10px 14px; border-radius: 16px; background: rgba(15, 23, 42, 0.72); color: #E2E8F0; }
     #fabBar { position: fixed; right: 16px; bottom: 24px; z-index: 22; display: flex; flex-direction: column; gap: 6px; }
     .fab { width: 44px; height: 44px; border: 0; border-radius: 50%; background: #3B82F6; color: #fff; font-size: 1.1rem; }
@@ -25,7 +25,7 @@
   <link rel="icon" href="./icons/icon-192.png" type="image/png">
   <link rel="apple-touch-icon" href="./icons/apple-touch-icon.png">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/maplibre-gl@5.5.0/dist/maplibre-gl.css">
-  <link rel="stylesheet" href="./style.css?v=98">
+  <link rel="stylesheet" href="./style.css?v=99">
 </head>
 <body>
   <div id="app">
@@ -270,7 +270,7 @@
   <script src="./voice/audio-manager.js"></script>
   <script src="./vendor/three.min.js"></script>
   <script src="./vendor/GLTFLoader.js"></script>
-  <script src="./car-layer.js?v=98"></script>
-  <script src="./app.js?v=98"></script>
+  <script src="./car-layer.js?v=99"></script>
+  <script src="./app.js?v=99"></script>
 </body>
 </html>
