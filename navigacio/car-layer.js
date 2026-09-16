@@ -1505,7 +1505,7 @@
   }
 
   function bootSpeedBlur(THREE, renderer, w, h) {
-    if (!renderer || !THREE.WebGLRenderTarget || isDashGpu()) return;
+    if (!renderer || !THREE.WebGLRenderTarget) return;
     try {
       var pr = Math.min(1.5, renderer.getPixelRatio ? renderer.getPixelRatio() : 1);
       overlay.rt = new THREE.WebGLRenderTarget(Math.max(2, Math.floor(w * pr)), Math.max(2, Math.floor(h * pr)));
@@ -1753,19 +1753,8 @@
     });
   }
 
-  function isDashGpu() {
-    var ua = navigator.userAgent || "";
-    if (/Android/i.test(ua)) return true;
-    try {
-      return navigator.maxTouchPoints > 1 && !window.matchMedia("(hover: hover)").matches;
-    } catch (_m) {
-      return navigator.maxTouchPoints > 1;
-    }
-  }
-
   function overlayPixelRatio() {
-    var cap = isDashGpu() ? 1 : 1.5;
-    return Math.min(window.devicePixelRatio || 1, cap);
+    return Math.min(window.devicePixelRatio || 1, 1.5);
   }
 
   function bootOverlay() {
@@ -1781,9 +1770,8 @@
     try {
       overlay.renderer = new THREE.WebGLRenderer({
         canvas: canvas,
-        antialias: !isDashGpu(),
+        antialias: true,
         alpha: false,
-        powerPreference: "low-power",
         failIfMajorPerformanceCaveat: false
       });
     } catch (err) {
