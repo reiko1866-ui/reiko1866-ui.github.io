@@ -4049,7 +4049,7 @@
   }
 
   function maybeArcadePreview() {
-    if (!/[?&]arcade=1/.test(location.search) || state.navigating || state.arcadePreview) return;
+    if (!/[?&](?:arcade|demo)=1/.test(location.search) || state.navigating || state.arcadePreview) return;
     const o = { lng: BUDAPEST[0], lat: BUDAPEST[1] };
     state.arcadePreview = true;
     state.origin = o;

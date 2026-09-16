@@ -1,7 +1,8 @@
-const CACHE = "nav-v99";
+const CACHE = "nav-v100";
 const CORE = [
   "./",
   "./index.html",
+  "./demo.html",
   "./app.js",
   "./car-layer.js",
   "./vendor/three.min.js",
@@ -11,6 +12,7 @@ const CORE = [
   "./voice/pack.json",
   "./voice/catalog.json",
   "./manifest.webmanifest",
+  "./manifest-demo.webmanifest",
   "./icons/icon-192.png",
   "./icons/icon-512.png",
   "./icons/apple-touch-icon.png"
