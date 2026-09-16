@@ -2525,8 +2525,7 @@
     };
   }
 
-  function setArcadeMapMode(on) {
-    if (window.NavCar3D && window.NavCar3D.setArcade) window.NavCar3D.setArcade(on);
+  function setMapLayerVis(hideVisual) {
     if (!state.map || !state.map.isStyleLoaded()) return;
     addArcadeExtras();
     const layers = (state.map.getStyle() && state.map.getStyle().layers) || [];
@@ -2539,11 +2538,15 @@
         return;
       }
       try {
-        state.map.setLayoutProperty(ly.id, "visibility", on ? "none" : "visible");
+        state.map.setLayoutProperty(ly.id, "visibility", hideVisual ? "none" : "visible");
       } catch (_e) {}
     });
+  }
+
+  function setNavGestures(lock) {
+    if (!state.map) return;
     try {
-      if (on) {
+      if (lock) {
         state.map.dragPan.disable();
         if (state.map.dragRotate) state.map.dragRotate.disable();
         if (state.map.keyboard) state.map.keyboard.disable();
@@ -2559,6 +2562,23 @@
         state.map.touchZoomRotate.enable();
       }
     } catch (_ctl) {}
+  }
+
+  function setArcadeMapMode(on) {
+    if (window.NavCar3D) {
+      window.NavCar3D.onArcadeLive = function (live) {
+        setMapLayerVis(!!live);
+        if (live) setNavGestures(true);
+      };
+      if (window.NavCar3D.setArcade) window.NavCar3D.setArcade(on);
+    }
+    if (!on) {
+      setMapLayerVis(false);
+      setNavGestures(false);
+      return;
+    }
+    setMapLayerVis(false);
+    setNavGestures(true);
   }
 
   function boxRing(center, heading, alongM, acrossM) {

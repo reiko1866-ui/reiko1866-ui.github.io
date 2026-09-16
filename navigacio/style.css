@@ -126,8 +126,8 @@ button {
   display: none !important;
 }
 
-#app.is-nav #map .maplibregl-canvas,
-#app.is-nav .maplibregl-canvas-container canvas.maplibregl-canvas {
+html.is-arcade3d #app.is-nav #map .maplibregl-canvas,
+html.is-arcade3d #app.is-nav .maplibregl-canvas-container canvas.maplibregl-canvas {
   opacity: 0 !important;
 }
 
