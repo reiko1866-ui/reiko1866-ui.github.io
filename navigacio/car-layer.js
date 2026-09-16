@@ -1505,7 +1505,7 @@
   }
 
   function bootSpeedBlur(THREE, renderer, w, h) {
-    if (!renderer || !THREE.WebGLRenderTarget) return;
+    if (!renderer || !THREE.WebGLRenderTarget || isDashGpu()) return;
     try {
       var pr = Math.min(1.5, renderer.getPixelRatio ? renderer.getPixelRatio() : 1);
       overlay.rt = new THREE.WebGLRenderTarget(Math.max(2, Math.floor(w * pr)), Math.max(2, Math.floor(h * pr)));
@@ -1753,6 +1753,21 @@
     });
   }
 
+  function isDashGpu() {
+    var ua = navigator.userAgent || "";
+    if (/Android/i.test(ua)) return true;
+    try {
+      return navigator.maxTouchPoints > 1 && !window.matchMedia("(hover: hover)").matches;
+    } catch (_m) {
+      return navigator.maxTouchPoints > 1;
+    }
+  }
+
+  function overlayPixelRatio() {
+    var cap = isDashGpu() ? 1 : 1.5;
+    return Math.min(window.devicePixelRatio || 1, cap);
+  }
+
   function bootOverlay() {
     var canvas = document.getElementById("arcade3d");
     if (!canvas || !api.THREE) return false;
@@ -1763,12 +1778,20 @@
     var h = Math.max(480, canvas.clientHeight || (host && host.clientHeight) || window.innerHeight || 1280);
     canvas.width = w;
     canvas.height = h;
-    overlay.renderer = new THREE.WebGLRenderer({
-      canvas: canvas,
-      antialias: true,
-      alpha: false
-    });
-    overlay.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
+    try {
+      overlay.renderer = new THREE.WebGLRenderer({
+        canvas: canvas,
+        antialias: !isDashGpu(),
+        alpha: false,
+        powerPreference: "low-power",
+        failIfMajorPerformanceCaveat: false
+      });
+    } catch (err) {
+      console.warn("[NavCar3D] overlay WebGL", err);
+      overlay.renderer = null;
+      return false;
+    }
+    overlay.renderer.setPixelRatio(overlayPixelRatio());
     overlay.renderer.setSize(w, h, false);
     overlay.renderer.setClearColor(FOG_COLOR, 1);
     if (overlay.renderer.shadowMap) overlay.renderer.shadowMap.enabled = false;
@@ -2007,7 +2030,11 @@
     }
     overlay.camera.position.copy(camPos);
     overlay.camera.lookAt(camLook);
-    renderOverlay(camLook);
+    try {
+      renderOverlay(camLook);
+    } catch (_draw) {
+      failArcadeOverlay();
+    }
   }
 
   function dropOverlay() {
@@ -2041,6 +2068,28 @@
     overlayWorldKey = "";
   }
 
+  function setArcadeLive(on) {
+    api.arcade = !!on;
+    document.documentElement.classList.toggle("is-arcade3d", !!on);
+    if (typeof api.onArcadeLive === "function") {
+      try {
+        api.onArcadeLive(!!on);
+      } catch (_cb) {}
+    }
+    if (mapRef) mapRef.triggerRepaint();
+  }
+
+  function failArcadeOverlay() {
+    var canvas = document.getElementById("arcade3d");
+    if (canvas) {
+      canvas.hidden = true;
+      canvas.style.pointerEvents = "none";
+    }
+    dropOverlay();
+    setArcadeLive(false);
+    syncLookUi();
+  }
+
   api.setRoads = function (roads, origin) {
     lastWorld.roads = roads || [];
     if (origin) lastWorld.origin = origin;
@@ -2048,28 +2097,63 @@
   };
 
   api.setArcade = function (on) {
-    api.arcade = !!on;
     var canvas = document.getElementById("arcade3d");
-    document.documentElement.classList.toggle("is-arcade3d", !!on);
     if (!on) {
-      if (canvas) {
-        canvas.hidden = true;
-        canvas.style.pointerEvents = "none";
-      }
-      dropOverlay();
-      syncLookUi();
-      if (mapRef) mapRef.triggerRepaint();
+      failArcadeOverlay();
       return;
     }
-    if (canvas) canvas.hidden = false;
+    stopGarage();
+    if (canvas) {
+      canvas.hidden = false;
+      canvas.removeAttribute("hidden");
+    }
     bindLookUi();
-    if (overlay.renderer && overlay.raf) return;
-    loadThree().then(function () {
-      if (!api.arcade) return;
-      if (overlay.renderer && overlay.raf) return;
-      if (!overlay.renderer && !bootOverlay()) return;
-      if (!overlay.raf) overlay.raf = requestAnimationFrame(tickOverlay);
-    });
+    if (overlay.renderer && overlay.raf) {
+      setArcadeLive(true);
+      return;
+    }
+    function startOverlay() {
+      loadThree()
+        .then(function () {
+          if (!canvas || canvas.hidden) return;
+          if (overlay.renderer && overlay.raf) {
+            setArcadeLive(true);
+            return;
+          }
+          var ok = false;
+          try {
+            ok = !!bootOverlay();
+          } catch (_boot) {
+            ok = false;
+          }
+          if (!ok) {
+            failArcadeOverlay();
+            return;
+          }
+          try {
+            canvas.addEventListener(
+              "webglcontextlost",
+              function (ev) {
+                try {
+                  ev.preventDefault();
+                } catch (_p) {}
+                failArcadeOverlay();
+              },
+              { once: true }
+            );
+          } catch (_l) {}
+          setArcadeLive(true);
+          if (!overlay.raf) overlay.raf = requestAnimationFrame(tickOverlay);
+        })
+        .catch(function () {
+          failArcadeOverlay();
+        });
+    }
+    if (!canvas || canvas.clientWidth < 2 || canvas.clientHeight < 2) {
+      requestAnimationFrame(startOverlay);
+    } else {
+      startOverlay();
+    }
   };
 
   api.setModel = function (id, skipStore) {
