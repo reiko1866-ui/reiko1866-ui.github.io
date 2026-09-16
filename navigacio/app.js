@@ -4111,6 +4111,8 @@
     state.pendingPlan = false;
     state.navigating = true;
     $("app").classList.add("is-nav");
+    document.documentElement.classList.add("is-nav");
+    fitDashLayout();
     $("trip").hidden = false;
     $("banner").hidden = false;
     setArcadeMapMode(true);
@@ -4202,6 +4204,8 @@
     }
     state.pendingPlan = false;
     $("app").classList.remove("is-nav");
+    document.documentElement.classList.remove("is-nav");
+    fitDashLayout();
     $("trip").hidden = true;
     $("banner").hidden = true;
     setArcadeMapMode(false);
@@ -4682,6 +4686,48 @@
     }
   }
 
+  function seedOriginFromCar() {
+    if (state.origin) return;
+    if (!state.car || !Number.isFinite(state.car.lat) || !Number.isFinite(state.car.lng)) return;
+    state.origin = { lat: state.car.lat, lng: state.car.lng };
+    AppState.targetPos.lat = state.car.lat;
+    AppState.targetPos.lng = state.car.lng;
+    AppState.currentPos.lat = state.car.lat;
+    AppState.currentPos.lng = state.car.lng;
+    AppState.currentPos._seeded = true;
+  }
+
+  function fitDashLayout() {
+    var w = window.innerWidth || document.documentElement.clientWidth || 0;
+    var h = window.innerHeight || document.documentElement.clientHeight || 0;
+    if (window.visualViewport) {
+      if (window.visualViewport.width) w = window.visualViewport.width;
+      if (window.visualViewport.height) h = window.visualViewport.height;
+    }
+    var home = $("kezdolap");
+    var mapEl = $("map");
+    var arcade = $("arcade3d");
+    if (home && h) {
+      home.style.height = h + "px";
+      home.style.minHeight = h + "px";
+    }
+    [mapEl, arcade].forEach(function (el) {
+      if (!el) return;
+      el.style.top = "0px";
+      el.style.right = "0px";
+      el.style.bottom = "0px";
+      el.style.left = "0px";
+      el.style.width = "100%";
+      el.style.height = "100%";
+    });
+    if (state.map && typeof state.map.resize === "function") {
+      try {
+        state.map.resize();
+      } catch (_r) {}
+    }
+    if (w && h) document.documentElement.classList.toggle("is-portrait", h >= w);
+  }
+
   function loadPlaces() {
     try {
       state.places = Object.assign({ home: null, work: null }, JSON.parse(localStorage.getItem(PLACE_KEY) || "{}"));
@@ -4689,6 +4735,7 @@
       state.places = { home: null, work: null };
     }
     loadCar();
+    seedOriginFromCar();
   }
 
   function savePlace(kind) {
@@ -5348,9 +5395,20 @@
     window.addEventListener("scroll", spyNav, { passive: true });
     window.addEventListener("popstate", onPopState);
     window.addEventListener("resize", function () {
-      if (state.map) state.map.resize();
+      fitDashLayout();
       if (state.navigating && state.follow) updateCamera(true);
     });
+    window.addEventListener("orientationchange", function () {
+      window.setTimeout(fitDashLayout, 120);
+    });
+    if (window.visualViewport) {
+      window.visualViewport.addEventListener("resize", fitDashLayout);
+    }
+    try {
+      if (screen.orientation && screen.orientation.lock) {
+        screen.orientation.lock("portrait").catch(function () {});
+      }
+    } catch (_or) {}
     document.addEventListener("visibilitychange", function () {
       if (document.visibilityState === "visible" && state.navigating) holdWake();
     });
@@ -5526,11 +5584,27 @@
   }
 
   function initGps() {
-    if (!navigator.geolocation) setStatus("Nincs GPS ebben a böngészőben.", true);
-    else {
-      const opts = { enableHighAccuracy: true, maximumAge: 0, timeout: 12000 };
-      navigator.geolocation.getCurrentPosition(onPos, (e) => setStatus(e.message || "GPS hiba", true), opts);
-      navigator.geolocation.watchPosition(onPos, () => setStatus("GPS jel gyenge", true), opts);
+    seedOriginFromCar();
+    if (!navigator.geolocation) {
+      if (state.origin) setStatus("Mentett helyzet, GPS nélkül.");
+      else setStatus("Nincs GPS ebben a böngészőben.", true);
+    } else {
+      const opts = { enableHighAccuracy: true, maximumAge: 15000, timeout: 20000 };
+      navigator.geolocation.getCurrentPosition(
+        onPos,
+        function (e) {
+          if (state.origin) setStatus("Mentett helyzet, várom a GPS-t…");
+          else setStatus(e.message || "GPS hiba", true);
+        },
+        opts
+      );
+      navigator.geolocation.watchPosition(
+        onPos,
+        function () {
+          if (!state.origin) setStatus("GPS jel gyenge", true);
+        },
+        opts
+      );
     }
     if ("serviceWorker" in navigator && location.hostname === "reiko1866-ui.github.io") {
       navigator.serviceWorker.register("./sw.js").catch(() => {});
@@ -5540,6 +5614,7 @@
   function boot() {
     loadPlaces();
     loadNavOpts();
+    fitDashLayout();
     if (window.NavCar3D) {
       state.carModel = window.NavCar3D.id();
       AppState.selectedCar = state.carModel;
