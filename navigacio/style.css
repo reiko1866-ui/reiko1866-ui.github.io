@@ -545,13 +545,20 @@ body:has(#app.is-ar),
 }
 
 .pin {
-  width: 18px;
-  height: 18px;
-  margin-left: -9px;
-  margin-top: -18px;
+  width: 22px;
+  height: 22px;
+  margin-left: -11px;
+  margin-top: -22px;
   border-radius: 50% 50% 50% 0;
   background: var(--red);
   transform: rotate(-45deg);
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.45);
+  cursor: grab;
+  touch-action: none;
+}
+
+.pin:active {
+  cursor: grabbing;
 }
 
 .car-pin {
@@ -718,6 +725,41 @@ body:has(#app.is-ar),
   overflow-x: hidden;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
+}
+
+#pinAdjust {
+  position: absolute;
+  left: var(--pad);
+  right: auto;
+  bottom: calc(6.2rem + var(--safe-bottom));
+  z-index: 21;
+  width: min(28rem, calc(100% - 5.6rem));
+  padding: 0.75rem 0.85rem;
+  border-radius: 14px;
+  background: rgba(15, 23, 42, 0.9);
+  color: #e2e8f0;
+  box-shadow: var(--shadow);
+}
+
+#pinAdjust p {
+  margin: 0 0 0.55rem;
+  font-size: 0.88rem;
+  font-weight: 650;
+  line-height: 1.35;
+}
+
+#pinAdjustGo {
+  width: 100%;
+  height: 2.6rem;
+  border: 0;
+  border-radius: 12px;
+  background: var(--blue);
+  color: #fff;
+  font-weight: 800;
+}
+
+#app.is-nav #pinAdjust {
+  display: none;
 }
 
 #results button {
