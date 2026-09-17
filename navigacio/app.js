@@ -4244,6 +4244,7 @@
     if (state.map) state.map.resize();
     syncBack(opts && opts.fromPop);
     dropWake();
+    if (window.NavSw && window.NavSw.applyPending) window.NavSw.applyPending();
   }
 
   function maybeReroute() {
@@ -5607,7 +5608,9 @@
       );
     }
     if ("serviceWorker" in navigator && location.hostname === "reiko1866-ui.github.io") {
-      navigator.serviceWorker.register("./sw.js").catch(() => {});
+      if (!window.NavSw) {
+        navigator.serviceWorker.register("./sw.js", { updateViaCache: "none" }).catch(function () {});
+      }
     }
   }
 
