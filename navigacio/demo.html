@@ -59,10 +59,8 @@
       <li>A K706-on az ikon a kezdőképernyőre kerül — nem kell APK.</li>
     </ol>
   </main>
+  <script src="./sw-register.js?v=101"></script>
   <script>
-    if ("serviceWorker" in navigator) {
-      navigator.serviceWorker.register("./sw.js").catch(function () {});
-    }
     var deferred = null;
     var btn = document.getElementById("installBtn");
     var hint = document.getElementById("installHint");
