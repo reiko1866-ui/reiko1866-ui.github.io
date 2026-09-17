@@ -1,10 +1,12 @@
-const CACHE = "nav-v100";
+const CACHE = "nav-v101";
 const CORE = [
   "./",
   "./index.html",
   "./demo.html",
   "./app.js",
   "./car-layer.js",
+  "./sw-register.js",
+  "./version.json",
   "./vendor/three.min.js",
   "./vendor/GLTFLoader.js",
   "./style.css",
@@ -28,7 +30,14 @@ self.addEventListener("activate", (event) => {
   event.waitUntil(
     caches.keys().then((keys) =>
       Promise.all(keys.filter((key) => key !== CACHE).map((key) => caches.delete(key)))
-    ).then(() => self.clients.claim())
+    )
+      .then(() => self.clients.claim())
+      .then(() => self.clients.matchAll({ type: "window" }))
+      .then((clients) => {
+        clients.forEach(function (client) {
+          try { client.postMessage({ type: "NAV_SW_UPDATED" }); } catch (_e) {}
+        });
+      })
   );
 });
 
@@ -41,7 +50,7 @@ self.addEventListener("fetch", (event) => {
     return;
   }
   event.respondWith(
-    fetch(req)
+    fetch(req, { cache: "no-store" })
       .then((res) => {
         if (res.ok) {
           const copy = res.clone();
