@@ -21,11 +21,11 @@
     .fab { width: 44px; height: 44px; border: 0; border-radius: 50%; background: #3B82F6; color: #fff; font-size: 1.1rem; }
     #status.is-err { color: #ff8a80; }
   </style>
-  <link rel="manifest" href="./manifest.webmanifest">
+  <link rel="manifest" href="./manifest.json">
   <link rel="icon" href="./icons/icon-192.png" type="image/png">
   <link rel="apple-touch-icon" href="./icons/apple-touch-icon.png">
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/maplibre-gl@5.5.0/dist/maplibre-gl.css">
-  <link rel="stylesheet" href="./style.css?v=104">
+  <link rel="stylesheet" href="./vendor/maplibre-gl.css">
+  <link rel="stylesheet" href="./style.css?v=105">
 </head>
 <body>
   <div id="app">
@@ -128,6 +128,7 @@
         <li>Felül a kanyartábla: táv, utasítás, utca, alatta a következő kanyar.</li>
         <li>A kereső házszámot is talál: írd be az utcát és a számot, pl. Kossuth utca 12. Közelítéskor a házszámok a térképen is látszanak.</li>
         <li>A térképet húzhatod, nagyíthatod. Ekkor a követés kikapcsol; a térkép gomb visszateszi. A kereső címlistája: név felül, város/házszám alatta — koppints a találatra.</li>
+        <li>Telepíthető a fejegységre, mint app (PWA). Az első betöltés letölti a térképet, a 3D autókat és a stílust — utána offline is nyílik.</li>
         <li>A navigáció néma, csak a képernyőn látod a kanyart. Letéréskor újratervez.</li>
         <li>Arcade 3D nézet: éjszakai vektoros aszfalt, 78° kamera, égbolt/köd. A Garázsban low-poly chibi mini autók, kártyán forgó 3D előnézet. Kanyarban a karosszéria megdől. Jobbra két gomb: térkép, útvonal.</li>
         <li>Kaland mód: OSRM alternatives, a kanyargósabb út, arany neon, autópálya nélkül.</li>
@@ -140,7 +141,7 @@
       <h1>Ajánlatok</h1>
       <ul>
         <li>Ingyenes. Nincs fiók, nincs hirdetés.</li>
-        <li>Telepíthető a telefonra, mint app.</li>
+        <li>Telepíthető a telefonra és a fejegységre. Offline is megy a helyi cache-ből.</li>
         <li>Autópálya vagy fizetős út elkerülése a menüből.</li>
       </ul>
     </section>
@@ -199,14 +200,20 @@
       <label class="check"><input type="checkbox" id="dark" checked> Sötét térkép</label>
       <label class="check"><input type="checkbox" id="kalandCheck"> Kaland mód</label>
       <p class="hint">Kaland: autópálya nélkül, a kanyargósabb OSRM-út, arany vonal. A navigáció néma: a kanyarutasítás csak a képernyőn jelenik meg.</p>
+      <div class="row">
+        <button type="button" id="installBtn">Telepítés a fejegységre</button>
+      </div>
+      <p class="hint" id="installHint">Chrome menü: Telepítés alkalmazásként. Fekvő (landscape) standalone app, offline cache-ből nyílik.</p>
     </aside>
   </div>
 
   <noscript>A navigációhoz JavaScript kell.</noscript>
+  <script src="./vendor/maplibre-gl.js"></script>
+  <script src="./vendor/pmtiles.js"></script>
   <script src="./vendor/three.min.js"></script>
   <script src="./vendor/GLTFLoader.js"></script>
-  <script src="./sw-register.js?v=104"></script>
-  <script src="./car-layer.js?v=104"></script>
-  <script src="./app.js?v=104"></script>
+  <script src="./sw-register.js?v=105"></script>
+  <script src="./car-layer.js?v=105"></script>
+  <script src="./app.js?v=105"></script>
 </body>
 </html>

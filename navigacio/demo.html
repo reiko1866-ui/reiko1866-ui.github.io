@@ -9,6 +9,7 @@
   <meta name="apple-mobile-web-app-title" content="Nav demó">
   <title>Navigáció demó</title>
   <link rel="manifest" href="./manifest-demo.webmanifest">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <link rel="icon" href="./icons/icon-192.png" type="image/png">
   <link rel="apple-touch-icon" href="./icons/apple-touch-icon.png">
   <style>
@@ -49,7 +50,7 @@
 <body>
   <main>
     <h1>Navigáció demó</h1>
-    <p>3D éjszakai vezetés, GPS nélkül. Telefonra és a K706 fejegységre is feltehető, mint app.</p>
+    <p>3D éjszakai vezetés, GPS nélkül. Telefonra és a K706 fejegységre is feltehető, mint app. Az első betöltés után offline is nyílik.</p>
     <a class="btn" href="./index.html?demo=1">Indítsd a 3D demót</a>
     <button type="button" class="btn secondary" id="installBtn">Telepítés a telefonra / fejegységre</button>
     <p class="hint" id="installHint">Chrome menü: <strong>Telepítés</strong> vagy <strong>Hozzáadás a kezdőképernyőhöz</strong>. Utána a Nav demó ikonnal nyílik, mint egy letöltött alkalmazás.</p>
@@ -59,7 +60,7 @@
       <li>A K706-on az ikon a kezdőképernyőre kerül — nem kell APK.</li>
     </ol>
   </main>
-  <script src="./sw-register.js?v=104"></script>
+  <script src="./sw-register.js?v=105"></script>
   <script>
     var deferred = null;
     var btn = document.getElementById("installBtn");
