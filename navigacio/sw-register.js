@@ -1,6 +1,8 @@
 (function (global) {
   var pending = false;
   var reloading = false;
+  var AUDIO_MAP_KEY = "nav2_audio_map";
+  var AUDIO_LIST_KEY = "nav2_audio_selected";
 
   function navigating() {
     var app = document.getElementById("app");
@@ -15,6 +17,41 @@
     }
     reloading = true;
     location.reload();
+  }
+
+  function selectedSoundUrls() {
+    var out = [];
+    var seen = {};
+    function push(raw) {
+      var s = String(raw || "").trim();
+      if (!s) return;
+      if (!/^https?:/i.test(s) && s.indexOf("/") === -1) s = "./voice/clips/" + s;
+      if (seen[s]) return;
+      seen[s] = true;
+      out.push(s);
+    }
+    try {
+      var map = JSON.parse(localStorage.getItem(AUDIO_MAP_KEY) || "{}");
+      if (map && typeof map === "object") {
+        Object.keys(map).forEach(function (k) { push(map[k]); });
+      }
+    } catch (_e) {}
+    try {
+      var list = JSON.parse(localStorage.getItem(AUDIO_LIST_KEY) || "[]");
+      if (Array.isArray(list)) list.forEach(push);
+    } catch (_e2) {}
+    return out;
+  }
+
+  function cacheSelectedSounds(reg) {
+    var urls = selectedSoundUrls();
+    if (!urls.length) return;
+    var send = function (sw) {
+      if (!sw) return;
+      try { sw.postMessage({ type: "CACHE_URLS", urls: urls }); } catch (_e) {}
+    };
+    if (reg && reg.active) send(reg.active);
+    else if (navigator.serviceWorker.controller) send(navigator.serviceWorker.controller);
   }
 
   function checkBuild() {
@@ -34,6 +71,7 @@
     function poke() {
       try { reg.update(); } catch (_u) {}
       checkBuild();
+      cacheSelectedSounds(reg);
     }
     poke();
     document.addEventListener("visibilitychange", function () {
@@ -47,7 +85,7 @@
 
   function boot() {
     if (!("serviceWorker" in navigator)) return;
-    if (location.hostname && location.hostname !== "reiko1866-ui.github.io") return;
+    if (location.protocol !== "https:" && location.hostname !== "localhost" && location.hostname !== "127.0.0.1") return;
     navigator.serviceWorker.addEventListener("controllerchange", apply);
     navigator.serviceWorker.addEventListener("message", function (ev) {
       if (ev.data && ev.data.type === "NAV_SW_UPDATED") apply();
@@ -61,6 +99,11 @@
   global.NavSw = {
     applyPending: function () {
       if (pending) apply();
+    },
+    cacheSounds: function () {
+      if (navigator.serviceWorker && navigator.serviceWorker.controller) {
+        cacheSelectedSounds({ active: navigator.serviceWorker.controller });
+      }
     }
   };
   boot();
