@@ -729,11 +729,11 @@ body:has(#app.is-ar),
 
 #pinAdjust {
   position: absolute;
-  left: var(--pad);
+  left: calc(var(--pad) + 5.6rem);
   right: auto;
-  bottom: calc(6.2rem + var(--safe-bottom));
+  bottom: calc(var(--pad) + var(--safe-bottom));
   z-index: 21;
-  width: min(28rem, calc(100% - 5.6rem));
+  width: min(26rem, calc(100% - 8.4rem));
   padding: 0.75rem 0.85rem;
   border-radius: 14px;
   background: rgba(15, 23, 42, 0.9);
