@@ -1,0 +1,56 @@
+{
+  "version": 8,
+  "name": "Navigáció offline",
+  "glyphs": "https://protomaps.github.io/basemaps-assets/fonts/{fontstack}/{range}.pbf",
+  "sprite": "https://protomaps.github.io/basemaps-assets/sprites/v4/dark",
+  "sources": {
+    "protomaps": {
+      "type": "vector",
+      "url": "pmtiles://./map/europe.pmtiles",
+      "attribution": "© OpenStreetMap © Protomaps"
+    }
+  },
+  "layers": [
+    {
+      "id": "bg",
+      "type": "background",
+      "paint": { "background-color": "#0F172A" }
+    },
+    {
+      "id": "earth",
+      "type": "fill",
+      "source": "protomaps",
+      "source-layer": "earth",
+      "paint": { "fill-color": "#1E293B" }
+    },
+    {
+      "id": "water",
+      "type": "fill",
+      "source": "protomaps",
+      "source-layer": "water",
+      "paint": { "fill-color": "#0c4a6e" }
+    },
+    {
+      "id": "roads",
+      "type": "line",
+      "source": "protomaps",
+      "source-layer": "roads",
+      "paint": { "line-color": "#94a3b8", "line-width": 1.15 }
+    },
+    {
+      "id": "places",
+      "type": "symbol",
+      "source": "protomaps",
+      "source-layer": "places",
+      "layout": {
+        "text-field": ["coalesce", ["get", "name:hu"], ["get", "name"], ["get", "name:en"]],
+        "text-size": 13
+      },
+      "paint": {
+        "text-color": "#E2E8F0",
+        "text-halo-color": "#0F172A",
+        "text-halo-width": 1.4
+      }
+    }
+  ]
+}
