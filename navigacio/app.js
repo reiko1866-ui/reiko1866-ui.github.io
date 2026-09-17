@@ -9,10 +9,6 @@
   const AR_KEY = "nav2_ar";
   const CAM_KEY = "nav2_360";
   const KALAND_KEY = "nav2_kaland";
-  const FUNPOI_KEY = "nav2_funpoi";
-  const VOICE_CATS_KEY = "nav2_voice_cats";
-  const VOICE_OFF_KEY = "nav2_voice_off";
-  const VOICE_MAP_KEY = "nav2_voice_map";
   const EMPTY = { type: "FeatureCollection", features: [] };
   const NOMINATIM = "https://nominatim.openstreetmap.org/search";
   const VALHALLA = "https://valhalla1.openstreetmap.de/route";
@@ -52,7 +48,6 @@
     activeRoute: null,
     selectedCar: readSelectedCar(),
     snappedPosition: null,
-    triggeredPois: new Set(),
     speed: 0,
     accuracy: 0
   };
@@ -153,7 +148,7 @@
 
   function spyNav() {
     const allNavLinks = document.querySelectorAll(".nav-link, .mobile-link");
-    const pageIds = ["kezdolap", "poen", "funkciok", "Ajanlatok", "kapcsolat"];
+    const pageIds = ["kezdolap", "funkciok", "Ajanlatok", "kapcsolat"];
     let current = pageIds[0];
     pageIds.forEach((id) => {
       const section = $(id);
@@ -187,14 +182,12 @@
     cameraError: false,
     camBeat: 0,
     camTimer: 0,
-    voice: true,
     navigating: false,
     planning: false,
     route: null,
     coords: [],
     steps: [],
     traveled: 0,
-    spoken: {},
     arrived: false,
     lastCam: 0,
     view: null,
@@ -221,27 +214,8 @@
     lastPlaceAt: 0,
     lastUrban: null,
     lastLimitShown: 0,
-    spokenLimit: 0,
     roadBusy: false,
-    spokenRoad: "",
-    lastSpeedWarn: 0,
-    voiceHoldUntil: 0,
-    lastSpare: 0,
     kaland: false,
-    funPoi: true,
-    poeniPois: [],
-    spokenPoi: {},
-    poiAt: 0,
-    poiBusy: false,
-    funChipUntil: 0,
-    voiceCats: {},
-    voiceOff: {},
-    voiceMap: {},
-    packFilter: "start",
-    packPut: true,
-    sortName: "",
-    sortIndex: 0,
-    lastStraightAt: 0,
     cameras: [],
     camBusy: false,
     camAt: 0,
@@ -255,9 +229,7 @@
     lastFix: null,
     fixRejects: 0,
     gpsAcc: 0,
-    warnCtx: null,
     hazards: [],
-    spokenHazard: "",
     mapOffline: false,
     lastOsrmUrl: "",
     carModel: readSelectedCar(),
@@ -265,8 +237,6 @@
     leanHeading: null,
     leanAt: 0
   };
-
-  const POI_RANGE_M = 50;
 
   function setStatus(msg, err) {
     const el = $("status");
@@ -534,15 +504,6 @@
     };
   }
 
-  function exitOrdinal(n) {
-    return ["", "első", "második", "harmadik", "negyedik", "ötödik", "hatodik", "hetedik", "nyolcadik"][n] || n + ".";
-  }
-
-  function cap(s) {
-    const t = String(s || "");
-    return t ? t.charAt(0).toUpperCase() + t.slice(1) : "";
-  }
-
   function nextLanesAhead(maxM) {
     if (!state.origin || !state.coords.length) return null;
     let best = null;
@@ -679,9 +640,7 @@
       return Object.assign(base, {
         cat: "arrive",
         icon: "●",
-        label: "Megérkeztél",
-        action: "megérkezel",
-        actionNow: "Megérkeztél"
+        label: "Megérkeztél"
       });
     }
     if (
@@ -696,30 +655,21 @@
         skip: true,
         cat: "straight",
         icon: "↑",
-        label: "Haladj tovább",
-        action: "haladj tovább egyenesen",
-        actionNow: "Haladj tovább"
+        label: "Haladj tovább"
       });
     }
     if (type.includes("uturn") || mod.includes("uturn")) {
       return Object.assign(base, {
         cat: "uturn",
         icon: "↩",
-        label: "Fordulj vissza",
-        action: "fordulj vissza",
-        actionNow: "Fordulj vissza"
+        label: "Fordulj vissza"
       });
     }
     if (type.includes("roundabout") || type.includes("rotary")) {
-      const action = exit
-        ? "hajts be a körforgalomba, és vedd a " + exitOrdinal(exit) + " kijáratot"
-        : "hajts be a körforgalomba";
       return Object.assign(base, {
         cat: "roundabout",
         icon: "↻",
-        label: exit ? "Körforgalom, " + exit + ". kijárat" : "Körforgalom",
-        action,
-        actionNow: cap(action)
+        label: exit ? "Körforgalom, " + exit + ". kijárat" : "Körforgalom"
       });
     }
     if (type.includes("ferry")) {
@@ -727,32 +677,24 @@
       return Object.assign(base, {
         cat: off ? "ferryOff" : "ferryOn",
         icon: "⛴",
-        label: off ? "Hajts le a kompról" : "Hajts fel a kompra",
-        action: off ? "hajts le a kompról" : "hajts fel a kompra",
-        actionNow: off ? "Hajts le a kompról" : "Hajts fel a kompra"
+        label: off ? "Hajts le a kompról" : "Hajts fel a kompra"
       });
     }
     if (type.includes("on ramp") || type === "merge") {
-      const side = mod.includes("left") ? " balra" : mod.includes("right") ? " jobbra" : "";
       return Object.assign(base, {
         cat: "motorwayOn",
         highway: true,
         icon: "↗",
-        label: "Hajts fel",
-        action: "hajts fel az autópályára" + side,
-        actionNow: "Hajts fel az autópályára"
+        label: "Hajts fel"
       });
     }
     if (type.includes("off ramp")) {
       const left = mod.includes("left");
-      const action = left ? "hajts le balra" : "hajts le jobbra";
       return Object.assign(base, {
         cat: "motorwayOff",
         highway: true,
         icon: "↘",
-        label: left ? "Hajts le balra" : "Hajts le jobbra",
-        action,
-        actionNow: cap(action)
+        label: left ? "Hajts le balra" : "Hajts le jobbra"
       });
     }
     if (type === "fork" || type === "end of road") {
@@ -760,71 +702,55 @@
         return Object.assign(base, {
           cat: "leftKeep",
           icon: "↰",
-          label: "Tarts balra",
-          action: "tarts balra",
-          actionNow: "Tarts balra"
+          label: "Tarts balra"
         });
       }
       return Object.assign(base, {
         cat: "rightKeep",
         icon: "↱",
-        label: "Tarts jobbra",
-        action: "tarts jobbra",
-        actionNow: "Tarts jobbra"
+        label: "Tarts jobbra"
       });
     }
     if (mod.includes("sharp") && mod.includes("left")) {
       return Object.assign(base, {
         cat: "leftSharp",
         icon: "↰",
-        label: "Élesen balra",
-        action: "fordulj élesen balra",
-        actionNow: "Fordulj élesen balra"
+        label: "Élesen balra"
       });
     }
     if (mod.includes("sharp") && mod.includes("right")) {
       return Object.assign(base, {
         cat: "rightSharp",
         icon: "↱",
-        label: "Élesen jobbra",
-        action: "fordulj élesen jobbra",
-        actionNow: "Fordulj élesen jobbra"
+        label: "Élesen jobbra"
       });
     }
     if ((mod.includes("slight") || mod.includes("bear")) && mod.includes("left")) {
       return Object.assign(base, {
         cat: "leftKeep",
         icon: "↰",
-        label: "Tarts balra",
-        action: "tarts balra",
-        actionNow: "Tarts balra"
+        label: "Tarts balra"
       });
     }
     if ((mod.includes("slight") || mod.includes("bear")) && mod.includes("right")) {
       return Object.assign(base, {
         cat: "rightKeep",
         icon: "↱",
-        label: "Tarts jobbra",
-        action: "tarts jobbra",
-        actionNow: "Tarts jobbra"
+        label: "Tarts jobbra"
       });
     }
     if (mod.includes("left")) {
       return Object.assign(base, {
         cat: "left",
         icon: "↰",
-        label: "Fordulj balra",
-        action: "fordulj balra",
-        actionNow: "Fordulj balra"
+        label: "Fordulj balra"
       });
     }
     if (mod.includes("right")) {
       return Object.assign(base, {
         cat: "right",
         icon: "↱",
-        label: "Fordulj jobbra",
-        action: "fordulj jobbra",
-        actionNow: "Fordulj jobbra"
+        label: "Fordulj jobbra"
       });
     }
     if (type === "turn" || type === "straight") {
@@ -832,18 +758,14 @@
         skip: true,
         cat: "straight",
         icon: "↑",
-        label: "Haladj tovább",
-        action: "haladj tovább egyenesen",
-        actionNow: "Haladj tovább"
+        label: "Haladj tovább"
       });
     }
     return Object.assign(base, {
       skip: true,
       cat: "straight",
       icon: "↑",
-      label: "Haladj tovább",
-      action: "haladj tovább egyenesen",
-      actionNow: "Haladj tovább"
+      label: "Haladj tovább"
     });
   }
 
@@ -889,984 +811,6 @@
     const highway = kind.highway || Number(state.speed || 0) > 22;
     const v = Math.max(Number(state.speed) || 0, highway ? 25 : 11);
     return Math.max(160, Math.min(450, v * 11));
-  }
-
-  function spokenDist(meters) {
-    const m = Math.max(0, Math.round(meters));
-    if (m >= 1750) return "két kilométer";
-    if (m >= 1250) return "másfél kilométer";
-    if (m >= 850) return "egy kilométer";
-    if (m >= 650) return "nyolcszáz méter";
-    if (m >= 550) return "hatszáz méter";
-    if (m >= 450) return "ötszáz méter";
-    if (m >= 350) return "négyszáz méter";
-    if (m >= 250) return "háromszáz méter";
-    if (m >= 150) return "kétszáz méter";
-    if (m >= 80) return "száz méter";
-    return "ötven méter";
-  }
-
-  function promptText(kind, until, phase) {
-    if (!kind) return "";
-    if (kind.cat === "arrive") {
-      return phase === "now" ? "Megérkeztél." : spokenDist(until) + " múlva megérkezel.";
-    }
-    let text = phase === "now" ? kind.actionNow : spokenDist(until) + " múlva " + kind.action;
-    if (phase !== "now" && kind.street && kind.cat !== "roundabout" && kind.cat !== "motorwayOn") {
-      text += ", " + kind.street;
-    }
-    if (!/[.!?]$/.test(text)) text += ".";
-    return cap(text);
-  }
-
-  function desiredPhase(until, kind) {
-    if (!kind || kind.skip) return null;
-    if (kind.cat === "arrive") {
-      if (until < 45) return "now";
-      if (until < 180) return "near";
-      return null;
-    }
-    const highway = kind.highway || Number(state.speed || 0) > 22;
-    const v = Math.max(Number(state.speed) || 0, highway ? 22 : 8);
-    const nowMax = Math.max(120, Math.min(280, v * 8));
-    const nearMax = Math.max(250, Math.min(520, v * 18));
-    const soonMax = Math.max(800, Math.min(2000, v * 55));
-    if (until <= nowMax) return "now";
-    if (until <= nearMax) return "near";
-    if (until <= soonMax) return "soon";
-    return null;
-  }
-
-  function phaseRank(phase) {
-    return { soon: 1, near: 2, now: 3 }[phase] || 0;
-  }
-
-  function already(index, phase) {
-    return phaseRank(state.spoken[index]) >= phaseRank(phase);
-  }
-
-  function markSpoken(index, phase) {
-    if (phaseRank(phase) >= phaseRank(state.spoken[index])) state.spoken[index] = phase;
-  }
-
-  function navVoice() {
-    return window.NavVoice && window.NavVoice.instance;
-  }
-
-  function shuffle(list) {
-    const out = list.slice();
-    for (let i = out.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      const t = out[i];
-      out[i] = out[j];
-      out[j] = t;
-    }
-    return out;
-  }
-
-  const VOICE_CATS = [
-    { id: "left", label: "Balra" },
-    { id: "right", label: "Jobbra" },
-    { id: "leftSharp", label: "Élesen balra" },
-    { id: "rightSharp", label: "Élesen jobbra" },
-    { id: "leftKeep", label: "Tarts balra" },
-    { id: "rightKeep", label: "Tarts jobbra" },
-    { id: "roundabout", label: "Körforgalom" },
-    { id: "uturn", label: "Visszafordulás" },
-    { id: "motorwayOn", label: "Autópályára" },
-    { id: "motorwayOff", label: "Lehajtó" },
-    { id: "ferryOn", label: "Kompra" },
-    { id: "ferryOff", label: "Kompról" },
-    { id: "arrive", label: "Megérkeztél" },
-    { id: "recompute", label: "Újratervezés" },
-    { id: "gps", label: "GPS gyenge" },
-    { id: "speed", label: "Túllépés" },
-    { id: "straight", label: "Egyenesen" },
-    { id: "start", label: "Poén / pakolás" }
-  ];
-
-  function defaultVoiceCats() {
-    const out = {};
-    VOICE_CATS.forEach(function (c) {
-      out[c.id] = c.id !== "start" && c.id !== "straight";
-    });
-    return out;
-  }
-
-  function loadVoiceCats() {
-    const base = defaultVoiceCats();
-    try {
-      const raw = JSON.parse(localStorage.getItem(VOICE_CATS_KEY) || "{}");
-      VOICE_CATS.forEach(function (c) {
-        if (typeof raw[c.id] === "boolean") base[c.id] = raw[c.id];
-      });
-    } catch (_e) {}
-    return base;
-  }
-
-  function loadVoiceOff() {
-    const out = {};
-    try {
-      const arr = JSON.parse(localStorage.getItem(VOICE_OFF_KEY) || "[]");
-      (arr || []).forEach(function (f) {
-        if (f) out[f] = true;
-      });
-    } catch (_e2) {}
-    return out;
-  }
-
-  function loadVoiceMap() {
-    const out = {};
-    try {
-      const raw = JSON.parse(localStorage.getItem(VOICE_MAP_KEY) || "{}");
-      Object.keys(raw || {}).forEach(function (k) {
-        if (k && typeof raw[k] === "string" && raw[k]) out[k] = raw[k];
-      });
-    } catch (_e3) {}
-    return out;
-  }
-
-  function hydrateVoicePrefs() {
-    state.voiceCats = loadVoiceCats();
-    state.voiceOff = loadVoiceOff();
-    state.voiceMap = loadVoiceMap();
-  }
-
-  function saveVoicePrefs() {
-    try {
-      localStorage.setItem(VOICE_CATS_KEY, JSON.stringify(state.voiceCats));
-      localStorage.setItem(
-        VOICE_OFF_KEY,
-        JSON.stringify(
-          Object.keys(state.voiceOff).filter(function (k) {
-            return state.voiceOff[k];
-          })
-        )
-      );
-      localStorage.setItem(VOICE_MAP_KEY, JSON.stringify(state.voiceMap || {}));
-    } catch (_e) {}
-  }
-
-  function catLabel(id) {
-    const hit = VOICE_CATS.find(function (c) {
-      return c.id === id;
-    });
-    return hit ? hit.label : id;
-  }
-
-  function homeCat(name) {
-    const nv = navVoice();
-    const stock = nv && nv.stockCatalog;
-    if (!stock || !name) return state.packFilter;
-    const keys = Object.keys(stock);
-    for (let i = 0; i < keys.length; i++) {
-      if ((stock[keys[i]] || []).indexOf(name) !== -1) return keys[i];
-    }
-    return state.packFilter;
-  }
-
-  function applyVoiceMap(nv) {
-    const mgr = nv || navVoice();
-    if (!mgr || !mgr.catalog) return;
-    if (!mgr.stockCatalog) {
-      mgr.stockCatalog = JSON.parse(JSON.stringify(mgr.catalog));
-    }
-    const stock = mgr.stockCatalog;
-    const out = {};
-    Object.keys(stock).forEach(function (cat) {
-      out[cat] = [];
-    });
-    VOICE_CATS.forEach(function (c) {
-      if (!out[c.id]) out[c.id] = [];
-    });
-    Object.keys(stock).forEach(function (cat) {
-      (stock[cat] || []).forEach(function (name) {
-        const dest = (state.voiceMap && state.voiceMap[name]) || cat;
-        if (!out[dest]) out[dest] = [];
-        out[dest].push(name);
-      });
-    });
-    mgr.catalog = out;
-  }
-
-  hydrateVoicePrefs();
-
-  function moveClip(name, dest) {
-    if (!name || !dest) return;
-    const home = homeCat(name);
-    if (dest === home) delete state.voiceMap[name];
-    else state.voiceMap[name] = dest;
-    saveVoicePrefs();
-    applyVoiceMap();
-    fillPoen();
-  }
-
-  function mappedCount() {
-    return Object.keys(state.voiceMap || {}).length;
-  }
-
-  function updatePackCount() {
-    const nv = navVoice();
-    const cat = state.packFilter || "start";
-    const files = nv && nv.filesFor ? nv.filesFor(cat) : [];
-    const count = $("poenCount");
-    const on = files.filter(voiceFileOn).length;
-    const moved = mappedCount();
-    if (!count) return;
-    if (!files.length) {
-      count.textContent = "A hangcsomag még töltődik…";
-      return;
-    }
-    const drive = voiceCatOn(cat)
-      ? on + " / " + files.length + " mehet vezetés közben"
-      : "ki a vezetésből · " + on + " / " + files.length + " be van pipálva";
-    count.textContent =
-      catLabel(cat) +
-      ": " +
-      files.length +
-      " klip · " +
-      drive +
-      (moved ? " · " + moved + " átrakva" : "");
-  }
-
-  function markSortRow(name) {
-    const list = $("poenList");
-    if (!list) return;
-    const rows = list.children;
-    for (let i = 0; i < rows.length; i++) {
-      rows[i].classList.toggle("is-sort", rows[i].getAttribute("data-clip") === name);
-    }
-  }
-
-  function playSortAt(i) {
-    const files = poenFiles();
-    if (!files.length) {
-      state.sortName = "";
-      setPoenNow("", 0, 0);
-      return;
-    }
-    const idx = Math.max(0, Math.min(files.length - 1, i || 0));
-    const name = files[idx];
-    state.sortName = name;
-    state.sortIndex = idx;
-    const mgr = navVoice();
-    if (!mgr) return setStatus("A hangmodul nem töltődött be.", true);
-    armVoice();
-    if (typeof mgr.playOne === "function") mgr.playOne(name);
-    else mgr.playNow(mgr.hrefsForName(name));
-    setPoenNow(name, idx + 1, files.length);
-    markSortRow(name);
-  }
-
-  function putCurrent(dest) {
-    const name = state.sortName;
-    if (!name) {
-      setStatus("Előbb hallgasd meg a klipet, aztán rakd a helyére");
-      return;
-    }
-    if (!dest) return;
-    const files = poenFiles();
-    const i = files.indexOf(name);
-    const from = state.packFilter;
-    if (dest === from) {
-      skipStay();
-      return;
-    }
-    moveClip(name, dest);
-    setStatus(clipLabel(name) + " → " + catLabel(dest));
-    const nextFiles = poenFiles();
-    if (!nextFiles.length) {
-      state.sortName = "";
-      setPoenNow("", 0, 0);
-      return;
-    }
-    playSortAt(Math.min(Math.max(i, 0), nextFiles.length - 1));
-  }
-
-  function skipStay() {
-    const files = poenFiles();
-    if (!files.length) return;
-    const i = files.indexOf(state.sortName);
-    const next = i < 0 ? 0 : i + 1;
-    if (next >= files.length) {
-      setStatus("Ez volt az utolsó ebben a mappában");
-      playSortAt(files.length - 1);
-      return;
-    }
-    playSortAt(next);
-  }
-
-  function voiceCatOn(cat) {
-    if (!cat) return false;
-    return state.voiceCats[cat] !== false;
-  }
-
-  function voiceFileOn(name) {
-    if (!name) return false;
-    return !state.voiceOff[name];
-  }
-
-  function bindVoiceFilters(nv) {
-    if (!nv) return;
-    nv.catOk = function (cat) {
-      return voiceCatOn(cat);
-    };
-    nv.fileOk = function (name) {
-      return voiceFileOn(name);
-    };
-  }
-
-  function clipLabel(name) {
-    const m = String(name || "").match(/exit_(left|right)_(\d+)/i);
-    if (!m) return String(name || "").replace(/\.ogg$/i, "");
-    return m[2] + (m[1].toLowerCase() === "left" ? " B" : " J");
-  }
-
-  function poenFiles() {
-    const nv = navVoice();
-    const cat = state.packFilter || "start";
-    return nv && nv.filesFor ? nv.filesFor(cat) : [];
-  }
-
-  function setPoenNow(name, played, total) {
-    if (name) {
-      state.sortName = name;
-      markSortRow(name);
-    }
-    const el = $("poenNow");
-    if (!el) return;
-    if (name && played && total) {
-      el.textContent = clipLabel(name) + " · " + played + " / " + total + " — koppints: hová tartozik";
-      return;
-    }
-    if (state.sortName) {
-      el.textContent = "Rakd ide: " + clipLabel(state.sortName);
-      return;
-    }
-    el.textContent = "Hallgasd, aztán koppints: hová tartozik";
-  }
-
-  function paintVoiceCats() {
-    const box = $("voiceCatBox");
-    if (box) {
-      box.innerHTML = "";
-      VOICE_CATS.forEach(function (c) {
-        const lab = document.createElement("label");
-        lab.className = "check";
-        const inp = document.createElement("input");
-        inp.type = "checkbox";
-        inp.checked = voiceCatOn(c.id);
-        inp.addEventListener("change", function () {
-          state.voiceCats[c.id] = inp.checked;
-          saveVoicePrefs();
-          paintPackCats();
-          fillPoen();
-        });
-        lab.appendChild(inp);
-        lab.appendChild(document.createTextNode(" " + c.label));
-        box.appendChild(lab);
-      });
-    }
-    paintPackCats();
-  }
-
-  function paintPackCats() {
-    const bar = $("packCats");
-    if (bar) {
-      bar.innerHTML = "";
-      VOICE_CATS.forEach(function (c) {
-        const btn = document.createElement("button");
-        btn.type = "button";
-        btn.className =
-          "pack-cat" +
-          (c.id === state.packFilter ? " is-on" : "") +
-          (voiceCatOn(c.id) ? "" : " is-muted");
-        const nv = navVoice();
-        const n = nv && nv.filesFor ? nv.filesFor(c.id).length : 0;
-        btn.textContent = c.label + " (" + n + ")";
-        btn.addEventListener("click", function () {
-          state.packFilter = c.id;
-          state.sortName = "";
-          fillPoen();
-        });
-        bar.appendChild(btn);
-      });
-    }
-    const drive = $("packCatDrive");
-    if (drive) {
-      drive.checked = voiceCatOn(state.packFilter);
-      drive.onchange = function () {
-        state.voiceCats[state.packFilter] = drive.checked;
-        saveVoicePrefs();
-        paintVoiceCats();
-        fillPoen();
-      };
-    }
-    const putOn = $("packPutOn");
-    if (putOn) {
-      putOn.checked = state.packPut !== false;
-      putOn.onchange = function () {
-        state.packPut = putOn.checked;
-      };
-    }
-    paintPackDest();
-  }
-
-  function paintPackDest() {
-    const box = $("packDest");
-    if (!box) return;
-    box.innerHTML = "";
-    VOICE_CATS.forEach(function (c) {
-      const btn = document.createElement("button");
-      btn.type = "button";
-      btn.className = "pack-put" + (c.id === state.packFilter ? " is-here" : "");
-      btn.textContent = c.label;
-      btn.addEventListener("click", function () {
-        if (state.packPut === false) {
-          state.packFilter = c.id;
-          state.sortName = "";
-          fillPoen();
-          return;
-        }
-        putCurrent(c.id);
-      });
-      box.appendChild(btn);
-    });
-  }
-
-  function fillPoen() {
-    const nv = navVoice();
-    const cat = state.packFilter || "start";
-    const files = nv && nv.filesFor ? nv.filesFor(cat) : [];
-    const list = $("poenList");
-    updatePackCount();
-    paintPackCats();
-    if (!list) return;
-    list.innerHTML = "";
-    files.forEach(function (name, i) {
-      const li = document.createElement("li");
-      li.className =
-        "pack-item" +
-        (voiceFileOn(name) ? "" : " is-off") +
-        (name === state.sortName ? " is-sort" : "");
-      li.setAttribute("data-clip", name);
-      const play = document.createElement("button");
-      play.type = "button";
-      play.className = "pack-play";
-      play.textContent = clipLabel(name);
-      play.addEventListener("click", function () {
-        playSortAt(i);
-      });
-      const tog = document.createElement("button");
-      tog.type = "button";
-      tog.className = "pack-drive" + (voiceFileOn(name) ? " is-on" : "");
-      tog.setAttribute("aria-pressed", voiceFileOn(name) ? "true" : "false");
-      tog.textContent = voiceFileOn(name) ? "Be" : "Ki";
-      tog.addEventListener("click", function () {
-        if (state.voiceOff[name]) delete state.voiceOff[name];
-        else state.voiceOff[name] = true;
-        saveVoicePrefs();
-        li.classList.toggle("is-off", !voiceFileOn(name));
-        tog.classList.toggle("is-on", voiceFileOn(name));
-        tog.setAttribute("aria-pressed", voiceFileOn(name) ? "true" : "false");
-        tog.textContent = voiceFileOn(name) ? "Be" : "Ki";
-        updatePackCount();
-      });
-      li.appendChild(play);
-      li.appendChild(tog);
-      list.appendChild(li);
-    });
-  }
-
-  function bindPoen() {
-    const nv0 = navVoice();
-    if (nv0) nv0.onJoke = setPoenNow;
-    const play = $("poenPlay");
-    const next = $("poenNext");
-    const stop = $("poenStop");
-    if (play) {
-      play.addEventListener("click", function () {
-        const nv = navVoice();
-        if (!nv) return setStatus("A hangmodul nem töltődött be.", true);
-        armVoice();
-        nv.playJokes(shuffle(poenFiles()), 0);
-      });
-    }
-    if (next) {
-      next.addEventListener("click", function () {
-        skipStay();
-      });
-    }
-    const keep = $("packKeep");
-    if (keep) {
-      keep.addEventListener("click", function () {
-        skipStay();
-      });
-    }
-    if (stop) {
-      stop.addEventListener("click", function () {
-        const nv = navVoice();
-        if (nv) nv.stop();
-      });
-    }
-    const allOn = $("packAllOn");
-    const allOff = $("packAllOff");
-    if (allOn) {
-      allOn.addEventListener("click", function () {
-        poenFiles().forEach(function (f) {
-          delete state.voiceOff[f];
-        });
-        saveVoicePrefs();
-        fillPoen();
-      });
-    }
-    if (allOff) {
-      allOff.addEventListener("click", function () {
-        poenFiles().forEach(function (f) {
-          state.voiceOff[f] = true;
-        });
-        saveVoicePrefs();
-        fillPoen();
-      });
-    }
-  }
-
-  function hushSpeech() {
-    try {
-      if (window.speechSynthesis) window.speechSynthesis.cancel();
-    } catch (_e) {}
-  }
-
-  function armVoice() {
-    const nv = navVoice();
-    if (nv) nv.start();
-    try {
-      if (!state.warnCtx) state.warnCtx = new (window.AudioContext || window.webkitAudioContext)();
-      if (state.warnCtx && state.warnCtx.state === "suspended") state.warnCtx.resume();
-    } catch (_e) {}
-  }
-
-  function playWarnBeep(count) {
-    try {
-      if (!state.warnCtx) state.warnCtx = new (window.AudioContext || window.webkitAudioContext)();
-      const ctx = state.warnCtx;
-      if (ctx.state === "suspended") ctx.resume();
-      const n = Math.max(1, Math.min(3, count || 1));
-      for (let i = 0; i < n; i++) {
-        const osc = ctx.createOscillator();
-        const g = ctx.createGain();
-        osc.type = "sine";
-        osc.frequency.value = i % 2 ? 880 : 1244;
-        const t0 = ctx.currentTime + i * 0.17;
-        g.gain.setValueAtTime(0.0001, t0);
-        g.gain.exponentialRampToValueAtTime(0.2, t0 + 0.02);
-        g.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.13);
-        osc.connect(g);
-        g.connect(ctx.destination);
-        osc.start(t0);
-        osc.stop(t0 + 0.14);
-      }
-    } catch (_e) {}
-  }
-
-  function huVoice() {
-    try {
-      const list = (window.speechSynthesis && window.speechSynthesis.getVoices()) || [];
-      return (
-        list.filter(function (v) { return /^hu/i.test(v.lang || ""); })[0] ||
-        list.filter(function (v) { return /hungarian|magyar/i.test(v.name || ""); })[0] ||
-        null
-      );
-    } catch (_e) {
-      return null;
-    }
-  }
-
-  function speakRoad(text) {
-    if (!state.voice || !state.navigating || !text) return;
-    const nv = navVoice();
-    if (nv && nv.isBusy()) return;
-    const voice = huVoice();
-    if (!voice || !window.speechSynthesis) return;
-    try {
-      window.speechSynthesis.cancel();
-      const u = new SpeechSynthesisUtterance(text);
-      u.lang = voice.lang || "hu-HU";
-      u.voice = voice;
-      u.rate = 1.06;
-      u.volume = 1;
-      window.speechSynthesis.speak(u);
-    } catch (_e) {}
-  }
-
-  function warnRoad(text, beeps, key) {
-    if (key && state.spokenRoad === key) return;
-    if (key) state.spokenRoad = key;
-    const nv = navVoice();
-    if (nv && nv.isBusy()) {
-      if (key) state.spokenRoad = "";
-      return;
-    }
-    playWarnBeep(beeps);
-    speakRoad(text);
-  }
-
-  function announceLimit(limit) {
-    const n = Number(limit) || 0;
-    if (!n || n === state.spokenLimit) return false;
-    if (!state.navigating) return false;
-    state.spokenLimit = n;
-    return true;
-  }
-
-  function maybeSpeakRoad() {
-    if (!state.navigating || !state.voice) return;
-    if (!isSnappedToRoute()) return;
-    if (guidanceBlocking()) return;
-    const kmh = Math.round((state.speed || AppState.speed || 0) * 3.6);
-    const posted = !!(state.road && state.road.posted);
-    const limit = Number(state.road && state.road.limit) || 0;
-    if (!posted || !limit) return;
-    if (kmh > limit + 5 && Date.now() - state.lastSpeedWarn > 28000) {
-      const nv = navVoice();
-      if (nv && nv.isBusy()) return;
-      state.lastSpeedWarn = Date.now();
-      playWarnBeep(3);
-      holdNavVoice(3500);
-      if (nv) nv.playCat("speed");
-      if (state.funPoi || state.kaland) {
-        const id = "man:speed:" + limit;
-        if (!AppState.triggeredPois.has(id)) {
-          AppState.triggeredPois.add(id);
-          showFunChip("Túllépés: " + Math.round(kmh) + " a " + limit + " helyett.");
-        }
-      }
-    }
-  }
-
-  const FUN_GAG = {
-    fuel: ["a kocsi is szomjas", "tankolj, mielőtt a poén kifogy"],
-    pub: ["ide most nem térünk be", "söröző. te vezetsz"],
-    bar: ["a GPS nem kér fröccsöt"],
-    cafe: ["a szemednek kell, nem a kocsinak"],
-    restaurant: ["a gyomor navigál, de én a kormány"],
-    fast_food: ["gyorsabban eszel, mint ahogy kanyarodsz"],
-    attraction: ["nézd a műemléket, ne a telefont"],
-    museum: ["a múltat nem ússzuk le"],
-    viewpoint: ["a kilátás szép, a sávot tartsd"],
-    castle: ["nem ostrom, csak elhaladunk"],
-    supermarket: ["tej, kenyér, és egyenesben maradsz"]
-  };
-
-  const MANEUVER_GAG = {
-    roundabout: [
-      "körforgalom. számold a kijáratot, ne a viccet",
-      "a körforgalom nem körhinta",
-      "kijárat, nem körbe-körbe"
-    ],
-    sharp: [
-      "éles kanyar. a gyomor maradjon a helyén",
-      "élesen. a járdát hagyd békén",
-      "éles kanyar: fogd a kormányt, ne a poént"
-    ],
-    steep: [
-      "meredek utca. a fék a barátod",
-      "emelkedő vagy lejtő: tartsd a sávot",
-      "meredek. ne a gázzal vitatkozz"
-    ]
-  };
-
-  function maneuverGagLine(theme) {
-    const list = MANEUVER_GAG[theme];
-    if (!list || !list.length) return "";
-    return cap(list[Math.floor(Math.random() * list.length)]) + ".";
-  }
-
-  function gagThemeForStep(step, kind) {
-    const type = String((step && step.maneuver && step.maneuver.type) || "").toLowerCase();
-    const mod = String((step && step.maneuver && step.maneuver.modifier) || "").toLowerCase();
-    if (type.indexOf("exit") !== -1) return "";
-    if (type.includes("roundabout") || type.includes("rotary")) return "roundabout";
-    if (kind && (kind.cat === "leftSharp" || kind.cat === "rightSharp")) return "sharp";
-    if (mod.includes("sharp")) return "sharp";
-    return "";
-  }
-
-  let gagTimer = 0;
-
-  function cancelGagTimer() {
-    if (gagTimer) {
-      window.clearTimeout(gagTimer);
-      gagTimer = 0;
-    }
-  }
-
-  function holdNavVoice(ms) {
-    state.voiceHoldUntil = Math.max(state.voiceHoldUntil || 0, Date.now() + (ms || 2800));
-  }
-
-  function gagBlocked() {
-    return navVoiceBusy() || guidanceBlocking();
-  }
-
-  function speakGag(text) {
-    if (!state.voice || !state.navigating || !text) return false;
-    if (!isSnappedToRoute()) return false;
-    if (gagBlocked()) return false;
-    const voice = huVoice();
-    if (!voice || !window.speechSynthesis) return false;
-    try {
-      const u = new SpeechSynthesisUtterance(text);
-      u.lang = voice.lang || "hu-HU";
-      u.voice = voice;
-      u.rate = 1.06;
-      u.volume = 1;
-      window.speechSynthesis.speak(u);
-      state.voiceHoldUntil = Date.now() + Math.min(7000, 1400 + text.length * 55);
-      return true;
-    } catch (_e) {
-      return false;
-    }
-  }
-
-  function scheduleGag(line, delay, retries) {
-    cancelGagTimer();
-    const holdLeft = Math.max(0, (state.voiceHoldUntil || 0) - Date.now());
-    const wait = Math.max(delay, holdLeft + 280);
-    gagTimer = window.setTimeout(function () {
-      gagTimer = 0;
-      if (!state.navigating || !(state.funPoi || state.kaland)) return;
-      if (!isSnappedToRoute() || gagBlocked()) {
-        if (retries > 0) scheduleGag(line, 700, retries - 1);
-        return;
-      }
-      speakGag(line);
-    }, wait);
-  }
-
-  function queueManeuverGag(id, line) {
-    if (!line || AppState.triggeredPois.has(id)) return;
-    if (gagTimer) return;
-    AppState.triggeredPois.add(id);
-    showFunChip(line);
-    scheduleGag(line, gagBlocked() ? 2000 : 1600, 2);
-  }
-
-  function maybeSpeakManeuverGag(cur) {
-    if (!state.navigating || !(state.funPoi || state.kaland)) return;
-    if (!cur || !cur.kind || !cur.step) return;
-    if (!isSnappedToRoute()) return;
-    if (!already(cur.index, "now")) return;
-    if (cur.until > 95) return;
-    const theme = gagThemeForStep(cur.step, cur.kind);
-    if (!theme) return;
-    const id = "man:" + cur.index + ":" + theme;
-    queueManeuverGag(id, maneuverGagLine(theme));
-  }
-
-  function maybeSpeakStartPack(cur) {
-    if (!state.navigating || !state.voice) return;
-    if (!voiceCatOn("start")) return;
-    if (!cur || !cur.kind) return;
-    if (!isSnappedToRoute()) return;
-    if (!already(cur.index, "now")) return;
-    if (cur.until > 95) return;
-    const id = "pack:start:" + cur.index;
-    if (AppState.triggeredPois.has(id) || gagTimer) return;
-    AppState.triggeredPois.add(id);
-    const holdLeft = Math.max(0, (state.voiceHoldUntil || 0) - Date.now());
-    gagTimer = window.setTimeout(function () {
-      gagTimer = 0;
-      if (!state.navigating || !voiceCatOn("start")) return;
-      if (!isSnappedToRoute() || gagBlocked()) return;
-      const nv = navVoice();
-      if (nv) nv.playCat("start");
-    }, Math.max(1600, holdLeft + 280));
-  }
-
-  function maybeSpeakStraight(cur) {
-    if (!state.navigating || !state.voice) return;
-    if (!voiceCatOn("straight")) return;
-    if (!isSnappedToRoute() || guidanceBlocking()) return;
-    if (cur && cur.until < 350) return;
-    if (Date.now() - (state.lastStraightAt || 0) < 50000) return;
-    const nv = navVoice();
-    if (!nv || nv.isBusy()) return;
-    state.lastStraightAt = Date.now();
-    nv.playCat("straight");
-  }
-
-  function maybeSpeakSteep() {
-    if (!state.navigating || !(state.funPoi || state.kaland)) return;
-    if (!isSnappedToRoute()) return;
-    if (gagBlocked()) return;
-    const grade = Number(state.road && state.road.grade);
-    if (!Number.isFinite(grade) || Math.abs(grade) < 8) return;
-    const id = "man:steep:" + Math.round(Number(state.road.start) || 0);
-    if (AppState.triggeredPois.has(id)) return;
-    queueManeuverGag(id, maneuverGagLine("steep"));
-  }
-
-  function poiKindFromTags(tags) {
-    if (!tags) return "";
-    const a = String(tags.amenity || "");
-    const t = String(tags.tourism || "");
-    const h = String(tags.historic || "");
-    const s = String(tags.shop || "");
-    if (a === "fuel") return "fuel";
-    if (a === "pub") return "pub";
-    if (a === "bar") return "bar";
-    if (a === "cafe") return "cafe";
-    if (a === "restaurant") return "restaurant";
-    if (a === "fast_food") return "fast_food";
-    if (t === "attraction") return "attraction";
-    if (t === "museum") return "museum";
-    if (t === "viewpoint") return "viewpoint";
-    if (h === "castle") return "castle";
-    if (s === "supermarket") return "supermarket";
-    return "";
-  }
-
-  function poiGag(kind, name) {
-    const list = FUN_GAG[kind] || ["figyelem, poénos hely"];
-    let n = 0;
-    const s = String(name || kind || "");
-    for (let i = 0; i < s.length; i++) n = (n * 31 + s.charCodeAt(i)) | 0;
-    const gag = list[Math.abs(n) % list.length];
-    return (name ? name + " — " + cap(gag) : cap(gag)) + ".";
-  }
-
-  function showFunChip(text) {
-    const chip = $("placeChip");
-    const chipText = $("placeText");
-    if (!chip || !chipText || !text) return;
-    chip.hidden = false;
-    chipText.textContent = text;
-    chip.classList.add("is-fun");
-    chip.classList.remove("is-town", "is-rural");
-    state.funChipUntil = Date.now() + 9000;
-  }
-
-  function parseOverpassPois(data) {
-    const out = [];
-    (data && data.elements ? data.elements : []).forEach(function (el) {
-      const tags = el.tags || {};
-      const kind = poiKindFromTags(tags);
-      if (!kind) return;
-      const lat = Number(el.lat || (el.center && el.center.lat));
-      const lon = Number(el.lon || (el.center && el.center.lon));
-      if (!Number.isFinite(lat) || !Number.isFinite(lon)) return;
-      out.push({
-        id: String(el.type || "n") + "/" + el.id,
-        lat: lat,
-        lng: lon,
-        kind: kind,
-        name: tags.name || tags["name:hu"] || ""
-      });
-    });
-    return out;
-  }
-
-  function maybeLoadFunPois() {
-    if (!state.funPoi || !state.origin) return;
-    if (state.poiBusy) return;
-    const wait = (state.poeniPois && state.poeniPois.length) ? 15000 : 8000;
-    if (Date.now() - (state.poiAt || 0) < wait) return;
-    const here = (state.lastFix && state.lastFix.ll) || state.origin;
-    const lat = here.lat;
-    const lng = here.lng;
-    if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
-    state.poiBusy = true;
-    state.poiAt = Date.now();
-    const q =
-      "[out:json][timeout:6];(" +
-      "nwr(around:1200," +
-      lat.toFixed(5) +
-      "," +
-      lng.toFixed(5) +
-      ')[amenity~"^(fuel|pub|bar|cafe|restaurant|fast_food)$"];' +
-      "nwr(around:1200," +
-      lat.toFixed(5) +
-      "," +
-      lng.toFixed(5) +
-      ')[tourism~"^(attraction|museum|viewpoint)$"];' +
-      "nwr(around:1200," +
-      lat.toFixed(5) +
-      "," +
-      lng.toFixed(5) +
-      ")[historic=castle];" +
-      "nwr(around:1200," +
-      lat.toFixed(5) +
-      "," +
-      lng.toFixed(5) +
-      ")[shop=supermarket];);out center 36;";
-    fetch("https://overpass-api.de/api/interpreter", {
-      method: "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8" },
-      body: "data=" + encodeURIComponent(q)
-    })
-      .then(function (res) {
-        if (!res.ok) throw new Error("poi");
-        return res.json();
-      })
-      .then(function (data) {
-        const next = parseOverpassPois(data);
-        if (next.length) state.poeniPois = next;
-        state.poiBusy = false;
-      })
-      .catch(function () {
-        state.poiBusy = false;
-      });
-  }
-
-  function maybeSpeakFunPoi(lat, lng) {
-    if (!state.funPoi) return;
-    if (state.navigating) return;
-    const here =
-      Number.isFinite(lat) && Number.isFinite(lng)
-        ? { lat: lat, lng: lng }
-        : AppState.currentPos.lat
-          ? { lat: AppState.currentPos.lat, lng: AppState.currentPos.lng }
-          : (state.lastFix && state.lastFix.ll) || state.origin;
-    if (!here) return;
-    const list = state.poeniPois || [];
-    if (!list.length) return;
-    let best = null;
-    let bestD = POI_RANGE_M;
-    for (let i = 0; i < list.length; i++) {
-      const p = list[i];
-      if (!p || !p.id) continue;
-      if (AppState.triggeredPois.has(p.id)) continue;
-      const d = haversine(here, { lat: Number(p.lat), lng: Number(p.lng) });
-      if (d <= POI_RANGE_M && (!best || d < bestD)) {
-        best = p;
-        bestD = d;
-      }
-    }
-    if (!best) return;
-    if (AppState.triggeredPois.has(best.id)) return;
-    const line = poiGag(best.kind, best.name);
-    showFunChip(line);
-    AppState.triggeredPois.add(best.id);
-    state.spokenPoi[best.id] = true;
-  }
-
-  function nearestFull(coords, point) {
-    const saved = state.snapI;
-    state.snapI = 0;
-    const snap = nearest(coords, point);
-    state.snapI = saved;
-    return snap;
-  }
-
-  function speakGuidance(kind) {
-    if (!state.voice || !kind || kind.skip) return;
-    if (!isSnappedToRoute()) return;
-    if (!voiceCatOn(kind.cat)) return;
-    holdNavVoice(4500);
-    hushSpeech();
-    const nv = navVoice();
-    if (nv) nv.playCat(kind.cat);
   }
 
   function makeEl(cls) {
@@ -1935,20 +879,6 @@
 
   function isSnappedToRoute() {
     return !!snappedPosition();
-  }
-
-  function navVoiceBusy() {
-    const nv = navVoice();
-    return !!(nv && nv.isBusy());
-  }
-
-  function guidanceBlocking() {
-    if (Date.now() < (state.voiceHoldUntil || 0)) return true;
-    if (navVoiceBusy()) return true;
-    if (!state.navigating) return false;
-    const cur = nextActionable();
-    if (!cur || !cur.kind || cur.kind.skip) return false;
-    return cur.until <= warnMeters(cur.kind) && !already(cur.index, "now");
   }
 
   function plausibleJump(prev, next, acc) {
@@ -2908,7 +1838,6 @@
 
   const CAM_LERP = 0.16;
   const CAM_PITCH_NAV = 75;
-  let lastPoiTick = 0;
   let lastOffTick = 0;
   let lastSmoothT = 0;
 
@@ -2993,11 +1922,6 @@
       }
     }
     const wall = Date.now();
-    if (wall - lastPoiTick > 400) {
-      lastPoiTick = wall;
-      maybeLoadFunPois();
-      if (!state.navigating) maybeSpeakFunPoi(cur.lat, cur.lng);
-    }
     if (wall - lastOffTick > 220) {
       lastOffTick = wall;
       if (state.map && Number.isFinite(cur.lat) && Number.isFinite(cur.lng)) {
@@ -3201,7 +2125,7 @@
     const chip = $("placeChip");
     const chipText = $("placeText");
     const label = placeLabel(urban, state.place);
-    if (chip && chipText && !(state.funChipUntil && Date.now() < state.funChipUntil)) {
+    if (chip && chipText) {
       chip.classList.remove("is-fun");
       chip.hidden = !label;
       chipText.textContent = label;
@@ -3221,8 +2145,6 @@
     }
     const hz = $("hazardThen");
     if (hz) hz.hidden = true;
-    maybeSpeakRoad();
-    maybeSpeakSteep();
   }
 
   function canvasIcon(w, h, draw) {
@@ -3636,7 +2558,6 @@
         if (road.urban === true && state.origin) refreshPlace(state.origin.lat, state.origin.lng);
         else if (road.urban === false) state.place = "";
       }
-      if (limitChanged && road.limit) announceLimit(road.limit);
       state.lastUrban = road.urban;
       state.lastLimitShown = road.limit;
       return;
@@ -3681,30 +2602,11 @@
     } else {
       thenRow.hidden = true;
     }
-    const nv = navVoice();
-    if (nv) {
-      nv.warmCat(kind.cat);
-      if (then) nv.warmCat(then.kind.cat);
-    }
-    if (cur.until <= warn && !already(cur.index, "now")) {
-      if (isSnappedToRoute()) {
-        markSpoken(cur.index, "now");
-        speakGuidance(kind);
-      }
-    } else if (already(cur.index, "now") && isSnappedToRoute()) {
-      maybeSpeakStartPack(cur);
-      maybeSpeakManeuverGag(cur);
-    }
-    maybeSpeakStraight(cur);
     paintArHud();
     syncFloatMarks();
     if ((kind.cat === "arrive" && cur.until < 40 && !state.arrived) || (r.m < 35 && !state.arrived)) {
       state.arrived = true;
-      if (!already(cur.index, "now")) {
-        markSpoken(cur.index, "now");
-        speakGuidance(kind.cat === "arrive" ? kind : classify({ maneuver: { type: "arrive" }, name: "" }));
-      }
-      stopNav({ keepAudio: true });
+      stopNav({ arrived: true });
     }
   }
 
@@ -3998,17 +2900,7 @@
       (route.legs || []).forEach((leg) => (leg.steps || []).forEach((s) => state.steps.push(s)));
       if (reroute && state.coords.length) state.traveled = nearest(state.coords, state.origin).traveled;
       else state.traveled = 0;
-      state.spoken = {};
-      state.spokenRoad = "";
-      state.spokenLimit = 0;
-      state.spokenHazard = "";
-      state.lastSpeedWarn = 0;
-      state.voiceHoldUntil = 0;
       state.arrived = false;
-      cancelGagTimer();
-      AppState.triggeredPois.forEach(function (id) {
-        if (String(id).indexOf("man:") === 0) AppState.triggeredPois.delete(id);
-      });
       addLayers();
       drawRoute();
       state.cameras = [];
@@ -4029,8 +2921,6 @@
                 : "Új útvonal."
         );
         if (state.navigating) {
-          const nxt = nextActionable();
-          if (nxt && desiredPhase(nxt.until, nxt.kind) === "soon") markSpoken(nxt.index, "soon");
           updateNav();
         }
       } else {
@@ -4142,23 +3032,11 @@
       );
       state.camHeading = state.heading;
     }
-    state.spoken = {};
-    state.spokenPoi = {};
-    state.poiAt = 0;
-    armVoice();
-    const nv = navVoice();
-    if (nv) nv.stop();
-    hushSpeech();
     setStatus(state.kaland ? "Kaland mód" : "Navigáció");
-    playWarnBeep(1);
-    state.lastSpare = Date.now();
-    holdNavVoice(2500);
-    if (state.voice) speakRoad("Navigáció indul");
     updateNav();
     updateRoadFromRoute();
     updateCamera(true);
     paintArHud();
-    maybeLoadFunPois();
     loadCameras(state.coords);
     syncFloatMarks(true);
     armWake();
@@ -4223,18 +3101,9 @@
     }
     if ($("roadThen")) $("roadThen").hidden = true;
     if ($("hazardThen")) $("hazardThen").hidden = true;
-    if (!(opts && opts.keepAudio)) {
-      hushSpeech();
-      const nv = navVoice();
-      if (nv) nv.stop();
-      setStatus("Megállítva");
-    } else {
-      setStatus("Megérkeztél");
-    }
+    setStatus(opts && opts.arrived ? "Megérkeztél" : "Megállítva");
     paintArHud();
-    state.spokenPoi = {};
     AppState.activeRoute = null;
-    state.funChipUntil = 0;
     state.cameras = [];
     clearFloatMarks();
     if ($("placeChip")) $("placeChip").classList.remove("is-fun");
@@ -4271,9 +3140,6 @@
     if (Date.now() - state.lastOff < 6000) return;
     state.lastOff = Date.now();
     state.offHits = 0;
-    hushSpeech();
-    const nv = navVoice();
-    if (state.voice && nv) nv.playCat("recompute");
     fetchRoute(true);
   }
 
@@ -4342,8 +3208,6 @@
       state.gpsHits += 1;
       if (state.gpsHits >= 3 && Date.now() - state.lastGpsWarn > 40000) {
         state.lastGpsWarn = Date.now();
-        const nv = navVoice();
-        if (state.voice && nv && !nv.isBusy()) nv.playCat("gps");
         setStatus("Gyenge GPS", true);
       }
     } else {
@@ -4559,7 +3423,6 @@
   }
 
   async function choose(place) {
-    armVoice();
     $("results").hidden = true;
     closeSearch("keep");
     showHome();
@@ -4641,11 +3504,6 @@
       if ($("kalandCheck")) $("kalandCheck").checked = state.kaland;
       if ($("app")) $("app").classList.toggle("is-kaland", state.kaland);
     } catch (_e2) {}
-    try {
-      const fun = localStorage.getItem(FUNPOI_KEY);
-      state.funPoi = fun !== "0";
-      if ($("funPoiCheck")) $("funPoiCheck").checked = state.funPoi;
-    } catch (_e3) {}
   }
 
   function saveNavOpts() {
@@ -4670,26 +3528,6 @@
     applyRouteStyle();
     setStatus(state.kaland ? "Kaland mód be" : "Kaland mód ki");
     if (state.origin && state.dest) plan(true);
-    if (state.funPoi) {
-      state.poiAt = 0;
-      maybeLoadFunPois();
-    }
-  }
-
-  function applyFunPoi(on) {
-    state.funPoi = !!on;
-    try {
-      localStorage.setItem(FUNPOI_KEY, state.funPoi ? "1" : "0");
-    } catch (_e) {}
-    const check = $("funPoiCheck");
-    if (check) check.checked = state.funPoi;
-    if (!state.funPoi) {
-      state.poeniPois = [];
-      state.funChipUntil = 0;
-    } else if (state.funPoi) {
-      state.poiAt = 0;
-      maybeLoadFunPois();
-    }
   }
 
   function seedOriginFromCar() {
@@ -5274,7 +4112,6 @@
     const dark = localStorage.getItem(THEME_KEY) !== "light";
     document.documentElement.classList.toggle("dark", dark);
     if ($("dark")) $("dark").checked = dark;
-    if ($("voiceCheck")) $("voiceCheck").checked = state.voice;
     return loadEuropeStyle(dark)
       .then(function (st) {
         state.mapOffline = true;
@@ -5289,7 +4126,6 @@
   }
 
   function bind() {
-    hydrateVoicePrefs();
     $("searchForm").addEventListener("submit", onSearch);
     $("q").addEventListener("input", onQueryInput);
     $("stop").addEventListener("click", stopNav);
@@ -5341,87 +4177,8 @@
       else markCamOk();
     });
     $("searchBtn").addEventListener("click", () => {
-      armVoice();
       toggleSearch();
     });
-    const voiceStart = $("voiceStart");
-    const voiceFind = $("voiceFind");
-    const voiceBase = $("voiceBase");
-    if (voiceBase && window.NavVoice && window.NavVoice.instance) {
-      voiceBase.value = window.NavVoice.instance.base || "";
-    }
-    if (voiceFind) {
-      voiceFind.addEventListener("click", () => {
-        const nv = navVoice();
-        if (!nv) return setStatus("A hangmodul nem töltődött be.", true);
-        const typed = voiceBase ? String(voiceBase.value || "").trim() : "";
-        const isAuto =
-          !typed ||
-          typed === "automatikus" ||
-          typed === "/hungary_jf/" ||
-          typed === "/navigacio/hungary_jf/";
-        if (!isAuto) nv.setBase(typed);
-        nv.findSounds().then(() => {
-          if (voiceBase && nv.base) voiceBase.value = nv.base;
-          nv.stockCatalog = JSON.parse(JSON.stringify(nv.catalog || {}));
-          applyVoiceMap(nv);
-          fillPoen();
-          paintVoiceCats();
-        });
-      });
-    }
-    if (voiceStart) {
-      voiceStart.addEventListener("click", (ev) => {
-        ev.preventDefault();
-        const nv = navVoice();
-        if (!nv) return setStatus("A hangmodul nem töltődött be.", true);
-        nv.start();
-      });
-    }
-    function paintVoiceBtn() {
-      const btn = $("voiceBtn");
-      if (!btn) return;
-      btn.classList.toggle("is-on", !!state.voice);
-      btn.setAttribute("aria-pressed", state.voice ? "true" : "false");
-      if ($("voiceCheck")) $("voiceCheck").checked = !!state.voice;
-    }
-    paintVoiceBtn();
-    $("voiceCheck").addEventListener("change", () => {
-      state.voice = $("voiceCheck").checked;
-      paintVoiceBtn();
-      if (!state.voice) {
-        const nv = navVoice();
-        if (nv) nv.stop();
-        return;
-      }
-      hushSpeech();
-    });
-    if ($("voiceBtn")) {
-      $("voiceBtn").addEventListener("click", function () {
-        state.voice = !state.voice;
-        paintVoiceBtn();
-        if (!state.voice) {
-          const nv = navVoice();
-          if (nv) nv.stop();
-          setStatus("Hang ki");
-          return;
-        }
-        armVoice();
-        hushSpeech();
-        setStatus("Hang be");
-      });
-    }
-    document.querySelectorAll("[data-voice]").forEach((btn) => {
-      btn.addEventListener("click", (ev) => {
-        ev.preventDefault();
-        const nv = navVoice();
-        const key = btn.getAttribute("data-voice");
-        if (nv) nv.playPhrase(key);
-        else setStatus("A hangmodul nem töltődött be.", true);
-      });
-    });
-    bindPoen();
-    paintVoiceCats();
     const hamburgerBtn = $("hamburgerBtn");
     const closeBtn = $("closeBtn");
     const drawerOverlay = $("drawerOverlay");
@@ -5495,12 +4252,6 @@
     if ($("kalandCheck")) {
       $("kalandCheck").addEventListener("change", function () {
         applyKaland($("kalandCheck").checked);
-      });
-    }
-    if ($("funPoiCheck")) {
-      $("funPoiCheck").addEventListener("change", function () {
-        applyFunPoi($("funPoiCheck").checked);
-        setStatus(state.funPoi ? "Poénos POI be" : "Poénos POI ki");
       });
     }
     bindGarage();
@@ -5628,26 +4379,6 @@
     });
   }
 
-  function initVoice() {
-    if (!window.NavVoice) return;
-    window.NavVoice.init({
-      onLog(line, isError) {
-        const el = $("voiceLog");
-        if (!el) return;
-        el.textContent = line;
-        el.classList.toggle("is-err", !!isError);
-      }
-    }).then((mgr) => {
-      const el = $("voiceBase");
-      if (el && mgr && mgr.base) el.value = mgr.base;
-      if (mgr) mgr.onJoke = setPoenNow;
-      bindVoiceFilters(mgr);
-      applyVoiceMap(mgr);
-      fillPoen();
-      paintVoiceCats();
-    }).catch((err) => console.warn("[NavVoice] init", err));
-  }
-
   function initGps() {
     seedOriginFromCar();
     if (!navigator.geolocation) {
@@ -5692,14 +4423,12 @@
       })
       .then(function () {
         bind();
-        initVoice();
         initGps();
       })
       .catch((err) => {
         setStatus(err && err.message ? err.message : "A térkép nem töltődött be.", true);
         try {
           bind();
-          initVoice();
         } catch (_e) {}
       });
   }
@@ -5737,26 +4466,6 @@
     zoom: function () {
       return state.map ? Math.round(state.map.getZoom() * 10) / 10 : 0;
     },
-    poiTest: function () {
-      const h = (state.lastFix && state.lastFix.ll) || state.origin || {
-        lat: AppState.currentPos.lat,
-        lng: AppState.currentPos.lng
-      };
-      if (!h) return false;
-      state.funPoi = true;
-      state.poeniPois.push({
-        id: "test/" + Date.now(),
-        lat: h.lat,
-        lng: h.lng,
-        kind: "pub",
-        name: "Teszt kocsma"
-      });
-      maybeSpeakFunPoi(h.lat, h.lng);
-      return true;
-    },
-    poiTick: function () {
-      maybeSpeakFunPoi();
-    },
     kaland: function (on) {
       applyKaland(!!on);
     },
@@ -5776,10 +4485,6 @@
         },
         true
       );
-    },
-    gagTheme: function (type, modifier) {
-      const step = { maneuver: { type: type || "", modifier: modifier || "" } };
-      return gagThemeForStep(step, classify(step));
     },
     snapped: function () {
       return isSnappedToRoute();

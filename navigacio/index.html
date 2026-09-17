@@ -25,7 +25,7 @@
   <link rel="icon" href="./icons/icon-192.png" type="image/png">
   <link rel="apple-touch-icon" href="./icons/apple-touch-icon.png">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/maplibre-gl@5.5.0/dist/maplibre-gl.css">
-  <link rel="stylesheet" href="./style.css?v=103">
+  <link rel="stylesheet" href="./style.css?v=104">
 </head>
 <body>
   <div id="app">
@@ -122,40 +122,16 @@
       <a class="peek nav-link" href="#funkciok">Funkciók ↓</a>
     </section>
 
-    <section id="poen" class="page">
-      <h1>Hangcsomag</h1>
-      <p>Hallgasd meg a klipet, aztán koppints, hová tartozik. A fájlnév nem számít — te rakod a helyére. A Be/Ki csak annyi, hogy mehet-e vezetés közben.</p>
-      <p id="poenCount">—</p>
-      <div class="pack-cats" id="packCats"></div>
-      <label class="check pack-drive-row"><input type="checkbox" id="packCatDrive"> Ez a mappa mehet vezetés közben</label>
-      <label class="check pack-drive-row"><input type="checkbox" id="packPutOn" checked> Amit hallok, azt rakom a gombra</label>
-      <div class="poen-bar pack-toolbar">
-        <button type="button" id="poenPlay">Mind megy</button>
-        <button type="button" id="poenNext">Következő</button>
-        <button type="button" id="packKeep">Marad itt</button>
-        <button type="button" id="poenStop">Állj</button>
-      </div>
-      <div class="row pack-toolbar">
-        <button type="button" id="packAllOn">Mind be a vezetésbe</button>
-        <button type="button" id="packAllOff">Mind ki a vezetésből</button>
-      </div>
-      <p id="poenNow">Hallgasd, aztán koppints: hová tartozik</p>
-      <p class="hint pack-put-label">Rakd ide</p>
-      <div class="pack-dest" id="packDest"></div>
-      <ul id="poenList"></ul>
-    </section>
-
     <section id="funkciok" class="page">
       <h1>Funkciók</h1>
       <ul>
         <li>Felül a kanyartábla: táv, utasítás, utca, alatta a következő kanyar.</li>
         <li>A kereső házszámot is talál: írd be az utcát és a számot, pl. Kossuth utca 12. Közelítéskor a házszámok a térképen is látszanak.</li>
         <li>A térképet húzhatod, nagyíthatod. Ekkor a követés kikapcsol; a térkép gomb visszateszi. A kereső címlistája: név felül, város/házszám alatta — koppints a találatra.</li>
-        <li>A kanyarnál a feltöltött hangcsomag szól, egyszerre csak egy hang. Letéréskor újratervez.</li>
-        <li>Arcade 3D nézet: éjszakai vektoros aszfalt, 78° kamera, égbolt/köd. A Garázsban low-poly chibi mini autók, kártyán forgó 3D előnézet. Kanyarban a karosszéria megdől. Jobbra három gomb: térkép, útvonal, hang.</li>
-        <li>Kaland mód: OSRM alternatives, a kanyargósabb út, arany neon, autópálya nélkül. Poénos hang: csak körforgalomnál, éles kanyarnál, meredek utcán vagy túllépéskor — az OSRM útvonalra illesztve.</li>
+        <li>A navigáció néma, csak a képernyőn látod a kanyart. Letéréskor újratervez.</li>
+        <li>Arcade 3D nézet: éjszakai vektoros aszfalt, 78° kamera, égbolt/köd. A Garázsban low-poly chibi mini autók, kártyán forgó 3D előnézet. Kanyarban a karosszéria megdől. Jobbra két gomb: térkép, útvonal.</li>
+        <li>Kaland mód: OSRM alternatives, a kanyargósabb út, arany neon, autópálya nélkül.</li>
         <li>Előrejelzés, következő kanyar, kijárat, sávrajz, sebesség.</li>
-        <li>A 698 klipet te pakolod: hallgasd, aztán koppints, hová tartozik. A Be/Ki a vezetés. Alapból a kanyarmappák mennek, a poén és az egyenes ki van kapcsolva.</li>
         <li>Otthon és munka a menüből. Az autó helye mentődik: keresőben Autó, sárga pont a térképen.</li>
       </ul>
     </section>
@@ -190,9 +166,6 @@
           <path d="M7 8.2v3.2A4.6 4.6 0 0 0 11.6 16H17" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/>
         </svg>
       </button>
-      <button type="button" id="voiceBtn" class="fab is-on" title="Hangszóró" aria-pressed="true" aria-label="Hangszóró">
-        <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M4 10v4h3l5 4V6L7 10H4z" fill="currentColor"/><path d="M16.2 8.2a5 5 0 0 1 0 7.6M18.6 5.8a8.5 8.5 0 0 1 0 12.4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
-      </button>
     </div>
     <div id="drawerOverlay"></div>
     <aside id="mobileDrawer" role="dialog" aria-labelledby="drawerTitle">
@@ -202,7 +175,6 @@
       </header>
       <nav class="drawer-nav">
         <a class="nav-link mobile-link" href="#kezdolap">Kezdőlap</a>
-        <a class="nav-link mobile-link" href="#poen">Hangcsomag</a>
         <a class="nav-link mobile-link" href="#funkciok">Funkciók</a>
         <a class="nav-link mobile-link" href="#Ajanlatok">Ajánlatok</a>
         <a class="nav-link mobile-link" href="#kapcsolat">Kapcsolat</a>
@@ -224,54 +196,17 @@
       <label class="check"><input type="checkbox" id="avoidMotorway"> Autópálya elkerülése</label>
       <label class="check"><input type="checkbox" id="avoidToll"> Fizetős utak elkerülése</label>
       <p class="hint">A pipák megmaradnak. Ha van cél, az útvonal azonnal újraterveződik autópálya / fizető nélkül. A telefon vissza gombja a menüt zárja, nem az appot.</p>
-      <label class="check"><input type="checkbox" id="voiceCheck" checked> Hang</label>
-      <p class="hint">Vezetés közben melyik mappa szólhat. A klipeket a Hangcsomag oldalon rakod a helyükre.</p>
-      <div class="voice-cats" id="voiceCatBox"></div>
       <label class="check"><input type="checkbox" id="dark" checked> Sötét térkép</label>
       <label class="check"><input type="checkbox" id="kalandCheck"> Kaland mód</label>
-      <label class="check"><input type="checkbox" id="funPoiCheck" checked> Poénos POI</label>
-      <p class="hint">Kaland: autópálya nélkül, a kanyargósabb OSRM-út, arany vonal. Poénos POI: körforgalom, éles kanyar, meredek utca vagy túllépés — csak az útra illesztve, a kanyarutasítás mindig előrébb van.</p>
-      <div id="voiceTest">
-        <p class="hint">Ezek tesztgombok: mindig lejátszanak egy klipet az adott helyzetből. A vezetés közbeni tiltást a Hangcsomag oldalon állítod. Soha nem megy két hang egyszerre.</p>
-        <input id="voiceBase" type="text" spellcheck="false" placeholder="automatikus" hidden>
-        <button type="button" id="voiceFind">Hangok keresése</button>
-        <button type="button" id="voiceStart">Hang indítása</button>
-        <div class="row">
-          <button type="button" data-voice="now-left">Balra</button>
-          <button type="button" data-voice="now-right">Jobbra</button>
-        </div>
-        <div class="row">
-          <button type="button" data-voice="keep-left">Tarts balra</button>
-          <button type="button" data-voice="keep-right">Tarts jobbra</button>
-        </div>
-        <div class="row">
-          <button type="button" data-voice="roundabout">Körforgalom</button>
-          <button type="button" data-voice="uTurn">Visszafordulás</button>
-        </div>
-        <div class="row">
-          <button type="button" data-voice="motorway-on">Autópályára</button>
-          <button type="button" data-voice="motorway-off">Lehajtó</button>
-        </div>
-        <div class="row">
-          <button type="button" data-voice="ferry">Komp</button>
-          <button type="button" data-voice="recomputing">Újratervezés</button>
-        </div>
-        <div class="row">
-          <button type="button" data-voice="finish">Megérkeztél</button>
-          <button type="button" data-voice="speed">Gyorshajtás</button>
-        </div>
-        <p id="voiceLog">Nyomd meg: Hang indítása</p>
-      </div>
+      <p class="hint">Kaland: autópálya nélkül, a kanyargósabb OSRM-út, arany vonal. A navigáció néma: a kanyarutasítás csak a képernyőn jelenik meg.</p>
     </aside>
   </div>
 
   <noscript>A navigációhoz JavaScript kell.</noscript>
-  <audio id="navVoiceEl" playsinline preload="auto"></audio>
-  <script src="./voice/audio-manager.js"></script>
   <script src="./vendor/three.min.js"></script>
   <script src="./vendor/GLTFLoader.js"></script>
-  <script src="./sw-register.js?v=103"></script>
-  <script src="./car-layer.js?v=103"></script>
-  <script src="./app.js?v=103"></script>
+  <script src="./sw-register.js?v=104"></script>
+  <script src="./car-layer.js?v=104"></script>
+  <script src="./app.js?v=104"></script>
 </body>
 </html>
