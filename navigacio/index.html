@@ -25,7 +25,7 @@
   <link rel="icon" href="./icons/icon-192.png" type="image/png">
   <link rel="apple-touch-icon" href="./icons/apple-touch-icon.png">
   <link rel="stylesheet" href="./vendor/maplibre-gl.css">
-  <link rel="stylesheet" href="./style.css?v=105">
+  <link rel="stylesheet" href="./style.css?v=106">
 </head>
 <body>
   <div id="app">
@@ -129,7 +129,7 @@
         <li>A kereső házszámot is talál: írd be az utcát és a számot, pl. Kossuth utca 12. Közelítéskor a házszámok a térképen is látszanak.</li>
         <li>A térképet húzhatod, nagyíthatod. Ekkor a követés kikapcsol; a térkép gomb visszateszi. A kereső címlistája: név felül, város/házszám alatta — koppints a találatra.</li>
         <li>Telepíthető a fejegységre, mint app (PWA). Az első betöltés letölti a térképet, a 3D autókat és a stílust — utána offline is nyílik.</li>
-        <li>A navigáció néma, csak a képernyőn látod a kanyart. Letéréskor újratervez.</li>
+        <li>Hangok: a menüben Hangok összerendelése. Minden eseményhez te választasz klipet; a Teszt lejátssza. Amit nem rendelsz, az néma marad.</li>
         <li>Arcade 3D nézet: éjszakai vektoros aszfalt, 78° kamera, égbolt/köd. A Garázsban low-poly chibi mini autók, kártyán forgó 3D előnézet. Kanyarban a karosszéria megdől. Jobbra két gomb: térkép, útvonal.</li>
         <li>Kaland mód: OSRM alternatives, a kanyargósabb út, arany neon, autópálya nélkül.</li>
         <li>Előrejelzés, következő kanyar, kijárat, sávrajz, sebesség.</li>
@@ -199,12 +199,24 @@
       <p class="hint">A pipák megmaradnak. Ha van cél, az útvonal azonnal újraterveződik autópálya / fizető nélkül. A telefon vissza gombja a menüt zárja, nem az appot.</p>
       <label class="check"><input type="checkbox" id="dark" checked> Sötét térkép</label>
       <label class="check"><input type="checkbox" id="kalandCheck"> Kaland mód</label>
-      <p class="hint">Kaland: autópálya nélkül, a kanyargósabb OSRM-út, arany vonal. A navigáció néma: a kanyarutasítás csak a képernyőn jelenik meg.</p>
+      <p class="hint">Kaland: autópálya nélkül, a kanyargósabb OSRM-út, arany vonal. Hang csak akkor szól, ha a Hangok panelen összerendeltél egy klipet.</p>
+      <div class="row">
+        <button type="button" id="mapperBtn">Hangok összerendelése</button>
+      </div>
       <div class="row">
         <button type="button" id="installBtn">Telepítés a fejegységre</button>
       </div>
       <p class="hint" id="installHint">Chrome menü: Telepítés alkalmazásként. Fekvő (landscape) standalone app, offline cache-ből nyílik.</p>
     </aside>
+    <div id="mapperOverlay"></div>
+    <div id="audioMapper" role="dialog" aria-labelledby="mapperTitle" aria-modal="true">
+      <header>
+        <strong id="mapperTitle">Hangok</strong>
+        <button type="button" id="mapperClose">Bezár</button>
+      </header>
+      <p class="hint">Minden navigációs eseményhez válassz egy klipet a csomagból. A Teszt lejátssza. A párosítás a telefonon marad.</p>
+      <div id="mapperList"></div>
+    </div>
   </div>
 
   <noscript>A navigációhoz JavaScript kell.</noscript>
@@ -212,8 +224,9 @@
   <script src="./vendor/pmtiles.js"></script>
   <script src="./vendor/three.min.js"></script>
   <script src="./vendor/GLTFLoader.js"></script>
-  <script src="./sw-register.js?v=105"></script>
-  <script src="./car-layer.js?v=105"></script>
-  <script src="./app.js?v=105"></script>
+  <script src="./sw-register.js?v=106"></script>
+  <script src="./car-layer.js?v=106"></script>
+  <script src="./voice/audio-manager.js?v=106"></script>
+  <script src="./app.js?v=106"></script>
 </body>
 </html>

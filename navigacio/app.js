@@ -215,6 +215,8 @@
     lastUrban: null,
     lastLimitShown: 0,
     roadBusy: false,
+    audioCue: {},
+    lastSpeedWarn: 0,
     kaland: false,
     cameras: [],
     camBusy: false,
@@ -879,6 +881,15 @@
 
   function isSnappedToRoute() {
     return !!snappedPosition();
+  }
+
+  function playNavCue(eventId, key) {
+    if (!eventId || !window.NavVoice || typeof window.NavVoice.playEvent !== "function") return;
+    if (key) {
+      if (state.audioCue[key] === eventId) return;
+      state.audioCue[key] = eventId;
+    }
+    window.NavVoice.playEvent(eventId);
   }
 
   function plausibleJump(prev, next, acc) {
@@ -2122,6 +2133,10 @@
     }
     const speedEl = $("speed");
     if (speedEl) speedEl.classList.toggle("is-over", !!(limit && kmh > limit + 3));
+    if (state.navigating && limit && kmh > limit + 3 && Date.now() - (state.lastSpeedWarn || 0) > 25000) {
+      state.lastSpeedWarn = Date.now();
+      playNavCue("speed-warning");
+    }
     const chip = $("placeChip");
     const chipText = $("placeText");
     const label = placeLabel(urban, state.place);
@@ -2602,6 +2617,10 @@
     } else {
       thenRow.hidden = true;
     }
+    if (kind.cat !== "arrive" && cur.until <= warn && isSnappedToRoute()) {
+      const ev = window.NavVoice && window.NavVoice.eventFromCat ? window.NavVoice.eventFromCat(kind.cat) : "";
+      if (ev) playNavCue(ev, "step:" + cur.index);
+    }
     paintArHud();
     syncFloatMarks();
     if ((kind.cat === "arrive" && cur.until < 40 && !state.arrived) || (r.m < 35 && !state.arrived)) {
@@ -2901,6 +2920,8 @@
       if (reroute && state.coords.length) state.traveled = nearest(state.coords, state.origin).traveled;
       else state.traveled = 0;
       state.arrived = false;
+      state.audioCue = {};
+      state.lastSpeedWarn = 0;
       addLayers();
       drawRoute();
       state.cameras = [];
@@ -3033,6 +3054,7 @@
       state.camHeading = state.heading;
     }
     setStatus(state.kaland ? "Kaland mód" : "Navigáció");
+    if (window.NavVoice && window.NavVoice.close) window.NavVoice.close();
     updateNav();
     updateRoadFromRoute();
     updateCamera(true);
@@ -3102,6 +3124,7 @@
     if ($("roadThen")) $("roadThen").hidden = true;
     if ($("hazardThen")) $("hazardThen").hidden = true;
     setStatus(opts && opts.arrived ? "Megérkeztél" : "Megállítva");
+    if (opts && opts.arrived) playNavCue("arrived", "arrived");
     paintArHud();
     AppState.activeRoute = null;
     state.cameras = [];
@@ -3140,6 +3163,7 @@
     if (Date.now() - state.lastOff < 6000) return;
     state.lastOff = Date.now();
     state.offHits = 0;
+    playNavCue("recalculating");
     fetchRoute(true);
   }
 
