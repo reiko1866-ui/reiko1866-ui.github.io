@@ -5204,6 +5204,7 @@
     state.map.on("style.load", function () {
       addLayers();
       applyMarkSize();
+      maybeArcadePreview();
     });
     window.addEventListener("resize", applyMarkSize);
     try {
@@ -5686,8 +5687,10 @@
       AppState.selectedCar = state.carModel;
     }
     loadMapLibre()
-      .then(() => {
-        initMap();
+      .then(function () {
+        return initMap();
+      })
+      .then(function () {
         bind();
         initVoice();
         initGps();
