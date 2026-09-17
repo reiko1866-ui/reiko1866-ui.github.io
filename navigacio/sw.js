@@ -1,4 +1,4 @@
-const CACHE = "nav-v105";
+const CACHE = "nav-v106";
 const CORE = [
   "./",
   "./index.html",
@@ -21,6 +21,7 @@ const CORE = [
   "./icons/icon-512.png",
   "./icons/apple-touch-icon.png",
   "./voice/audio-manager.js",
+  "./voice/files.json",
   "./voice/pack.json",
   "./voice/catalog.json"
 ];
