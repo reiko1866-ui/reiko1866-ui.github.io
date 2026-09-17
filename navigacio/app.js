@@ -3639,6 +3639,13 @@
     if ($("q")) $("q").value = label;
     focusDest(dest);
     const startNow = opts.autoPlan !== false;
+    if (!startNow && !state.navigating) {
+      state.route = null;
+      state.coords = [];
+      state.steps = [];
+      AppState.activeRoute = null;
+      try { drawRoute(); } catch (_e) {}
+    }
     if (!state.origin) {
       state.pendingPlan = !!startNow;
       setStatus(startNow ? "Várom a GPS-t, aztán indulok…" : "Húzd a tűt a pontos házhoz, majd Útvonal");
