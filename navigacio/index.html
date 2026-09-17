@@ -25,7 +25,7 @@
   <link rel="icon" href="./icons/icon-192.png" type="image/png">
   <link rel="apple-touch-icon" href="./icons/apple-touch-icon.png">
   <link rel="stylesheet" href="./vendor/maplibre-gl.css">
-  <link rel="stylesheet" href="./style.css?v=106">
+  <link rel="stylesheet" href="./style.css?v=107">
 </head>
 <body>
   <div id="app">
@@ -61,10 +61,14 @@
       <form id="searchForm" hidden autocomplete="off">
         <button type="button" id="hamburgerBtn" class="search-menu" title="Menü" aria-expanded="false" aria-controls="mobileDrawer">☰</button>
         <label class="sr-only" for="q">Cél</label>
-        <input id="q" type="search" name="q" placeholder="Utca 12, város…" enterkeyhint="search" inputmode="search" spellcheck="false" autocapitalize="off">
+        <input id="q" type="search" name="q" placeholder="Kossuth utca 12, Budapest" enterkeyhint="search" inputmode="search" spellcheck="false" autocapitalize="off">
         <button type="submit" id="go">Menj</button>
       </form>
       <ul id="results" hidden></ul>
+      <div id="pinAdjust" hidden>
+        <p id="pinAdjustText">Húzd a piros tűt a pontos bejárathoz. Közelítéskor a házszámok a térképen látszanak — a tűre kattintva is ráteheted.</p>
+        <button type="button" id="pinAdjustGo">Útvonal innét</button>
+      </div>
 
       <div id="banner" hidden aria-live="assertive">
         <div id="turnMain">
@@ -126,7 +130,7 @@
       <h1>Funkciók</h1>
       <ul>
         <li>Felül a kanyartábla: táv, utasítás, utca, alatta a következő kanyar.</li>
-        <li>A kereső házszámot is talál: írd be az utcát és a számot, pl. Kossuth utca 12. Közelítéskor a házszámok a térképen is látszanak.</li>
+        <li>A kereső házszámot is talál: írd be az utcát és a számot, pl. Kossuth utca 12, Budapest. A találatra koppintva a piros tű a házhoz megy — húzd a pontos bejárathoz, vagy koppints a térképen a házszámra, aztán Útvonal innét.</li>
         <li>A térképet húzhatod, nagyíthatod. Ekkor a követés kikapcsol; a térkép gomb visszateszi. A kereső címlistája: név felül, város/házszám alatta — koppints a találatra.</li>
         <li>Telepíthető a fejegységre, mint app (PWA). Az első betöltés letölti a térképet, a 3D autókat és a stílust — utána offline is nyílik.</li>
         <li>Hangok: a menüben Hangok összerendelése. Minden eseményhez te választasz klipet; a Teszt lejátssza. Amit nem rendelsz, az néma marad.</li>
@@ -224,9 +228,9 @@
   <script src="./vendor/pmtiles.js"></script>
   <script src="./vendor/three.min.js"></script>
   <script src="./vendor/GLTFLoader.js"></script>
-  <script src="./sw-register.js?v=106"></script>
-  <script src="./car-layer.js?v=106"></script>
-  <script src="./voice/audio-manager.js?v=106"></script>
-  <script src="./app.js?v=106"></script>
+  <script src="./sw-register.js?v=107"></script>
+  <script src="./car-layer.js?v=107"></script>
+  <script src="./voice/audio-manager.js?v=107"></script>
+  <script src="./app.js?v=107"></script>
 </body>
 </html>
