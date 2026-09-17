@@ -26,11 +26,14 @@
     light: "https://tiles.openfreemap.org/styles/liberty",
     dark: "https://tiles.openfreemap.org/styles/dark"
   };
+  const LOCAL_STYLE = "./map/style.json";
   const OFF_ROUTE_M = 35;
-  const POS_LERP = 0.14;
-  const HEAD_LERP = 0.12;
+  const POS_LERP = 0.1;
+  const HEAD_LERP = 0.1;
   const GPS_CORRECT = 0.48;
   const COAST_MIN_SPEED = 0.35;
+  const DEADBAND_KMH = 3;
+  const DEADBAND_MS = 0.83;
   const CAR_LS_KEY = "selectedCar";
   const GARAGE_LS_KEY = "nav2_car_model";
 
@@ -1965,7 +1968,7 @@
       AppState.speed = speed;
     }
     const kmh = (state.speed || 0) * 3.6;
-    if (Number.isFinite(heading) && kmh >= 2) state.heading = heading;
+    if (Number.isFinite(heading) && kmh >= DEADBAND_KMH) state.heading = heading;
     else if (Number.isFinite(heading) && !Number.isFinite(state.heading)) state.heading = heading;
 
     let display = { lng: lngLat.lng, lat: lngLat.lat };
@@ -1984,8 +1987,8 @@
         const along = alongLine(state.coords, nextT);
         if (along) display = along;
         const br = snap.bearing;
-        if (Number.isFinite(br) && (kmh >= 2 || state.navigating) && (!Number.isFinite(heading) || Math.abs(angDelta(heading, br)) < 70)) {
-          state.heading = mixHeading(state.heading, br, kmh >= 2 ? 0.48 : 0.22);
+        if (Number.isFinite(br) && (kmh >= DEADBAND_KMH || state.navigating) && (!Number.isFinite(heading) || Math.abs(angDelta(heading, br)) < 70)) {
+          state.heading = mixHeading(state.heading, br, kmh >= DEADBAND_KMH ? 0.48 : 0.22);
         }
       } else if (onRoad) {
         const along = alongLine(state.coords, state.traveled || snap.traveled);
@@ -2977,11 +2980,11 @@
         cur.bearing = tgt.bearing || 0;
         cur._seeded = true;
       } else {
-        const pk = followK(dt, POS_LERP);
-        const rk = followK(dt, HEAD_LERP);
-        cur.lat = lerp(cur.lat, tgt.lat, pk);
-        cur.lng = lerp(cur.lng, tgt.lng, pk);
-        cur.bearing = mixHeading(cur.bearing || 0, tgt.bearing || 0, rk);
+        cur.lat = lerp(cur.lat, tgt.lat, POS_LERP);
+        cur.lng = lerp(cur.lng, tgt.lng, POS_LERP);
+        if ((AppState.speed || 0) * 3.6 >= DEADBAND_KMH) {
+          cur.bearing = mixHeading(cur.bearing || 0, tgt.bearing || 0, HEAD_LERP);
+        }
       }
       const pose = { lng: cur.lng, lat: cur.lat };
       state.heading = Number.isFinite(cur.bearing) ? cur.bearing : state.heading;
@@ -4293,7 +4296,7 @@
     }
     state.fixRejects = 0;
     const kmh = (spd || 0) * 3.6;
-    const gpsHeading = Number.isFinite(c.heading) && kmh >= 2 ? c.heading : AppState.targetPos.bearing;
+    const gpsHeading = Number.isFinite(c.heading) && kmh >= DEADBAND_KMH ? c.heading : AppState.targetPos.bearing;
     state.lastFix = { ll: raw, t: now, speed: spd || 0, heading: gpsHeading };
     AppState.accuracy = acc;
     state.gpsAcc = acc;
@@ -4307,11 +4310,13 @@
       tgt.lng = raw.lng;
       AppState.currentPos.lat = raw.lat;
       AppState.currentPos.lng = raw.lng;
-      AppState.currentPos.bearing = gpsHeading || 0;
+      if (kmh >= DEADBAND_KMH) AppState.currentPos.bearing = gpsHeading || 0;
       AppState.currentPos._seeded = true;
     }
     tgt._coasting = true;
-    if (Number.isFinite(gpsHeading)) tgt.bearing = mixHeading(tgt.bearing || gpsHeading, gpsHeading, 0.55);
+    if (Number.isFinite(c.heading) && kmh >= DEADBAND_KMH) {
+      tgt.bearing = mixHeading(tgt.bearing || gpsHeading, gpsHeading, 0.55);
+    }
     if (state.coords.length) {
       const snap = nearest(state.coords, raw);
       if (snap.dist < snapLimit()) {
@@ -4321,7 +4326,7 @@
         const maxFwd = Math.max(40, (spd || 0) * 3 + 25);
         if (prevT > 0 && nextT > prevT + maxFwd) nextT = prevT + maxFwd;
         state.traveled = lerp(prevT, nextT, 0.42);
-        if (Number.isFinite(snap.bearing) && (kmh >= 2 || state.navigating)) {
+        if (Number.isFinite(snap.bearing) && (kmh >= DEADBAND_KMH || state.navigating)) {
           tgt.bearing = mixHeading(tgt.bearing || snap.bearing, snap.bearing, 0.4);
         }
       }
@@ -4762,6 +4767,33 @@
     }
   }
 
+  function localVectorSource() {
+    try {
+      const q = new URLSearchParams(location.search);
+      const tiles = String(q.get("tiles") || "").trim();
+      if (tiles.indexOf("{z}") !== -1) {
+        return {
+          type: "vector",
+          tiles: [tiles],
+          attribution: "© OpenStreetMap"
+        };
+      }
+      if (tiles) {
+        const url = /^pmtiles:\/\//i.test(tiles) ? tiles : "pmtiles://" + tiles;
+        return {
+          type: "vector",
+          url: url,
+          attribution: "© OpenStreetMap © Protomaps"
+        };
+      }
+    } catch (_e) {}
+    return {
+      type: "vector",
+      url: "pmtiles://" + europePmtilesUrl(),
+      attribution: "© OpenStreetMap © Protomaps"
+    };
+  }
+
   function registerPmtiles() {
     if (window.__pmtilesReady || !window.pmtiles || !window.maplibregl) return;
     const protocol = new window.pmtiles.Protocol();
@@ -4772,62 +4804,74 @@
   async function loadEuropeStyle(dark) {
     registerPmtiles();
     const flavor = dark ? "dark" : "light";
-    let layers = null;
+    let base = null;
     try {
-      const mod = await import("https://esm.sh/@protomaps/basemaps@5.4.0");
-      layers = mod.layers("protomaps", mod.namedFlavor(flavor), { lang: "hu" });
-    } catch (_e) {
-      layers = [
-        { id: "bg", type: "background", paint: { "background-color": dark ? "#0F172A" : "#f2efe9" } },
-        {
-          id: "earth",
-          type: "fill",
-          source: "protomaps",
-          "source-layer": "earth",
-          paint: { "fill-color": dark ? "#1E293B" : "#e8e0d0" }
-        },
-        {
-          id: "water",
-          type: "fill",
-          source: "protomaps",
-          "source-layer": "water",
-          paint: { "fill-color": dark ? "#0c4a6e" : "#80b8d8" }
-        },
-        {
-          id: "roads",
-          type: "line",
-          source: "protomaps",
-          "source-layer": "roads",
-          paint: { "line-color": dark ? "#94a3b8" : "#666", "line-width": 1.15 }
-        },
-        {
-          id: "places",
-          type: "symbol",
-          source: "protomaps",
-          "source-layer": "places",
-          layout: {
-            "text-field": ["coalesce", ["get", "name:hu"], ["get", "name"], ["get", "name:en"]],
-            "text-size": 13
+      const res = await fetch(LOCAL_STYLE, { cache: "no-store" });
+      if (res.ok) base = await res.json();
+    } catch (_e) {}
+    let layers = base && Array.isArray(base.layers) ? base.layers : null;
+    if (!layers) {
+      try {
+        const mod = await import("https://esm.sh/@protomaps/basemaps@5.4.0");
+        layers = mod.layers("protomaps", mod.namedFlavor(flavor), { lang: "hu" });
+      } catch (_e) {
+        layers = [
+          { id: "bg", type: "background", paint: { "background-color": dark ? "#0F172A" : "#f2efe9" } },
+          {
+            id: "earth",
+            type: "fill",
+            source: "protomaps",
+            "source-layer": "earth",
+            paint: { "fill-color": dark ? "#1E293B" : "#e8e0d0" }
           },
-          paint: {
-            "text-color": dark ? "#E2E8F0" : "#111",
-            "text-halo-color": dark ? "#0F172A" : "#fff",
-            "text-halo-width": 1.4
+          {
+            id: "water",
+            type: "fill",
+            source: "protomaps",
+            "source-layer": "water",
+            paint: { "fill-color": dark ? "#0c4a6e" : "#80b8d8" }
+          },
+          {
+            id: "roads",
+            type: "line",
+            source: "protomaps",
+            "source-layer": "roads",
+            paint: { "line-color": dark ? "#94a3b8" : "#666", "line-width": 1.15 }
+          },
+          {
+            id: "places",
+            type: "symbol",
+            source: "protomaps",
+            "source-layer": "places",
+            layout: {
+              "text-field": ["coalesce", ["get", "name:hu"], ["get", "name"], ["get", "name:en"]],
+              "text-size": 13
+            },
+            paint: {
+              "text-color": dark ? "#E2E8F0" : "#111",
+              "text-halo-color": dark ? "#0F172A" : "#fff",
+              "text-halo-width": 1.4
+            }
           }
-        }
-      ];
+        ];
+      }
+    }
+    const source = localVectorSource();
+    if (layers && !dark) {
+      layers = layers.map(function (layer) {
+        if (!layer || layer.id !== "bg") return layer;
+        return Object.assign({}, layer, {
+          paint: Object.assign({}, layer.paint, { "background-color": "#f2efe9" })
+        });
+      });
     }
     return {
       version: 8,
-      name: "Európa",
-      glyphs: "https://protomaps.github.io/basemaps-assets/fonts/{fontstack}/{range}.pbf",
-      sprite: "https://protomaps.github.io/basemaps-assets/sprites/v4/" + flavor,
+      name: (base && base.name) || "Navigáció offline",
+      glyphs: (base && base.glyphs) || "https://protomaps.github.io/basemaps-assets/fonts/{fontstack}/{range}.pbf",
+      sprite: (base && base.sprite) || "https://protomaps.github.io/basemaps-assets/sprites/v4/" + flavor,
       sources: {
-        protomaps: {
-          type: "vector",
-          url: "pmtiles://" + europePmtilesUrl(),
-          attribution: "© OpenStreetMap © Protomaps"
-        }
+        protomaps: source
       },
       layers: layers
     };
@@ -5119,41 +5163,20 @@
     const done = function () {
       state.map.once("style.load", addLayers);
     };
-    if (state.mapOffline) {
-      loadEuropeStyle(dark).then(function (st) {
+    loadEuropeStyle(dark)
+      .then(function (st) {
+        state.mapOffline = true;
         state.map.setStyle(st);
         done();
+      })
+      .catch(function () {
+        state.mapOffline = false;
+        state.map.setStyle(dark ? STYLES.dark : STYLES.light);
+        done();
       });
-      return;
-    }
-    state.map.setStyle(dark ? STYLES.dark : STYLES.light);
-    done();
   }
 
-  function initMap() {
-    if (typeof maplibregl === "undefined") {
-      setStatus("A térképkönyvtár nem töltődött be. Frissítsd az oldalt.", true);
-      return;
-    }
-    registerPmtiles();
-    try {
-      if (!localStorage.getItem(THEME_KEY)) localStorage.setItem(THEME_KEY, "dark");
-    } catch (_e) {}
-    const dark = localStorage.getItem(THEME_KEY) !== "light";
-    document.documentElement.classList.toggle("dark", dark);
-    if ($("dark")) $("dark").checked = dark;
-    if ($("voiceCheck")) $("voiceCheck").checked = state.voice;
-    state.map = new maplibregl.Map({
-      container: "map",
-      style: dark ? STYLES.dark : STYLES.light,
-      center: BUDAPEST,
-      zoom: 13.5,
-      pitch: 78,
-      maxPitch: 85,
-      fadeDuration: 0,
-      renderWorldCopies: false,
-      attributionControl: true
-    });
+  function bindMapEvents(dark) {
     window.NavMap = state.map;
     state.map.on("idle", addHouseNumbers);
     startSmooth();
@@ -5162,13 +5185,13 @@
       ready = true;
     });
     window.setTimeout(function () {
-      if (ready || state.mapOffline) return;
-      state.mapOffline = true;
-      loadEuropeStyle(dark).then(function (st) {
-        state.map.setStyle(st);
+      if (ready) return;
+      if (state.mapOffline) {
+        state.mapOffline = false;
+        state.map.setStyle(dark ? STYLES.dark : STYLES.light);
         state.map.once("style.load", addLayers);
-        setStatus("Letöltött Európa-térkép");
-      });
+        setStatus("Online utcaszintű térkép");
+      }
     }, 8000);
     state.map.on("error", (e) => {
       const msg = e && e.error && (e.error.message || e.error.statusText);
@@ -5222,6 +5245,46 @@
     ["mouseup", "mousemove", "dragstart", "touchend", "touchmove"].forEach((ev) =>
       state.map.on(ev, () => clearTimeout(t))
     );
+  }
+
+  function createNavMap(style) {
+    return new maplibregl.Map({
+      container: "map",
+      style: style,
+      center: BUDAPEST,
+      zoom: 13.5,
+      pitch: 78,
+      maxPitch: 85,
+      fadeDuration: 0,
+      renderWorldCopies: false,
+      attributionControl: true
+    });
+  }
+
+  function initMap() {
+    if (typeof maplibregl === "undefined") {
+      setStatus("A térképkönyvtár nem töltődött be. Frissítsd az oldalt.", true);
+      return Promise.resolve();
+    }
+    registerPmtiles();
+    try {
+      if (!localStorage.getItem(THEME_KEY)) localStorage.setItem(THEME_KEY, "dark");
+    } catch (_e) {}
+    const dark = localStorage.getItem(THEME_KEY) !== "light";
+    document.documentElement.classList.toggle("dark", dark);
+    if ($("dark")) $("dark").checked = dark;
+    if ($("voiceCheck")) $("voiceCheck").checked = state.voice;
+    return loadEuropeStyle(dark)
+      .then(function (st) {
+        state.mapOffline = true;
+        state.map = createNavMap(st);
+        bindMapEvents(dark);
+      })
+      .catch(function () {
+        state.mapOffline = false;
+        state.map = createNavMap(dark ? STYLES.dark : STYLES.light);
+        bindMapEvents(dark);
+      });
   }
 
   function bind() {
@@ -5655,7 +5718,9 @@
       if (Number.isFinite(speed)) AppState.speed = speed;
       AppState.targetPos.lat = lat;
       AppState.targetPos.lng = lng;
-      if (Number.isFinite(heading)) AppState.targetPos.bearing = heading;
+      if (Number.isFinite(heading) && !(Number.isFinite(speed) && speed < DEADBAND_MS)) {
+        AppState.targetPos.bearing = heading;
+      }
       startSmooth();
     },
     go: function (lng, lat, label) {
