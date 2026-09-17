@@ -2,14 +2,15 @@
   "id": "./?demo=1",
   "name": "Navigáció demó",
   "short_name": "Nav demó",
-  "description": "3D autósnavigáció demó telefonra és fejegységre.",
+  "description": "3D autósnavigáció demó telefonra és fejegységre, offline is.",
   "start_url": "./index.html?demo=1",
   "scope": "./",
   "display": "standalone",
-  "orientation": "portrait",
+  "orientation": "landscape",
   "background_color": "#0F172A",
   "theme_color": "#0F172A",
   "lang": "hu",
+  "categories": ["navigation", "travel"],
   "icons": [
     {
       "src": "./icons/icon-192.png",
@@ -21,7 +22,13 @@
       "src": "./icons/icon-512.png",
       "sizes": "512x512",
       "type": "image/png",
-      "purpose": "any maskable"
+      "purpose": "any"
+    },
+    {
+      "src": "./icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
     }
   ]
 }

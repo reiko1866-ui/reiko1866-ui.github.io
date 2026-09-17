@@ -4125,7 +4125,45 @@
       });
   }
 
+  function bindInstall() {
+    const btn = $("installBtn");
+    const hint = $("installHint");
+    if (!btn) return;
+    let deferred = null;
+    function standalone() {
+      return window.matchMedia("(display-mode: standalone)").matches || window.navigator.standalone === true;
+    }
+    window.addEventListener("beforeinstallprompt", function (ev) {
+      ev.preventDefault();
+      deferred = ev;
+      btn.hidden = false;
+      if (hint) hint.textContent = "Nyomd meg: Telepítés a fejegységre. Fekvő standalone app, offline cache-ből nyílik.";
+    });
+    btn.addEventListener("click", function () {
+      if (deferred) {
+        deferred.prompt();
+        deferred.userChoice.finally(function () {
+          deferred = null;
+        });
+        return;
+      }
+      if (standalone()) {
+        setStatus("Már telepítve van.");
+        return;
+      }
+      setStatus("Chrome menü: Telepítés alkalmazásként");
+      if (hint) hint.textContent = "Chrome jobb felső menü → Telepítés alkalmazásként, vagy Hozzáadás a kezdőképernyőhöz.";
+    });
+    if (standalone()) btn.textContent = "Telepítve — offline kész";
+    window.addEventListener("appinstalled", function () {
+      deferred = null;
+      btn.textContent = "Telepítve — offline kész";
+      setStatus("Telepítve. A következő indítás a cache-ből megy.");
+    });
+  }
+
   function bind() {
+    bindInstall();
     $("searchForm").addEventListener("submit", onSearch);
     $("q").addEventListener("input", onQueryInput);
     $("stop").addEventListener("click", stopNav);
@@ -4339,22 +4377,31 @@
 
   function loadPmtiles() {
     if (window.pmtiles) return Promise.resolve();
-    return loadScript("https://unpkg.com/pmtiles@3.2.1/dist/pmtiles.js").catch(function () {
+    return loadScript("./vendor/pmtiles.js").catch(function () {
+      return loadScript("https://unpkg.com/pmtiles@3.2.1/dist/pmtiles.js");
+    }).catch(function () {
       return loadScript("https://cdn.jsdelivr.net/npm/pmtiles@3.2.1/dist/pmtiles.js");
     });
   }
 
   function loadMapLibre() {
-    const cssHref = "https://cdn.jsdelivr.net/npm/maplibre-gl@5.5.0/dist/maplibre-gl.css";
+    const cssHrefs = [
+      "./vendor/maplibre-gl.css",
+      "https://cdn.jsdelivr.net/npm/maplibre-gl@5.5.0/dist/maplibre-gl.css"
+    ];
     const jsHrefs = [
+      "./vendor/maplibre-gl.js",
       "https://cdn.jsdelivr.net/npm/maplibre-gl@5.5.0/dist/maplibre-gl.js",
       "https://unpkg.com/maplibre-gl@5.5.0/dist/maplibre-gl.js"
     ];
-    if (!document.querySelector("link[data-maplibre]")) {
+    if (!document.querySelector("link[data-maplibre]") && !document.querySelector("link[href*='maplibre-gl.css']")) {
       const css = document.createElement("link");
       css.rel = "stylesheet";
-      css.href = cssHref;
+      css.href = cssHrefs[0];
       css.setAttribute("data-maplibre", "1");
+      css.onerror = function () {
+        css.href = cssHrefs[1];
+      };
       document.head.appendChild(css);
     }
     const ready = window.maplibregl
@@ -4401,11 +4448,6 @@
         },
         opts
       );
-    }
-    if ("serviceWorker" in navigator && location.hostname === "reiko1866-ui.github.io") {
-      if (!window.NavSw) {
-        navigator.serviceWorker.register("./sw.js", { updateViaCache: "none" }).catch(function () {});
-      }
     }
   }
 
