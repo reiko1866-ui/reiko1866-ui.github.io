@@ -1,4 +1,4 @@
-const CACHE = "nav-v101";
+const CACHE = "nav-v102";
 const CORE = [
   "./",
   "./index.html",
@@ -13,6 +13,7 @@ const CORE = [
   "./voice/audio-manager.js",
   "./voice/pack.json",
   "./voice/catalog.json",
+  "./map/style.json",
   "./manifest.webmanifest",
   "./manifest-demo.webmanifest",
   "./icons/icon-192.png",
