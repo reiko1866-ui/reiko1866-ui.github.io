@@ -2288,17 +2288,19 @@
   };
 
   function stopGarage() {
-    if (garage.raf) {
-      cancelAnimationFrame(garage.raf);
-      garage.raf = 0;
-    }
-    garage.items = [];
-    if (garage.root && garage.root.parentNode) garage.root.removeChild(garage.root);
-    if (garage.renderer) {
-      try {
-        garage.renderer.dispose();
-      } catch (_e) {}
-    }
+    try {
+      if (garage.raf) {
+        cancelAnimationFrame(garage.raf);
+        garage.raf = 0;
+      }
+      garage.items = [];
+      if (garage.root && garage.root.parentNode) garage.root.removeChild(garage.root);
+      if (garage.renderer) {
+        try {
+          garage.renderer.dispose();
+        } catch (_e) {}
+      }
+    } catch (_stop) {}
     garage.renderer = null;
     garage.scene = null;
     garage.camera = null;
