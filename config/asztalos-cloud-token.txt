@@ -1,2 +1,0 @@
-# Titkos sync token — ugyanaz, mint a Fly secrets DIVIAN_CLOUD_SYNC_TOKEN
-# NE oszd meg nyilvánosan.
