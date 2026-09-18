@@ -14,24 +14,25 @@
   <title>Navigáció</title>
   <style>
     html, body { margin: 0; background: #06101f; color: #E2E8F0; font-family: system-ui, sans-serif; }
-    #kezdolap { position: relative; height: 100dvh; min-height: 100vh; overflow: hidden; background: #06101f; }
-    #map { position: absolute; inset: 0; background: #06101f; }
+    #kezdolap { position: relative; height: 100vh; height: 100dvh; min-height: 100vh; overflow: hidden; background: #06101f; }
+    #map { position: absolute; top: 0; right: 0; bottom: 0; left: 0; background: #06101f; }
     #infoCard { position: absolute; top: 16px; left: 16px; z-index: 20; max-width: 22rem; padding: 10px 14px; border-radius: 16px; background: rgba(15, 23, 42, 0.72); color: #E2E8F0; }
     #fabBar { position: fixed; right: 16px; bottom: 24px; z-index: 22; display: flex; flex-direction: column; gap: 6px; }
     .fab { width: 44px; height: 44px; border: 0; border-radius: 50%; background: #3B82F6; color: #fff; font-size: 1.1rem; }
     #status.is-err { color: #ff8a80; }
   </style>
-  <link rel="manifest" href="./manifest.webmanifest">
+  <link rel="manifest" href="./manifest.json">
   <link rel="icon" href="./icons/icon-192.png" type="image/png">
   <link rel="apple-touch-icon" href="./icons/apple-touch-icon.png">
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/maplibre-gl@5.5.0/dist/maplibre-gl.css">
-  <link rel="stylesheet" href="./style.css">
+  <link rel="stylesheet" href="./vendor/maplibre-gl.css">
+  <link rel="stylesheet" href="./style.css?v=110">
 </head>
 <body>
   <div id="app">
     <section id="kezdolap">
       <h1 class="sr-only">Kezdőlap</h1>
       <div id="map" role="application" aria-label="Térkép"></div>
+      <canvas id="arcade3d" hidden aria-hidden="true"></canvas>
       <div id="arStage" hidden>
         <video id="arCam" playsinline muted autoplay></video>
         <div id="arRoad" hidden aria-hidden="true">
@@ -60,10 +61,14 @@
       <form id="searchForm" hidden autocomplete="off">
         <button type="button" id="hamburgerBtn" class="search-menu" title="Menü" aria-expanded="false" aria-controls="mobileDrawer">☰</button>
         <label class="sr-only" for="q">Cél</label>
-        <input id="q" type="search" name="q" placeholder="Cím, utca, város…" enterkeyhint="search" inputmode="search" spellcheck="false" autocapitalize="off">
+        <input id="q" type="search" name="q" placeholder="Kossuth utca 12, Budapest" enterkeyhint="search" inputmode="search" spellcheck="false" autocapitalize="off">
         <button type="submit" id="go">Menj</button>
       </form>
       <ul id="results" hidden></ul>
+      <div id="pinAdjust" hidden>
+        <p id="pinAdjustText">Húzd a piros tűt a pontos bejárathoz. Közelítéskor a házszámok a térképen látszanak — a tűre kattintva is ráteheted.</p>
+        <button type="button" id="pinAdjustGo">Útvonal innét</button>
+      </div>
 
       <div id="banner" hidden aria-live="assertive">
         <div id="turnMain">
@@ -90,7 +95,8 @@
       <div id="hudLeft">
         <footer id="trip" hidden>
           <strong id="remain">—</strong>
-          <span id="tripMeta"><em id="dist">—</em> | <em id="eta">—</em></span>
+          <span id="tripMeta"><em id="dist">—</em></span>
+          <em id="eta" hidden>—</em>
           <button type="button" id="stop" aria-label="Leáll">✕</button>
         </footer>
         <div id="compassN" aria-hidden="true">
@@ -112,33 +118,25 @@
       <div id="placeChip" hidden>
         <span id="placeText"></span>
       </div>
+      <button type="button" id="lookAroundBtn" hidden aria-pressed="false" title="360° Street View">
+        <strong>360°</strong>
+        <span>Körbenézés</span>
+      </button>
 
       <a class="peek nav-link" href="#funkciok">Funkciók ↓</a>
-    </section>
-
-    <section id="poen" class="page">
-      <h1>Poén</h1>
-      <p>A csomag poénos klipei, egymás után. Egyszerre csak egy hang.</p>
-      <p id="poenCount">—</p>
-      <div class="poen-bar">
-        <button type="button" id="poenPlay">Mind megy</button>
-        <button type="button" id="poenNext">Következő</button>
-        <button type="button" id="poenStop">Állj</button>
-      </div>
-      <p id="poenNow">Koppints: Mind megy</p>
-      <ul id="poenList"></ul>
     </section>
 
     <section id="funkciok" class="page">
       <h1>Funkciók</h1>
       <ul>
         <li>Felül a kanyartábla: táv, utasítás, utca, alatta a következő kanyar.</li>
-        <li>A kereső címlistája: név felül, város/utca alatta. Koppints a találatra — nem az elsőt indítja.</li>
-        <li>A kanyarnál a feltöltött hangcsomag szól, egyszerre csak egy hang. Letéréskor újratervez.</li>
-        <li>Arcade 3D nézet: éjszakai vektoros aszfalt, 78° kamera, égbolt/köd. A Garázsban low-poly chibi mini autók, kártyán forgó 3D előnézet. Kanyarban a karosszéria megdől. Jobbra három gomb: térkép, útvonal, hang.</li>
-        <li>Kaland mód: OSRM alternatives, a kanyargósabb út, arany neon, autópálya nélkül. Poénos hang: csak körforgalomnál, éles kanyarnál, meredek utcán vagy túllépéskor — az OSRM útvonalra illesztve.</li>
+        <li>A kereső házszámot is talál: írd be az utcát és a számot, pl. Kossuth utca 12, Budapest. A találatra koppintva a piros tű a házhoz megy — húzd a pontos bejárathoz, vagy koppints a térképen a házszámra, aztán Útvonal innét.</li>
+        <li>A térképet húzhatod, nagyíthatod. Ekkor a követés kikapcsol; a térkép gomb visszateszi. A kereső címlistája: név felül, város/házszám alatta — koppints a találatra.</li>
+        <li>Telepíthető a fejegységre, mint app (PWA). Az első betöltés letölti a térképet, a 3D autókat és a stílust — utána offline is nyílik.</li>
+        <li>Hangok: a menüben Hangok összerendelése. Minden eseményhez te választasz klipet; a Teszt lejátssza. Amit nem rendelsz, az néma marad.</li>
+        <li>Arcade 3D nézet: éjszakai vektoros aszfalt, 78° kamera, égbolt/köd. A Garázsban low-poly chibi mini autók, kártyán forgó 3D előnézet. Kanyarban a karosszéria megdől. Jobbra két gomb: térkép, útvonal.</li>
+        <li>Kaland mód: OSRM alternatives, a kanyargósabb út, arany neon, autópálya nélkül.</li>
         <li>Előrejelzés, következő kanyar, kijárat, sávrajz, sebesség.</li>
-        <li>A 698 feltöltött klip: kanyarnál az utasítás. A poén csak a manőver után, ha nem takarja ki a következő kanyart. A Poén fülön külön is hallgathatók.</li>
         <li>Otthon és munka a menüből. Az autó helye mentődik: keresőben Autó, sárga pont a térképen.</li>
       </ul>
     </section>
@@ -147,7 +145,7 @@
       <h1>Ajánlatok</h1>
       <ul>
         <li>Ingyenes. Nincs fiók, nincs hirdetés.</li>
-        <li>Telepíthető a telefonra, mint app.</li>
+        <li>Telepíthető a telefonra és a fejegységre. Offline is megy a helyi cache-ből.</li>
         <li>Autópálya vagy fizetős út elkerülése a menüből.</li>
       </ul>
     </section>
@@ -159,7 +157,7 @@
     </section>
 
     <div id="fabBar">
-      <button type="button" id="follow" class="fab is-on" title="Térkép nézet — hosszú nyomás: menü" aria-pressed="true" aria-label="Térkép nézet">
+      <button type="button" id="follow" class="fab is-on" title="Követés — húzd a térképet körbenézéshez, hosszú nyomás: menü" aria-pressed="true" aria-label="Térkép követés">
         <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
           <rect x="3.2" y="5" width="17.6" height="14" rx="2.2" fill="#34d399"/>
           <path d="M3.2 12.5h17.6" stroke="#60a5fa" stroke-width="5"/>
@@ -173,9 +171,6 @@
           <path d="M7 8.2v3.2A4.6 4.6 0 0 0 11.6 16H17" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/>
         </svg>
       </button>
-      <button type="button" id="voiceBtn" class="fab is-on" title="Hangszóró" aria-pressed="true" aria-label="Hangszóró">
-        <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M4 10v4h3l5 4V6L7 10H4z" fill="currentColor"/><path d="M16.2 8.2a5 5 0 0 1 0 7.6M18.6 5.8a8.5 8.5 0 0 1 0 12.4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
-      </button>
     </div>
     <div id="drawerOverlay"></div>
     <aside id="mobileDrawer" role="dialog" aria-labelledby="drawerTitle">
@@ -183,9 +178,9 @@
         <strong id="drawerTitle">Menü</strong>
         <button type="button" id="closeBtn">Bezár</button>
       </header>
+      <div class="drawer-body">
       <nav class="drawer-nav">
         <a class="nav-link mobile-link" href="#kezdolap">Kezdőlap</a>
-        <a class="nav-link mobile-link" href="#poen">Poén</a>
         <a class="nav-link mobile-link" href="#funkciok">Funkciók</a>
         <a class="nav-link mobile-link" href="#Ajanlatok">Ajánlatok</a>
         <a class="nav-link mobile-link" href="#kapcsolat">Kapcsolat</a>
@@ -207,51 +202,37 @@
       <label class="check"><input type="checkbox" id="avoidMotorway"> Autópálya elkerülése</label>
       <label class="check"><input type="checkbox" id="avoidToll"> Fizetős utak elkerülése</label>
       <p class="hint">A pipák megmaradnak. Ha van cél, az útvonal azonnal újraterveződik autópálya / fizető nélkül. A telefon vissza gombja a menüt zárja, nem az appot.</p>
-      <label class="check"><input type="checkbox" id="voiceCheck" checked> Hang</label>
       <label class="check"><input type="checkbox" id="dark" checked> Sötét térkép</label>
       <label class="check"><input type="checkbox" id="kalandCheck"> Kaland mód</label>
-      <label class="check"><input type="checkbox" id="funPoiCheck" checked> Poénos POI</label>
-      <p class="hint">Kaland: autópálya nélkül, a kanyargósabb OSRM-út, arany vonal. Poénos POI: körforgalom, éles kanyar, meredek utca vagy túllépés — csak az útra illesztve, a kanyarutasítás mindig előrébb van.</p>
-      <div id="voiceTest">
-        <p class="hint">A csomag poénos GPS-hang. Kanyarnál az utasítás, poén csak a manőverhez kötve. Soha nem megy két hang egyszerre. A fájlnév nem számít.</p>
-        <input id="voiceBase" type="text" spellcheck="false" placeholder="automatikus" hidden>
-        <button type="button" id="voiceFind">Hangok keresése</button>
-        <button type="button" id="voiceStart">Hang indítása</button>
-        <div class="row">
-          <button type="button" data-voice="now-left">Balra</button>
-          <button type="button" data-voice="now-right">Jobbra</button>
-        </div>
-        <div class="row">
-          <button type="button" data-voice="keep-left">Tarts balra</button>
-          <button type="button" data-voice="keep-right">Tarts jobbra</button>
-        </div>
-        <div class="row">
-          <button type="button" data-voice="roundabout">Körforgalom</button>
-          <button type="button" data-voice="uTurn">Visszafordulás</button>
-        </div>
-        <div class="row">
-          <button type="button" data-voice="motorway-on">Autópályára</button>
-          <button type="button" data-voice="motorway-off">Lehajtó</button>
-        </div>
-        <div class="row">
-          <button type="button" data-voice="ferry">Komp</button>
-          <button type="button" data-voice="recomputing">Újratervezés</button>
-        </div>
-        <div class="row">
-          <button type="button" data-voice="finish">Megérkeztél</button>
-          <button type="button" data-voice="speed">Gyorshajtás</button>
-        </div>
-        <p id="voiceLog">Nyomd meg: Hang indítása</p>
+      <p class="hint">Kaland: autópálya nélkül, a kanyargósabb OSRM-út, arany vonal. Hang csak akkor szól, ha a Hangok panelen összerendeltél egy klipet.</p>
+      <div class="row">
+        <button type="button" id="mapperBtn">Hangok összerendelése</button>
+      </div>
+      <div class="row">
+        <button type="button" id="installBtn">Telepítés a fejegységre</button>
+      </div>
+      <p class="hint" id="installHint">Chrome menü: Telepítés alkalmazásként. Fekvő (landscape) standalone app, offline cache-ből nyílik.</p>
       </div>
     </aside>
+    <div id="mapperOverlay"></div>
+    <div id="audioMapper" role="dialog" aria-labelledby="mapperTitle" aria-modal="true">
+      <header>
+        <strong id="mapperTitle">Hangok</strong>
+        <button type="button" id="mapperClose">Bezár</button>
+      </header>
+      <p class="hint">Minden navigációs eseményhez válassz egy klipet a csomagból. A Teszt lejátssza. A párosítás a telefonon marad.</p>
+      <div id="mapperList"></div>
+    </div>
   </div>
 
   <noscript>A navigációhoz JavaScript kell.</noscript>
-  <audio id="navVoiceEl" playsinline preload="auto"></audio>
-  <script src="./voice/audio-manager.js"></script>
+  <script src="./vendor/maplibre-gl.js"></script>
+  <script src="./vendor/pmtiles.js"></script>
   <script src="./vendor/three.min.js"></script>
   <script src="./vendor/GLTFLoader.js"></script>
-  <script src="./car-layer.js"></script>
-  <script src="./app.js"></script>
+  <script src="./sw-register.js?v=110"></script>
+  <script src="./car-layer.js?v=110"></script>
+  <script src="./voice/audio-manager.js?v=110"></script>
+  <script src="./app.js?v=110"></script>
 </body>
 </html>
