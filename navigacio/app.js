@@ -67,9 +67,11 @@
   }
 
   function openDrawer() {
-    $("mobileDrawer").classList.add("open");
-    $("drawerOverlay").classList.add("open");
-    $("hamburgerBtn") && $("hamburgerBtn").setAttribute("aria-expanded", "true");
+    const drawer = $("mobileDrawer");
+    const overlay = $("drawerOverlay");
+    if (drawer) drawer.classList.add("open");
+    if (overlay) overlay.classList.add("open");
+    if ($("hamburgerBtn")) $("hamburgerBtn").setAttribute("aria-expanded", "true");
     document.body.style.overflow = "hidden";
     armBack();
     paintGarage();
@@ -125,13 +127,17 @@
   }
 
   function closeDrawer(fromPop) {
-    if (window.NavCar3D && typeof window.NavCar3D.stopGarage === "function") {
-      window.NavCar3D.stopGarage();
-    }
-    $("mobileDrawer").classList.remove("open");
-    $("drawerOverlay").classList.remove("open");
+    const drawer = $("mobileDrawer");
+    const overlay = $("drawerOverlay");
+    if (drawer) drawer.classList.remove("open");
+    if (overlay) overlay.classList.remove("open");
     if ($("hamburgerBtn")) $("hamburgerBtn").setAttribute("aria-expanded", "false");
     document.body.style.overflow = "";
+    try {
+      if (window.NavCar3D && typeof window.NavCar3D.stopGarage === "function") {
+        window.NavCar3D.stopGarage();
+      }
+    } catch (_e) {}
     if (fromPop !== "keep") syncBack(fromPop);
   }
 
@@ -4466,12 +4472,20 @@
       toggleSearch();
     });
     on("hamburgerBtn", "click", openDrawer);
-    on("closeBtn", "click", function () {
+    function hideDrawer(ev) {
+      if (ev) {
+        try {
+          ev.preventDefault();
+          ev.stopPropagation();
+        } catch (_e) {}
+      }
+      if (!drawerOpen()) return;
       closeDrawer();
-    });
-    on("drawerOverlay", "click", function () {
-      closeDrawer();
-    });
+    }
+    on("closeBtn", "click", hideDrawer);
+    on("closeBtn", "pointerup", hideDrawer);
+    on("drawerOverlay", "click", hideDrawer);
+    on("drawerOverlay", "pointerup", hideDrawer);
 
     document.querySelectorAll(".nav-link, .mobile-link").forEach(function (link) {
       on(link, "click", function (ev) {
