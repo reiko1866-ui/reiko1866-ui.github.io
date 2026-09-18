@@ -18,6 +18,16 @@
   var THREE_CDN = "https://cdn.jsdelivr.net/npm/three@0.147.0/build/three.min.js";
   var GLTF_CDN = "https://cdn.jsdelivr.net/npm/three@0.147.0/examples/js/loaders/GLTFLoader.js";
 
+  function on(el, type, fn, opts) {
+    try {
+      if (!el || typeof el.addEventListener !== "function") return false;
+      el.addEventListener(type, fn, opts);
+      return true;
+    } catch (_e) {
+      return false;
+    }
+  }
+
   var carModels = {
     verso: {
       url: "./models/verso.glb",
@@ -1746,23 +1756,21 @@
     if (overlay.lookBound) return;
     overlay.lookBound = true;
     var btn = document.getElementById("lookAroundBtn");
-    if (btn) {
-      btn.addEventListener("click", function () {
-        if (kmhNow() >= 1) return;
-        overlay.look.enabled = !overlay.look.enabled;
-        if (!overlay.look.enabled) {
-          overlay.look.yaw = 0;
-          overlay.look.pitch = 0.38;
-        }
-        syncLookUi();
-      });
-    }
+    on(btn, "click", function () {
+      if (kmhNow() >= 1) return;
+      overlay.look.enabled = !overlay.look.enabled;
+      if (!overlay.look.enabled) {
+        overlay.look.yaw = 0;
+        overlay.look.pitch = 0.38;
+      }
+      syncLookUi();
+    });
     var canvas = document.getElementById("arcade3d");
     if (!canvas) return;
-    canvas.addEventListener("pointerdown", onLookDown);
-    canvas.addEventListener("pointermove", onLookMove);
-    canvas.addEventListener("pointerup", onLookUp);
-    canvas.addEventListener("pointercancel", onLookUp);
+    on(canvas, "pointerdown", onLookDown);
+    on(canvas, "pointermove", onLookMove);
+    on(canvas, "pointerup", onLookUp);
+    on(canvas, "pointercancel", onLookUp);
   }
 
   function syncOverlayWorld() {
@@ -2221,7 +2229,8 @@
             return;
           }
           try {
-            canvas.addEventListener(
+            on(
+              canvas,
               "webglcontextlost",
               function (ev) {
                 try {
@@ -2429,7 +2438,7 @@
 
   global.NavCar3D = api;
   api.currentId = savedId();
-  global.addEventListener("carModelChanged", function (ev) {
+  on(global, "carModelChanged", function (ev) {
     var id = ev && ev.detail;
     if (!id || !carModels[id]) id = "verso";
     if (id === api.currentId && api.ready && layer && layer.carSlot && layer.carSlot.children.length) {

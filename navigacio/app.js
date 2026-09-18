@@ -55,6 +55,17 @@
 
   const $ = (id) => document.getElementById(id);
 
+  function on(target, type, fn, opts) {
+    try {
+      const el = typeof target === "string" ? document.getElementById(target) : target;
+      if (!el || typeof el.addEventListener !== "function") return false;
+      el.addEventListener(type, fn, opts);
+      return true;
+    } catch (_e) {
+      return false;
+    }
+  }
+
   function openDrawer() {
     $("mobileDrawer").classList.add("open");
     $("drawerOverlay").classList.add("open");
@@ -3190,8 +3201,9 @@
   function holdWake() {
     if (!state.navigating || !navigator.wakeLock) return;
     navigator.wakeLock.request("screen").then(function (lock) {
+      if (!lock) return;
       wakeLock = lock;
-      lock.addEventListener("release", function () {
+      on(lock, "release", function () {
         wakeLock = null;
         if (state.navigating) holdWake();
       });
@@ -3602,6 +3614,7 @@
 
   function showResults(list) {
     const box = $("results");
+    if (!box) return;
     box.innerHTML = "";
     list.forEach(function (p) {
       const li = document.createElement("li");
@@ -3618,7 +3631,7 @@
         sub.textContent = p.subtitle;
         btn.appendChild(sub);
       }
-      btn.addEventListener("click", function () {
+      on(btn, "click", function () {
         choose(p, { autoPlan: false });
       });
       li.appendChild(btn);
@@ -4111,20 +4124,20 @@
     if (!v || v.getAttribute("data-bound") === "1") return;
     v.setAttribute("data-bound", "1");
     ["playing", "timeupdate", "loadeddata", "canplay"].forEach(function (ev) {
-      v.addEventListener(ev, function () {
+      on(v, ev, function () {
         if (!camVideoLive()) return;
         const root = $("app");
         if (root) root.classList.add("has-ar-cam");
         markCamOk();
       });
     });
-    v.addEventListener("error", function () {
+    on(v, "error", function () {
       const root = $("app");
       if (root) root.classList.remove("has-ar-cam");
       if (state.ar && !native360Pinned()) markCamError();
     });
     ["stalled", "emptied", "suspend"].forEach(function (ev) {
-      v.addEventListener(ev, function () {
+      on(v, ev, function () {
         const root = $("app");
         if (root) root.classList.remove("has-ar-cam");
       });
@@ -4264,7 +4277,7 @@
       applyMarkSize();
       maybeArcadePreview();
     });
-    window.addEventListener("resize", applyMarkSize);
+    on(window, "resize", applyMarkSize);
     try {
       state.map.dragPan.enable();
       state.map.touchZoomRotate.enable();
@@ -4314,8 +4327,10 @@
   }
 
   function createNavMap(style) {
+    const container = $("map");
+    if (!container) throw new Error("Hiányzik a térkép konténer (#map).");
     return new maplibregl.Map({
-      container: "map",
+      container: container,
       style: style,
       center: BUDAPEST,
       zoom: 13.5,
@@ -4360,13 +4375,13 @@
     function standalone() {
       return window.matchMedia("(display-mode: standalone)").matches || window.navigator.standalone === true;
     }
-    window.addEventListener("beforeinstallprompt", function (ev) {
+    on(window, "beforeinstallprompt", function (ev) {
       ev.preventDefault();
       deferred = ev;
       btn.hidden = false;
       if (hint) hint.textContent = "Nyomd meg: Telepítés a fejegységre. Fekvő standalone app, offline cache-ből nyílik.";
     });
-    btn.addEventListener("click", function () {
+    on(btn, "click", function () {
       if (deferred) {
         deferred.prompt();
         deferred.userChoice.finally(function () {
@@ -4382,7 +4397,7 @@
       if (hint) hint.textContent = "Chrome jobb felső menü → Telepítés alkalmazásként, vagy Hozzáadás a kezdőképernyőhöz.";
     });
     if (standalone()) btn.textContent = "Telepítve — offline kész";
-    window.addEventListener("appinstalled", function () {
+    on(window, "appinstalled", function () {
       deferred = null;
       btn.textContent = "Telepítve — offline kész";
       setStatus("Telepítve. A következő indítás a cache-ből megy.");
@@ -4391,29 +4406,30 @@
 
   function bind() {
     bindInstall();
-    if ($("pinAdjustGo")) {
-      $("pinAdjustGo").addEventListener("click", function () {
-        if (!state.dest) return setStatus("Előbb válassz címet.", true);
-        if (!state.origin) {
-          state.pendingPlan = true;
-          setStatus("Várom a GPS-t, aztán indulok…");
-          return;
-        }
-        plan(false);
-      });
-    }
-    $("searchForm").addEventListener("submit", onSearch);
-    $("q").addEventListener("input", onQueryInput);
-    $("stop").addEventListener("click", stopNav);
-    $("follow").addEventListener("click", function (ev) {
+    on("pinAdjustGo", "click", function () {
+      if (!state.dest) return setStatus("Előbb válassz címet.", true);
+      if (!state.origin) {
+        state.pendingPlan = true;
+        setStatus("Várom a GPS-t, aztán indulok…");
+        return;
+      }
+      plan(false);
+    });
+    on("searchForm", "submit", onSearch);
+    on("q", "input", onQueryInput);
+    on("stop", "click", stopNav);
+    const follow = $("follow");
+    let followHold = 0;
+    let followMenu = false;
+    on(follow, "click", function (ev) {
       if (followMenu) {
         followMenu = false;
         ev.preventDefault();
         return;
       }
       state.follow = !state.follow;
-      $("follow").classList.toggle("is-on", state.follow);
-      $("follow").setAttribute("aria-pressed", state.follow ? "true" : "false");
+      follow.classList.toggle("is-on", state.follow);
+      follow.setAttribute("aria-pressed", state.follow ? "true" : "false");
       if (state.follow) {
         updateCamera(true);
         setStatus("Követés be");
@@ -4421,9 +4437,7 @@
         setStatus("Térkép szabad");
       }
     });
-    let followHold = 0;
-    let followMenu = false;
-    $("follow").addEventListener("pointerdown", function () {
+    on(follow, "pointerdown", function () {
       followHold = window.setTimeout(function () {
         followHold = 0;
         followMenu = true;
@@ -4431,45 +4445,36 @@
       }, 550);
     });
     ["pointerup", "pointerleave", "pointercancel"].forEach(function (ev) {
-      $("follow").addEventListener(ev, function () {
+      on(follow, ev, function () {
         if (followHold) clearTimeout(followHold);
         followHold = 0;
       });
     });
-    if ($("arBtn")) {
-      $("arBtn").addEventListener("click", function () {
-        applyAr(!state.ar);
-      });
-    }
-    if ($("arCheck")) {
-      $("arCheck").addEventListener("change", function () {
-        applyAr($("arCheck").checked);
-      });
-    }
-    window.addEventListener("message", function (ev) {
+    on("arBtn", "click", function () {
+      applyAr(!state.ar);
+    });
+    on("arCheck", "change", function () {
+      applyAr($("arCheck") && $("arCheck").checked);
+    });
+    on(window, "message", function (ev) {
       const d = ev && ev.data;
       if (!d || (d.source !== "nav360" && d.type !== "nav360")) return;
       if (d.state === "error" || d.ok === false) markCamError();
       else markCamOk();
     });
-    $("searchBtn").addEventListener("click", () => {
+    on("searchBtn", "click", function () {
       toggleSearch();
     });
-    const hamburgerBtn = $("hamburgerBtn");
-    const closeBtn = $("closeBtn");
-    const drawerOverlay = $("drawerOverlay");
-    const allNavLinks = document.querySelectorAll(".nav-link, .mobile-link");
-
-    if (hamburgerBtn) hamburgerBtn.addEventListener("click", openDrawer);
-    closeBtn.addEventListener("click", function () {
+    on("hamburgerBtn", "click", openDrawer);
+    on("closeBtn", "click", function () {
       closeDrawer();
     });
-    drawerOverlay.addEventListener("click", function () {
+    on("drawerOverlay", "click", function () {
       closeDrawer();
     });
 
-    allNavLinks.forEach((link) => {
-      link.addEventListener("click", (ev) => {
+    document.querySelectorAll(".nav-link, .mobile-link").forEach(function (link) {
+      on(link, "click", function (ev) {
         ev.preventDefault();
         const id = String(link.getAttribute("href") || "").replace(/^#/, "");
         closeDrawer("keep");
@@ -4490,46 +4495,45 @@
       });
     });
 
-    window.addEventListener("scroll", spyNav, { passive: true });
-    window.addEventListener("popstate", onPopState);
-    window.addEventListener("resize", function () {
+    on(window, "scroll", spyNav, { passive: true });
+    on(window, "popstate", onPopState);
+    on(window, "resize", function () {
       fitDashLayout();
       if (state.navigating && state.follow) updateCamera(true);
     });
-    window.addEventListener("orientationchange", function () {
+    on(window, "orientationchange", function () {
       window.setTimeout(fitDashLayout, 120);
     });
-    if (window.visualViewport) {
-      window.visualViewport.addEventListener("resize", fitDashLayout);
-    }
+    on(window.visualViewport, "resize", fitDashLayout);
     try {
       if (screen.orientation && screen.orientation.lock) {
         screen.orientation.lock("portrait").catch(function () {});
       }
     } catch (_or) {}
-    document.addEventListener("visibilitychange", function () {
+    on(document, "visibilitychange", function () {
       if (document.visibilityState === "visible" && state.navigating) holdWake();
     });
     spyNav();
-    $("homeGo").addEventListener("click", () => goPlace("home"));
-    $("workGo").addEventListener("click", () => goPlace("work"));
-    $("homeSet").addEventListener("click", () => savePlace("home"));
-    $("workSet").addEventListener("click", () => savePlace("work"));
-    $("dark").addEventListener("change", () => applyTheme($("dark").checked));
-    ["avoidMotorway", "avoidToll"].forEach((id) => {
-      $(id).addEventListener("change", () => {
+    on("homeGo", "click", function () { goPlace("home"); });
+    on("workGo", "click", function () { goPlace("work"); });
+    on("homeSet", "click", function () { savePlace("home"); });
+    on("workSet", "click", function () { savePlace("work"); });
+    on("dark", "change", function () {
+      applyTheme($("dark") && $("dark").checked);
+    });
+    ["avoidMotorway", "avoidToll"].forEach(function (id) {
+      on(id, "change", function () {
         saveNavOpts();
-        const on = $(id).checked;
+        const el = $(id);
+        const checked = !!(el && el.checked);
         const name = id === "avoidMotorway" ? "Autópálya elkerülése" : "Fizetős utak elkerülése";
-        setStatus(name + (on ? " bekapcsolva" : " kikapcsolva"));
+        setStatus(name + (checked ? " bekapcsolva" : " kikapcsolva"));
         if (state.origin && state.dest) plan(true);
       });
     });
-    if ($("kalandCheck")) {
-      $("kalandCheck").addEventListener("change", function () {
-        applyKaland($("kalandCheck").checked);
-      });
-    }
+    on("kalandCheck", "change", function () {
+      applyKaland($("kalandCheck") && $("kalandCheck").checked);
+    });
     bindGarage();
   }
 
@@ -4561,7 +4565,7 @@
         '</span><span class="garage-hint">' +
         (spec.hint || "") +
         "</span>";
-      btn.addEventListener("click", function () {
+      on(btn, "click", function () {
         chooseCar(id);
       });
       grid.appendChild(btn);
@@ -4702,7 +4706,9 @@
         return initMap();
       })
       .then(function () {
-        bind();
+        try {
+          bind();
+        } catch (_e) {}
         initGps();
       })
       .catch((err) => {

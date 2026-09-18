@@ -60,7 +60,7 @@
       <li>A K706-on az ikon a kezdőképernyőre kerül — nem kell APK.</li>
     </ol>
   </main>
-  <script src="./sw-register.js?v=108"></script>
+  <script src="./sw-register.js?v=109"></script>
   <script>
     var deferred = null;
     var btn = document.getElementById("installBtn");
@@ -71,22 +71,24 @@
     window.addEventListener("beforeinstallprompt", function (ev) {
       ev.preventDefault();
       deferred = ev;
-      btn.hidden = false;
+      if (btn) btn.hidden = false;
     });
-    btn.addEventListener("click", function () {
-      if (deferred) {
-        deferred.prompt();
-        deferred.userChoice.finally(function () { deferred = null; });
-        return;
-      }
+    if (btn) {
+      btn.addEventListener("click", function () {
+        if (deferred) {
+          deferred.prompt();
+          deferred.userChoice.finally(function () { deferred = null; });
+          return;
+        }
+        if (standalone()) {
+          location.href = "./index.html?demo=1";
+          return;
+        }
+        if (hint) hint.textContent = "Chrome jobb felső menü → Telepítés alkalmazásként, vagy Hozzáadás a kezdőképernyőhöz.";
+      });
       if (standalone()) {
-        location.href = "./index.html?demo=1";
-        return;
+        btn.textContent = "Nyisd a telepített demót";
       }
-      hint.textContent = "Chrome jobb felső menü → Telepítés alkalmazásként, vagy Hozzáadás a kezdőképernyőhöz.";
-    });
-    if (standalone()) {
-      btn.textContent = "Nyisd a telepített demót";
     }
   </script>
 </body>
