@@ -4,6 +4,16 @@
   var AUDIO_MAP_KEY = "nav2_audio_map";
   var AUDIO_LIST_KEY = "nav2_audio_selected";
 
+  function on(el, type, fn, opts) {
+    try {
+      if (!el || typeof el.addEventListener !== "function") return false;
+      el.addEventListener(type, fn, opts);
+      return true;
+    } catch (_e) {
+      return false;
+    }
+  }
+
   function navigating() {
     var app = document.getElementById("app");
     return !!(app && app.classList.contains("is-nav"));
@@ -74,7 +84,7 @@
       cacheSelectedSounds(reg);
     }
     poke();
-    document.addEventListener("visibilitychange", function () {
+    on(document, "visibilitychange", function () {
       if (document.visibilityState !== "visible") return;
       poke();
       if (pending) apply();
@@ -86,8 +96,8 @@
   function boot() {
     if (!("serviceWorker" in navigator)) return;
     if (location.protocol !== "https:" && location.hostname !== "localhost" && location.hostname !== "127.0.0.1") return;
-    navigator.serviceWorker.addEventListener("controllerchange", apply);
-    navigator.serviceWorker.addEventListener("message", function (ev) {
+    on(navigator.serviceWorker, "controllerchange", apply);
+    on(navigator.serviceWorker, "message", function (ev) {
       if (ev.data && ev.data.type === "NAV_SW_UPDATED") apply();
     });
     navigator.serviceWorker

@@ -40,6 +40,17 @@
   var unlocked = false;
   var uiBound = false;
 
+  function on(el, type, fn, opts) {
+    try {
+      if (typeof el === "string") el = document.getElementById(el);
+      if (!el || typeof el.addEventListener !== "function") return false;
+      el.addEventListener(type, fn, opts);
+      return true;
+    } catch (_e) {
+      return false;
+    }
+  }
+
   function clipUrl(raw) {
     var s = String(raw || "").trim();
     if (!s) return "";
@@ -189,7 +200,7 @@
       sel.id = "mapSel-" + ev.id;
       sel.setAttribute("data-event", ev.id);
       fillSelect(sel, map[ev.id] || "");
-      sel.addEventListener("change", function () {
+      on(sel, "change", function () {
         var next = readMap();
         if (sel.value) next[ev.id] = sel.value;
         else delete next[ev.id];
@@ -198,7 +209,7 @@
       var btn = document.createElement("button");
       btn.type = "button";
       btn.textContent = "Teszt";
-      btn.addEventListener("click", function () {
+      on(btn, "click", function () {
         unlock();
         if (sel.value) playFile(sel.value);
       });
@@ -233,10 +244,10 @@
     var openBtn = document.getElementById("mapperBtn");
     var closeBtn = document.getElementById("mapperClose");
     var overlay = document.getElementById("mapperOverlay");
-    if (openBtn) openBtn.addEventListener("click", openMapper);
-    if (closeBtn) closeBtn.addEventListener("click", closeMapper);
-    if (overlay) overlay.addEventListener("click", closeMapper);
-    document.addEventListener("pointerdown", unlock, { once: true });
+    on(openBtn, "click", openMapper);
+    on(closeBtn, "click", closeMapper);
+    on(overlay, "click", closeMapper);
+    on(document, "pointerdown", unlock, { once: true });
   }
 
   function boot() {
@@ -244,7 +255,7 @@
     loadFiles();
   }
 
-  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", boot);
+  if (document.readyState === "loading") on(document, "DOMContentLoaded", boot);
   else boot();
 
   global.NavVoice = {
