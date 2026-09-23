@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta name="theme-color" content="#87CEEB">
+  <meta name="theme-color" content="#f3c4b0">
   <meta name="color-scheme" content="light">
   <meta name="description" content="ToonNavi: mesebeli claymation 3D autósnavigáció.">
   <meta name="format-detection" content="telephone=no">
@@ -13,9 +13,9 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <title>ToonNavi</title>
   <style>
-    html, body { margin: 0; background: #87CEEB; color: #1e293b; font-family: system-ui, sans-serif; }
-    #kezdolap { position: relative; height: 100vh; height: 100dvh; min-height: 100vh; overflow: hidden; background: #87CEEB; }
-    #map { position: absolute; top: 0; right: 0; bottom: 0; left: 0; background: #87CEEB; }
+    html, body { margin: 0; background: #f3c4b0; color: #1e293b; font-family: system-ui, sans-serif; }
+    #kezdolap { position: relative; height: 100vh; height: 100dvh; min-height: 100vh; overflow: hidden; background: #f3c4b0; }
+    #map { position: absolute; top: 0; right: 0; bottom: 0; left: 0; background: #f3c4b0; }
     #infoCard { position: absolute; top: 16px; left: 16px; z-index: 20; max-width: 22rem; padding: 10px 14px; border-radius: 16px; background: rgba(15, 23, 42, 0.72); color: #E2E8F0; }
     #fabBar { position: fixed; right: 16px; bottom: 24px; z-index: 22; display: flex; flex-direction: column; gap: 6px; }
     .fab { width: 44px; height: 44px; border: 0; border-radius: 50%; background: #3B82F6; color: #fff; font-size: 1.1rem; }
@@ -25,7 +25,7 @@
   <link rel="icon" href="./icons/icon-192.png" type="image/png">
   <link rel="apple-touch-icon" href="./icons/apple-touch-icon.png">
   <link rel="stylesheet" href="./vendor/maplibre-gl.css">
-  <link rel="stylesheet" href="./style.css?v=117">
+  <link rel="stylesheet" href="./style.css?v=118">
 </head>
 <body>
   <div id="app">
@@ -138,7 +138,7 @@
         <li>A térképet húzhatod, nagyíthatod. Ekkor a követés kikapcsol; a térkép gomb visszateszi. A kereső címlistája: név felül, város/házszám alatta — koppints a találatra.</li>
         <li>Telepíthető a fejegységre, mint app (PWA). Az első betöltés letölti a térképet, a 3D autókat és a stílust — utána offline is nyílik.</li>
         <li>Hangok: a menüben minden hangfájlnál megadhatod, merre szóljon (balra, jobbra, …). A Teszt onnan játssza. Amit nem állítasz, az néma marad.</li>
-        <li>ToonNavi 3D: az OSRM útvonal 3D szalag, követi a kanyarokat. Claymation fák, dombok, felhők és lámpák az út mentén. A Garázsban low-poly chibi autók.</li>
+        <li>ToonNavi 3D: mesebeli erdő, rózsaszín-zöld fák, virágok, patakok és naplementés ég. A jobb oldali kamera gomb a külső és a belső (szélvédő) nézet között vált. A Garázsban low-poly chibi autók.</li>
         <li>Az autó mindig az útvonal közepére tapad (snap-to-road), még ha a GPS 20–30 métert téved is. 5 km/h alatt az orr az út irányába néz. A Teszt 50 gomb szobában, 50 km/h-val viszi végig a megtervezett utat.</li>
         <li>Kaland mód: OSRM alternatives, a kanyargósabb út, arany neon, autópálya nélkül.</li>
         <li>Előrejelzés, következő kanyar, kijárat, sávrajz, sebesség.</li>
@@ -174,6 +174,13 @@
           <circle cx="7" cy="6" r="2.2" fill="currentColor"/>
           <circle cx="17" cy="18" r="2.2" fill="currentColor"/>
           <path d="M7 8.2v3.2A4.6 4.6 0 0 0 11.6 16H17" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/>
+        </svg>
+      </button>
+      <button type="button" id="camViewBtn" class="fab" title="Külső nézet — koppints a belsőhöz" aria-pressed="false" aria-label="Kamera nézet">
+        <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
+          <path d="M4.2 8.2h11.2A1.8 1.8 0 0 1 17.2 10v6.2A1.8 1.8 0 0 1 15.4 18H4.2A1.8 1.8 0 0 1 2.4 16.2V10A1.8 1.8 0 0 1 4.2 8.2z" fill="none" stroke="currentColor" stroke-width="1.9"/>
+          <path d="M17.2 11.4 21.4 9v7.2l-4.2-2.4z" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round"/>
+          <circle cx="9.8" cy="13.1" r="2.1" fill="none" stroke="currentColor" stroke-width="1.7"/>
         </svg>
       </button>
     </div>
@@ -237,9 +244,9 @@
   <script src="./vendor/pmtiles.js"></script>
   <script src="./vendor/three.min.js"></script>
   <script src="./vendor/GLTFLoader.js"></script>
-  <script src="./sw-register.js?v=113"></script>
-  <script src="./car-layer.js?v=113"></script>
-  <script src="./voice/audio-manager.js?v=113"></script>
-  <script src="./app.js?v=113"></script>
+  <script src="./sw-register.js?v=118"></script>
+  <script src="./car-layer.js?v=118"></script>
+  <script src="./voice/audio-manager.js?v=118"></script>
+  <script src="./app.js?v=118"></script>
 </body>
 </html>
