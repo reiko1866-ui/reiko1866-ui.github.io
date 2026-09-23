@@ -3272,6 +3272,11 @@
     bindCamUi();
     syncCamUi();
     if (overlay.renderer && overlay.raf) {
+      overlayWorldKey = "";
+      overlay.camYaw = null;
+      if (overlay.carRoot) overlay.carRoot.userData.poseLive = false;
+      if (overlay.worldRoot) overlay.worldRoot.userData.poseLive = false;
+      syncOverlayWorld();
       setArcadeLive(true);
       return;
     }
@@ -3318,6 +3323,10 @@
     } else {
       startOverlay();
     }
+  };
+
+  api.routeReady = function () {
+    return !!(overlay.routeRoot && overlay.routeRoot.children && overlay.routeRoot.children.length);
   };
 
   api.invalidateWorld = function () {

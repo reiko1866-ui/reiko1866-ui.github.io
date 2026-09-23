@@ -1983,7 +1983,11 @@
     if (window.NavCar3D) {
       window.NavCar3D.onArcadeLive = function (live) {
         setMapLayerVis(!!live);
-        if (live) setNavGestures(true);
+        if (live) {
+          setNavGestures(true);
+          state._3dRouteAt = null;
+          pushArcadeWorld();
+        }
       };
       if (window.NavCar3D.setArcade) window.NavCar3D.setArcade(on);
     }
@@ -2172,9 +2176,11 @@
     if (!state.traffic || !state.traffic.length) state.traffic = buildTrafficProfile(state.coords);
     if (window.NavCar3D.setTraffic) window.NavCar3D.setTraffic(state.traffic, false);
     const here = state.traveled || 0;
+    const routeMissing =
+      window.NavCar3D.routeReady && !window.NavCar3D.routeReady();
     if (
       window.NavCar3D.setRoute &&
-      (state._3dRouteAt == null || Math.abs(here - state._3dRouteAt) > 70)
+      (routeMissing || state._3dRouteAt == null || Math.abs(here - state._3dRouteAt) > 70)
     ) {
       state._3dRouteAt = here;
       window.NavCar3D.setRoute(windowCoords(), origin);
