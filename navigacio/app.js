@@ -895,6 +895,10 @@
   function makeEl(cls) {
     const el = document.createElement("div");
     el.className = cls;
+    if (cls === "pin") {
+      el.className = "pin pin-3d";
+      el.innerHTML = '<span class="pin-shadow"></span><span class="pin-stick"></span><span class="pin-head"></span>';
+    }
     return el;
   }
 
@@ -1125,6 +1129,9 @@
       $("weatherIcon").textContent = weatherIcon(Number(code) || 0);
       $("weatherTemp").textContent = Math.round(temp) + "°";
       box.hidden = false;
+      if (window.NavCar3D && typeof window.NavCar3D.setWeather === "function") {
+        window.NavCar3D.setWeather(Number(code) || 0, temp);
+      }
     } catch (_e) {
       box.hidden = true;
     }
@@ -1293,48 +1300,44 @@
   function paintArcadeNight() {
     if (!state.map || !state.map.isStyleLoaded()) return;
     stripRaster();
-    const dark = document.documentElement.classList.contains("dark") || localStorage.getItem(THEME_KEY) !== "light";
-    if (!dark) {
-      applySky();
-      return;
-    }
     function setPaint(id, prop, val) {
       try {
         if (state.map.getLayer(id)) state.map.setPaintProperty(id, prop, val);
       } catch (_e) {}
     }
-    setPaint("background", "background-color", "#06101f");
-    setPaint("water", "fill-color", "#0b2748");
-    setPaint("waterway", "line-color", "#12365c");
-    setPaint("landuse_residential", "fill-color", "#0d1524");
-    setPaint("landuse_park", "fill-color", "#0b1710");
-    setPaint("landcover_wood", "fill-color", "#0a140e");
-    const asphalt = "#3a4555";
-    const asphaltHi = "#465264";
-    const casing = "#151a22";
-    setPaint("highway_path", "line-color", "#2c313c");
+    setPaint("background", "background-color", "#d8f0a8");
+    setPaint("water", "fill-color", "#8fd4f0");
+    setPaint("waterway", "line-color", "#7ac8e8");
+    setPaint("landuse_residential", "fill-color", "#f4e7b0");
+    setPaint("landuse_park", "fill-color", "#9ee07a");
+    setPaint("landcover_wood", "fill-color", "#7ecf6a");
+    const asphalt = "#fff1b0";
+    const asphaltHi = "#ffe27a";
+    const casing = "#e8c96a";
+    setPaint("highway_path", "line-color", "#f3e2a0");
     setPaint("highway_minor", "line-color", asphalt);
     setPaint("highway_major_inner", "line-color", asphaltHi);
     setPaint("highway_major_casing", "line-color", casing);
-    setPaint("highway_major_subtle", "line-color", "#2a303a");
-    setPaint("highway_motorway_inner", "line-color", "#555c6c");
-    setPaint("highway_motorway_casing", "line-color", casing);
-    setPaint("highway_motorway_subtle", "line-color", "#323844");
-    setPaint("building", "fill-opacity", 0);
+    setPaint("highway_major_subtle", "line-color", "#f6e7a8");
+    setPaint("highway_motorway_inner", "line-color", "#ffd36a");
+    setPaint("highway_motorway_casing", "line-color", "#d7b24c");
+    setPaint("highway_motorway_subtle", "line-color", "#f0cf7a");
+    setPaint("building", "fill-opacity", 0.18);
+    setPaint("building", "fill-color", "#f3d7a8");
     const layers = (state.map.getStyle() && state.map.getStyle().layers) || [];
     layers.forEach(function (ly) {
       if (!ly) return;
       const sl = ly["source-layer"] || "";
       if (ly.type === "line" && (sl === "transportation" || sl === "roads")) {
         if (/casing|case/i.test(ly.id)) setPaint(ly.id, "line-color", casing);
-        else if (/motorway|trunk/i.test(ly.id)) setPaint(ly.id, "line-color", "#555c6c");
+        else if (/motorway|trunk/i.test(ly.id)) setPaint(ly.id, "line-color", "#ffd36a");
         else if (!/rail|dash/i.test(ly.id)) setPaint(ly.id, "line-color", asphalt);
       }
-      if (ly.type === "background") setPaint(ly.id, "background-color", "#06101f");
-      if (ly.type === "fill" && (sl === "earth" || sl === "landcover" || ly.id === "bg")) {
-        if (/water/i.test(ly.id)) setPaint(ly.id, "fill-color", "#0b2748");
-        else if (/park|wood|forest/i.test(ly.id)) setPaint(ly.id, "fill-color", "#0b1710");
-        else setPaint(ly.id, "fill-color", "#0d1524");
+      if (ly.type === "background") setPaint(ly.id, "background-color", "#d8f0a8");
+      if (ly.type === "fill" && (sl === "earth" || sl === "landcover" || sl === "landuse" || ly.id === "bg" || ly.id === "earth")) {
+        if (/water/i.test(ly.id)) setPaint(ly.id, "fill-color", "#8fd4f0");
+        else if (/park|wood|forest|grass/i.test(ly.id)) setPaint(ly.id, "fill-color", "#9ee07a");
+        else setPaint(ly.id, "fill-color", "#d8f0a8");
       }
     });
     addArcadeExtras();
@@ -1343,10 +1346,9 @@
 
   function applySky() {
     if (!state.map) return;
-    const dark = document.documentElement.classList.contains("dark") || localStorage.getItem(THEME_KEY) !== "light";
-    const zenith = dark ? "#020617" : "#64748b";
-    const horizon = dark ? "#2b6cb0" : "#94a3b8";
-    const fog = dark ? "#0b1b33" : "#64748b";
+    const zenith = "#6b8fd4";
+    const horizon = "#ffb06a";
+    const fog = "#f3c4b0";
     try {
       if (typeof state.map.setSky === "function") {
         state.map.setSky({
@@ -1365,7 +1367,7 @@
         state.map.setFog({
           color: fog,
           "high-color": zenith,
-          "space-color": dark ? "#01030a" : "#94a3b8",
+          "space-color": "#6b8fd4",
           "horizon-blend": 0.14,
           range: [0.35, 5.8]
         });
@@ -1584,6 +1586,139 @@
         });
       } catch (_e) {}
     });
+  }
+
+  function hash01(n) {
+    const x = Math.sin(n * 127.1 + 311.7) * 43758.5453;
+    return x - Math.floor(x);
+  }
+
+  function tomtomKey() {
+    try {
+      const q = new URLSearchParams(location.search).get("ttkey");
+      if (q) return q;
+      return localStorage.getItem("nav2_tomtom_key") || "";
+    } catch (_e) {
+      return "";
+    }
+  }
+
+  function buildTrafficProfile(coords) {
+    const list = coords || [];
+    const out = [];
+    if (list.length < 2) return out;
+    let acc = 0;
+    const hour = new Date().getHours();
+    const rush = (hour >= 7 && hour <= 9) || (hour >= 16 && hour <= 18);
+    let i;
+    for (i = 1; i < list.length; i++) {
+      const a = list[i - 1];
+      const b = list[i];
+      const d = haversine({ lng: a[0], lat: a[1] }, { lng: b[0], lat: b[1] });
+      const mid = acc + d * 0.5;
+      if (!out.length || mid - out[out.length - 1].traveled >= 70) {
+        const n = hash01(Math.round(a[1] * 180) * 13 + Math.round(a[0] * 180) * 7 + hour);
+        let level = n * (rush ? 0.95 : 0.52);
+        if (n < 0.42) level *= 0.32;
+        out.push({
+          traveled: mid,
+          level: Math.min(1, level),
+          lng: (a[0] + b[0]) * 0.5,
+          lat: (a[1] + b[1]) * 0.5
+        });
+      }
+      acc += d;
+    }
+    return out;
+  }
+
+  function trafficColor(level) {
+    if (level >= 0.65) return "#e23b4a";
+    if (level >= 0.38) return "#f2b84b";
+    return "#3dce6a";
+  }
+
+  function applyTrafficRouteStyle() {
+    if (!state.map || !state.map.getLayer("route-line")) return;
+    const samples = state.traffic || [];
+    const len = state.routeLen || lineLen(state.coords || []);
+    if (!samples.length || !(len > 1)) {
+      applyRouteStyle();
+      return;
+    }
+    const grad = ["interpolate", ["linear"], ["line-progress"]];
+    samples.forEach(function (s) {
+      const t = Math.max(0, Math.min(1, (s.traveled || 0) / len));
+      grad.push(t, trafficColor(s.level));
+    });
+    try {
+      state.map.setPaintProperty("route-line", "line-gradient", grad);
+      state.map.setPaintProperty("route-glow", "line-color", "#fff4c2");
+    } catch (_e) {
+      applyRouteStyle();
+    }
+  }
+
+  function refreshTraffic() {
+    state.traffic = buildTrafficProfile(state.coords);
+    if (window.NavCar3D && typeof window.NavCar3D.setTraffic === "function") {
+      window.NavCar3D.setTraffic(state.traffic);
+    }
+    applyTrafficRouteStyle();
+    maybeFetchTomTom(state.coords);
+  }
+
+  async function maybeFetchTomTom(coords) {
+    const key = tomtomKey();
+    if (!key || !coords || coords.length < 2) return;
+    const picks = [];
+    let acc = 0;
+    let i;
+    for (i = 1; i < coords.length && picks.length < 8; i++) {
+      const a = coords[i - 1];
+      const b = coords[i];
+      acc += haversine({ lng: a[0], lat: a[1] }, { lng: b[0], lat: b[1] });
+      if (!picks.length || acc - picks[picks.length - 1].traveled >= 380) {
+        picks.push({ lat: b[1], lng: b[0], traveled: acc });
+      }
+    }
+    try {
+      const rows = await Promise.all(
+        picks.map(function (p) {
+          return fetch(
+            "https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json?key=" +
+              encodeURIComponent(key) +
+              "&point=" +
+              p.lat +
+              "," +
+              p.lng
+          ).then(function (res) {
+            return res.ok ? res.json() : null;
+          });
+        })
+      );
+      let changed = false;
+      rows.forEach(function (data, idx) {
+        const flow = data && data.flowSegmentData;
+        if (!flow || !Number.isFinite(flow.currentSpeed) || !Number.isFinite(flow.freeFlowSpeed)) return;
+        const ratio = 1 - Math.max(0, Math.min(1, flow.currentSpeed / Math.max(1, flow.freeFlowSpeed)));
+        const p = picks[idx];
+        const hit = (state.traffic || []).reduce(function (best, s) {
+          if (!best || Math.abs(s.traveled - p.traveled) < Math.abs(best.traveled - p.traveled)) return s;
+          return best;
+        }, null);
+        if (hit) {
+          hit.level = ratio;
+          changed = true;
+        }
+      });
+      if (changed) {
+        if (window.NavCar3D && typeof window.NavCar3D.setTraffic === "function") {
+          window.NavCar3D.setTraffic(state.traffic);
+        }
+        applyTrafficRouteStyle();
+      }
+    } catch (_e) {}
   }
 
   function routeColors() {
@@ -1875,6 +2010,8 @@
     if (!window.NavCar3D) return;
     const origin = arcadeOrigin();
     if (!Number.isFinite(origin.lng) || !Number.isFinite(origin.lat)) return;
+    if (!state.traffic || !state.traffic.length) state.traffic = buildTrafficProfile(state.coords);
+    if (window.NavCar3D.setTraffic) window.NavCar3D.setTraffic(state.traffic, false);
     if (window.NavCar3D.setRoute) window.NavCar3D.setRoute(windowCoords(), origin);
     if (window.NavCar3D.setMarkers && state.navigating) {
       const marks = [];
@@ -1911,7 +2048,10 @@
     const src = state.map.getSource("route");
     if (!src) return;
     src.setData(splitLine(state.coords, state.traveled));
+    if (!state.traffic || !state.traffic.length) state.traffic = buildTrafficProfile(state.coords);
+    applyTrafficRouteStyle();
     pushArcadeWorld();
+    maybeFetchTomTom(state.coords);
   }
 
   function copyPose(p, heading) {
@@ -2063,7 +2203,15 @@
     if (!(speed > COAST_MIN_SPEED) || !(dt > 0)) return;
     const heading = Number.isFinite(tgt.bearing) ? tgt.bearing : state.heading || 0;
     if (state.coords.length >= 2 && (state.traveled > 0 || state.navigating || state.simulating)) {
-      const step = state.simulating ? SIM_MS : speed;
+      const pace =
+        window.NavCar3D && typeof window.NavCar3D.trafficPace === "function"
+          ? Math.max(0.06, Number(window.NavCar3D.trafficPace()) || 1)
+          : 1;
+      const step = (state.simulating ? SIM_MS : speed) * pace;
+      if (state.simulating) {
+        state.speed = SIM_MS * pace;
+        AppState.speed = state.speed;
+      }
       state.traveled = (state.traveled || 0) + step * dt;
       if (state.simulating && state.routeLen && state.traveled >= state.routeLen - 1) {
         state.traveled = state.routeLen;
@@ -3114,6 +3262,7 @@
       if (!route) throw last || new Error("Az útvonal nem jött össze.");
       state.route = route;
       state.coords = (route.geometry && route.geometry.coordinates) || [];
+      state.traffic = null;
       AppState.activeRoute = { coords: state.coords, distance: Number(route.distance) || 0 };
       state.steps = [];
       state.limits = [];
@@ -3460,6 +3609,10 @@
       if (state.fixRejects < 3) return;
     }
     state.fixRejects = 0;
+    if (!state.weatherSeeded) {
+      state.weatherSeeded = true;
+      fetchWeather(raw.lat, raw.lng);
+    }
     const kmh = (spd || 0) * 3.6;
     const gpsHeading = Number.isFinite(c.heading) && kmh >= PATH_HEADING_KMH ? c.heading : AppState.targetPos.bearing;
     state.rawGps = raw;
@@ -4000,7 +4153,7 @@
         {
           id: "bg",
           type: "background",
-          paint: { "background-color": dark ? "#5fa86c" : "#8ecf96" }
+          paint: { "background-color": "#d8f0a8" }
         }
       ]
     };
@@ -4032,7 +4185,7 @@
   async function resolveMapStyle(dark) {
     if (await probePmtiles()) {
       try {
-        const local = await loadEuropeStyle(dark);
+        const local = await loadEuropeStyle(false);
         if (local) {
           state.mapOffline = true;
           return local;
@@ -4040,7 +4193,7 @@
       } catch (_e) {}
     }
     try {
-      const remote = await fetchRemoteStyle(dark);
+      const remote = await fetchRemoteStyle(false);
       state.mapOffline = false;
       return remote;
     } catch (_e2) {
@@ -4143,7 +4296,7 @@
       layers = layers.map(function (layer) {
         if (!layer || layer.id !== "bg") return layer;
         return Object.assign({}, layer, {
-          paint: Object.assign({}, layer.paint, { "background-color": "#f2efe9" })
+          paint: Object.assign({}, layer.paint, { "background-color": "#d8f0a8" })
         });
       });
     }
