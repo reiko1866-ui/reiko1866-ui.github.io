@@ -3,6 +3,7 @@
   var reloading = false;
   var AUDIO_MAP_KEY = "nav2_audio_map";
   var AUDIO_LIST_KEY = "nav2_audio_selected";
+  var AUDIO_DIR_KEY = "nav2_audio_dirs";
 
   function on(el, type, fn, opts) {
     try {
@@ -46,6 +47,12 @@
         Object.keys(map).forEach(function (k) { push(map[k]); });
       }
     } catch (_e) {}
+    try {
+      var dirs = JSON.parse(localStorage.getItem(AUDIO_DIR_KEY) || "{}");
+      if (dirs && typeof dirs === "object") {
+        Object.keys(dirs).forEach(function (k) { push(k); });
+      }
+    } catch (_d) {}
     try {
       var list = JSON.parse(localStorage.getItem(AUDIO_LIST_KEY) || "[]");
       if (Array.isArray(list)) list.forEach(push);

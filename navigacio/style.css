@@ -1560,6 +1560,24 @@ body.is-scrolled .peek {
   padding: 0 0.8rem;
 }
 
+#mapperSearch {
+  display: block;
+  width: calc(100% - 2rem);
+  margin: 0 1rem 0.55rem;
+  height: 2.6rem;
+  box-sizing: border-box;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 0 0.7rem;
+  background: var(--chip);
+  color: var(--text);
+  font: inherit;
+}
+
+#mapperCount {
+  padding-bottom: 0.25rem;
+}
+
 #mapperList {
   overflow: auto;
   -webkit-overflow-scrolling: touch;
@@ -1577,10 +1595,13 @@ body.is-scrolled .peek {
   align-items: center;
 }
 
-.mapper-row label {
+.mapper-row label,
+.mapper-file {
   grid-column: 1 / -1;
   font-weight: 700;
-  font-size: 0.82rem;
+  font-size: 0.78rem;
+  line-height: 1.25;
+  word-break: break-all;
 }
 
 .mapper-row select {
@@ -1600,6 +1621,10 @@ body.is-scrolled .peek {
   background: var(--blue);
   color: #fff;
   font-weight: 800;
+}
+
+.mapper-more {
+  padding: 0.2rem 0 0.4rem;
 }
 
 #mapperBtn {
