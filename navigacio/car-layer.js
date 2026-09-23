@@ -8,8 +8,11 @@
   var CAM_FAR = 250;
   var BUILD_RANGE = 250;
   var BUILD_ZOOM_MIN = 15;
-  var FOG_COLOR = 0x0f172a;
-  var FOG_DENSITY = 0.008;
+  var FOG_COLOR = 0x87ceeb;
+  var FOG_DENSITY = 0.0038;
+  var CLAY_GROUND = 0x9ed49a;
+  var CLAY_ROAD = 0x8b909a;
+  var CLAY_ROUTE = 0xf4c15d;
   var DEADBAND_KMH = 3;
   var SMOOTH_LERP = 0.1;
   var ROAD_TEX_GAIN = 0.1;
@@ -909,11 +912,11 @@
     c.height = 256;
     var g = c.getContext("2d");
     var grd = g.createLinearGradient(0, 0, 0, 256);
-    grd.addColorStop(0, "#01030a");
-    grd.addColorStop(0.42, "#071428");
-    grd.addColorStop(0.68, "#163c72");
-    grd.addColorStop(0.84, "#c06a3e");
-    grd.addColorStop(1, "#0f172a");
+    grd.addColorStop(0, "#6ec6ea");
+    grd.addColorStop(0.35, "#87ceeb");
+    grd.addColorStop(0.7, "#c7eaf6");
+    grd.addColorStop(0.88, "#fff6e0");
+    grd.addColorStop(1, "#b8e4c2");
     g.fillStyle = grd;
     g.fillRect(0, 0, 8, 256);
     var tex = new THREE.CanvasTexture(c);
@@ -972,6 +975,7 @@
       var oz = -worldRoot.position.z;
       setRangeVisible(buildRoot, ox, oz, BUILD_RANGE);
       setRangeVisible(markRoot, ox, oz, BUILD_RANGE);
+      setRangeVisible(extraHeavy, ox, oz, BUILD_RANGE);
     }
   }
 
@@ -1000,16 +1004,60 @@
     }
   }
 
-  function ribbonGeometry(THREE, coords, origin, width, y) {
+  function densifyEnu(pts, step) {
+    if (!pts || pts.length < 2) return pts || [];
+    var out = [{ x: pts[0].x, z: pts[0].z }];
+    var i;
+    var k;
+    var n;
+    var t;
+    var dx;
+    var dz;
+    var d;
+    for (i = 1; i < pts.length; i++) {
+      dx = pts[i].x - pts[i - 1].x;
+      dz = pts[i].z - pts[i - 1].z;
+      d = Math.hypot(dx, dz);
+      n = Math.max(1, Math.round(d / Math.max(2.4, step || 5)));
+      for (k = 1; k <= n; k++) {
+        t = k / n;
+        out.push({ x: pts[i - 1].x + dx * t, z: pts[i - 1].z + dz * t });
+      }
+    }
+    return out;
+  }
+
+  function chaikinOnce(pts) {
+    if (!pts || pts.length < 3) return pts || [];
+    var out = [{ x: pts[0].x, z: pts[0].z }];
+    var i;
+    for (i = 0; i < pts.length - 1; i++) {
+      var a = pts[i];
+      var b = pts[i + 1];
+      out.push({ x: a.x * 0.75 + b.x * 0.25, z: a.z * 0.75 + b.z * 0.25 });
+      out.push({ x: a.x * 0.25 + b.x * 0.75, z: a.z * 0.25 + b.z * 0.75 });
+    }
+    out.push({ x: pts[pts.length - 1].x, z: pts[pts.length - 1].z });
+    return out;
+  }
+
+  function pathPoints(coords, origin) {
     var pts = [];
     var i;
-    var elev = y == null ? 0.08 : y;
-    for (i = 0; i < coords.length; i++) {
+    for (i = 0; i < (coords || []).length; i++) {
       var p = enuOffset(origin, coords[i][0], coords[i][1]);
-      if (!pts.length || Math.hypot(p.x - pts[pts.length - 1].x, p.z - pts[pts.length - 1].z) > 1.4) {
+      if (!pts.length || Math.hypot(p.x - pts[pts.length - 1].x, p.z - pts[pts.length - 1].z) > 0.8) {
         pts.push(p);
       }
     }
+    if (pts.length < 2) return pts;
+    return chaikinOnce(densifyEnu(pts, 5.2));
+  }
+
+  function ribbonGeometry(THREE, coords, origin, width, y) {
+    var pts = pathPoints(coords, origin);
+    var i;
+    var elev = y == null ? 0.08 : y;
     if (pts.length < 2) return null;
     var pos = [];
     var uvs = [];
@@ -1039,6 +1087,204 @@
     geo.setIndex(idx);
     geo.computeVertexNormals();
     return geo;
+  }
+
+  function hash01(n) {
+    var x = Math.sin(n * 127.1 + 311.7) * 43758.5453;
+    return x - Math.floor(x);
+  }
+
+  function clayRoadTexture(THREE) {
+    var c = document.createElement("canvas");
+    c.width = 256;
+    c.height = 512;
+    var g = c.getContext("2d");
+    g.fillStyle = "#8d929c";
+    g.fillRect(0, 0, 256, 512);
+    var i;
+    for (i = 0; i < 900; i++) {
+      var n = 120 + Math.floor(Math.random() * 40);
+      g.fillStyle = "rgba(" + n + "," + (n - 4) + "," + (n - 8) + ",0.18)";
+      g.fillRect(Math.random() * 256, Math.random() * 512, 3 + Math.random() * 8, 2);
+    }
+    g.setLineDash([28, 22]);
+    g.strokeStyle = "rgba(255,248,230,0.92)";
+    g.lineWidth = 10;
+    g.beginPath();
+    g.moveTo(128, 0);
+    g.lineTo(128, 512);
+    g.stroke();
+    g.setLineDash([]);
+    g.strokeStyle = "#f3efe4";
+    g.lineWidth = 8;
+    g.beginPath();
+    g.moveTo(18, 0);
+    g.lineTo(18, 512);
+    g.stroke();
+    g.beginPath();
+    g.moveTo(238, 0);
+    g.lineTo(238, 512);
+    g.stroke();
+    var tex = new THREE.CanvasTexture(c);
+    tex.wrapS = THREE.RepeatWrapping;
+    tex.wrapT = THREE.RepeatWrapping;
+    tex.repeat.set(1, 8);
+    tex.needsUpdate = true;
+    return tex;
+  }
+
+  function clayRoadMat(THREE) {
+    var mat = toonMaterial(THREE, {
+      color: 0xffffff,
+      map: clayRoadTexture(THREE),
+      fog: true,
+      side: THREE.DoubleSide
+    });
+    return mat;
+  }
+
+  function clayRouteMat(THREE) {
+    return toonMaterial(THREE, {
+      color: CLAY_ROUTE,
+      fog: true,
+      side: THREE.DoubleSide
+    });
+  }
+
+  function makeClayTree(THREE, seed) {
+    var g = new THREE.Group();
+    var trunk = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.28, 0.42, 1.6, 6),
+      toonMaterial(THREE, { color: 0xc4a07a, fog: true })
+    );
+    trunk.position.y = 0.8;
+    var canopy = new THREE.Mesh(
+      new THREE.IcosahedronGeometry(1.35 + hash01(seed) * 0.55, 0),
+      toonMaterial(THREE, { color: hash01(seed + 2) > 0.5 ? 0x5cb86a : 0x7edc7a, fog: true })
+    );
+    canopy.position.y = 2.15;
+    canopy.scale.y = 0.85;
+    addBlackOutline(THREE, trunk);
+    addBlackOutline(THREE, canopy);
+    g.add(trunk);
+    g.add(canopy);
+    return g;
+  }
+
+  function makeClayHill(THREE, seed) {
+    var r = 9 + hash01(seed) * 16;
+    var hill = new THREE.Mesh(
+      new THREE.SphereGeometry(r, 10, 8),
+      toonMaterial(THREE, { color: hash01(seed + 1) > 0.45 ? 0x9ed49a : 0x7fbf88, fog: true })
+    );
+    hill.scale.y = 0.38 + hash01(seed + 3) * 0.18;
+    hill.position.y = -r * hill.scale.y * 0.55;
+    addBlackOutline(THREE, hill);
+    return hill;
+  }
+
+  function makeClayCloud(THREE, seed) {
+    var g = new THREE.Group();
+    var mat = toonMaterial(THREE, { color: 0xffffff, fog: true });
+    var i;
+    for (i = 0; i < 3; i++) {
+      var puff = new THREE.Mesh(new THREE.SphereGeometry(2.2 + hash01(seed + i) * 1.4, 8, 6), mat);
+      puff.position.set((i - 1) * 2.4, hash01(seed + i * 3) * 0.6, (hash01(seed + 9 + i) - 0.5) * 1.4);
+      puff.scale.y = 0.55;
+      g.add(puff);
+    }
+    return g;
+  }
+
+  function makeClayLamp(THREE) {
+    var g = new THREE.Group();
+    var pole = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.08, 0.11, 3.4, 6),
+      toonMaterial(THREE, { color: 0xd4c4a8, fog: true })
+    );
+    pole.position.y = 1.7;
+    var bulb = new THREE.Mesh(
+      new THREE.SphereGeometry(0.28, 8, 6),
+      toonMaterial(THREE, { color: 0xfff4c2, fog: true, emissive: 0xffe08a, emissiveIntensity: 0.8 })
+    );
+    bulb.position.y = 3.45;
+    var hat = new THREE.Mesh(
+      new THREE.ConeGeometry(0.48, 0.28, 8),
+      toonMaterial(THREE, { color: 0xe8d7b0, fog: true })
+    );
+    hat.position.y = 3.7;
+    g.add(pole);
+    g.add(bulb);
+    g.add(hat);
+    return g;
+  }
+
+  function buildClayEnvironment(THREE, root, coords, origin) {
+    if (!root || !THREE) return;
+    clearGroup(root);
+    var pts = pathPoints(coords, origin);
+    if (pts.length < 2) {
+      pts = [{ x: 0, z: 0 }, { x: 0, z: -40 }];
+    }
+    var acc = 0;
+    var trees = 0;
+    var hills = 0;
+    var lamps = 0;
+    var i;
+    for (i = 1; i < pts.length; i++) {
+      var dx = pts[i].x - pts[i - 1].x;
+      var dz = pts[i].z - pts[i - 1].z;
+      var len = Math.hypot(dx, dz) || 1;
+      acc += len;
+      var nx = -dz / len;
+      var nz = dx / len;
+      var midX = (pts[i].x + pts[i - 1].x) * 0.5;
+      var midZ = (pts[i].z + pts[i - 1].z) * 0.5;
+      if (lamps < 26 && acc > lamps * 16 + 6) {
+        var side = lamps % 2 ? 1 : -1;
+        var lamp = makeClayLamp(THREE);
+        lamp.position.set(midX + nx * 6.4 * side, 0, midZ + nz * 6.4 * side);
+        root.add(lamp);
+        lamps += 1;
+      }
+      if (trees < 40 && acc > trees * 11 + 4) {
+        var tSide = hash01(trees * 17 + acc) > 0.5 ? 1 : -1;
+        var tOff = 11 + hash01(trees * 3) * 10;
+        var tree = makeClayTree(THREE, trees * 13 + Math.round(acc));
+        tree.position.set(midX + nx * tOff * tSide, 0, midZ + nz * tOff * tSide);
+        root.add(tree);
+        trees += 1;
+      }
+      if (hills < 12 && acc > hills * 36 + 18) {
+        var hSide = hash01(hills * 9 + 2) > 0.5 ? 1 : -1;
+        var hOff = 28 + hash01(hills * 5) * 22;
+        var hill = makeClayHill(THREE, hills * 21);
+        hill.position.set(midX + nx * hOff * hSide, hill.position.y, midZ + nz * hOff * hSide);
+        root.add(hill);
+        hills += 1;
+      }
+    }
+    for (i = 0; i < 10; i++) {
+      var cloud = makeClayCloud(THREE, i * 19);
+      cloud.position.set((hash01(i + 1) - 0.5) * 160, 38 + hash01(i + 4) * 22, (hash01(i + 8) - 0.5) * 160);
+      root.add(cloud);
+    }
+  }
+
+  function addClayRouteMeshes(THREE, root, coords, origin, host) {
+    if (!root || !coords || coords.length < 2 || !origin) return;
+    var road = ribbonGeometry(THREE, coords, origin, 12.4, 0.03);
+    if (road) {
+      var mat = clayRoadMat(THREE);
+      rememberRoadMat(host, mat);
+      root.add(new THREE.Mesh(road, mat));
+    }
+    var paint = ribbonGeometry(THREE, coords, origin, 3.4, 0.09);
+    if (paint) root.add(new THREE.Mesh(paint, clayRouteMat(THREE)));
+    var yel = edgeLine(THREE, coords, origin, -1, 0xf3efe4);
+    var wht = edgeLine(THREE, coords, origin, 1, 0xf3efe4);
+    if (yel) root.add(yel);
+    if (wht) root.add(wht);
   }
 
   function nearestOnRoute(px, pz, origin) {
@@ -1284,14 +1530,11 @@
         this.sky.scale.set(1, 0.42, 1);
         this.sky.position.y = 40;
         this.scene.add(this.sky);
-        this.scene.add(new THREE.AmbientLight(0xd8d0c4, 0.78));
-        this.scene.add(new THREE.HemisphereLight(0xf4efe6, 0x5a5048, 0.62));
-        var sun = new THREE.DirectionalLight(0xffffff, 0.8);
-        sun.position.set(8, 22, -10);
+        this.scene.add(new THREE.AmbientLight(0xfff4e0, 0.92));
+        this.scene.add(new THREE.HemisphereLight(0xfff8e8, 0x7fbf88, 0.55));
+        var sun = new THREE.DirectionalLight(0xfff1c8, 0.85);
+        sun.position.set(12, 28, -8);
         this.scene.add(sun);
-        var fill = new THREE.DirectionalLight(0xfff1d6, 0.28);
-        fill.position.set(-10, 8, 12);
-        this.scene.add(fill);
         this.carRoot = new THREE.Group();
         this.carSlot = new THREE.Group();
         this.worldRoot = new THREE.Group();
@@ -1304,18 +1547,7 @@
         this.worldRoot.add(this.buildRoot);
         this.scene.add(this.carRoot);
         this.scene.add(this.worldRoot);
-        var stripTex = asphaltTexture(THREE);
-        stripTex.wrapS = THREE.RepeatWrapping;
-        stripTex.wrapT = THREE.RepeatWrapping;
-        this.stripMat = new THREE.MeshBasicMaterial({
-          map: stripTex,
-          color: 0xffffff
-        });
-        var asphalt = new THREE.Mesh(new THREE.PlaneGeometry(14, 90), this.stripMat);
-        asphalt.rotation.x = -Math.PI / 2;
-        asphalt.position.set(0, 0.02, 18);
-        asphalt.receiveShadow = false;
-        this.carRoot.add(asphalt);
+        this.stripMat = clayRoadMat(THREE);
         this.asphaltMats = [this.stripMat];
         this.map = map;
         try {
@@ -1461,49 +1693,7 @@
     clearGroup(layer.routeRoot);
     if (list.length < 2 || !origin) return;
     adoptOrigin(origin);
-    var THREE = api.THREE;
-    var road = ribbonGeometry(THREE, list, origin, 11.5, 0.04);
-    if (road) {
-      var roadMat = asphaltShader(THREE, asphaltTexture(THREE));
-      rememberRoadMat(layer, roadMat);
-      layer.routeRoot.add(new THREE.Mesh(road, roadMat));
-    }
-    var bloom = ribbonGeometry(THREE, list, origin, 5.6, 0.07);
-    if (bloom) {
-      layer.routeRoot.add(
-        new THREE.Mesh(
-          bloom,
-          new THREE.MeshBasicMaterial({
-            color: 0x00ff66,
-            transparent: true,
-            opacity: 0.2,
-            side: THREE.DoubleSide,
-            depthWrite: false,
-            blending: THREE.AdditiveBlending
-          })
-        )
-      );
-    }
-    var body = ribbonGeometry(THREE, list, origin, 3.05, 0.11);
-    if (body) {
-      layer.routeRoot.add(
-        new THREE.Mesh(
-          body,
-          new THREE.MeshBasicMaterial({
-            color: 0x22ff77,
-            transparent: true,
-            opacity: 0.82,
-            side: THREE.DoubleSide,
-            depthWrite: false,
-            blending: THREE.AdditiveBlending
-          })
-        )
-      );
-    }
-    var yel = edgeLine(THREE, list, origin, -1, 0xf5c518);
-    var wht = edgeLine(THREE, list, origin, 1, 0xf8fafc);
-    if (yel) layer.routeRoot.add(yel);
-    if (wht) layer.routeRoot.add(wht);
+    addClayRouteMeshes(api.THREE, layer.routeRoot, list, origin, layer);
     if (mapRef) mapRef.triggerRepaint();
   };
 
@@ -1572,6 +1762,7 @@
     markRoot: null,
     buildRoot: null,
     roadRoot: null,
+    envRoot: null,
     sky: null,
     asphaltMats: [],
     raycaster: null,
@@ -1799,58 +1990,19 @@
     clearGroup(overlay.markRoot);
     clearGroup(overlay.buildRoot);
     clearGroup(overlay.roadRoot);
+    clearGroup(overlay.envRoot);
     if (list.length >= 2) {
-      var road = ribbonGeometry(THREE, list, origin, 12.2, 0.03);
-      if (road) {
-        var mat = asphaltShader(THREE, asphaltTexture(THREE));
-        rememberRoadMat(overlay, mat);
-        overlay.routeRoot.add(new THREE.Mesh(road, mat));
-      }
-      var bloom = ribbonGeometry(THREE, list, origin, 6.2, 0.08);
-      if (bloom) {
-        overlay.routeRoot.add(
-          new THREE.Mesh(
-            bloom,
-            new THREE.MeshBasicMaterial({
-              color: 0x00ff66,
-              transparent: true,
-              opacity: 0.28,
-              side: THREE.DoubleSide,
-              depthWrite: false,
-              blending: THREE.AdditiveBlending
-            })
-          )
-        );
-      }
-      var neon = ribbonGeometry(THREE, list, origin, 2.8, 0.13);
-      if (neon) {
-        overlay.routeRoot.add(
-          new THREE.Mesh(
-            neon,
-            new THREE.MeshBasicMaterial({
-              color: 0x66ffbb,
-              transparent: true,
-              opacity: 0.9,
-              side: THREE.DoubleSide,
-              depthWrite: false,
-              blending: THREE.AdditiveBlending
-            })
-          )
-        );
-      }
-      var yel = edgeLine(THREE, list, origin, -1, 0xf5c518);
-      var wht = edgeLine(THREE, list, origin, 1, 0xf8fafc);
-      if (yel) overlay.routeRoot.add(yel);
-      if (wht) overlay.routeRoot.add(wht);
+      addClayRouteMeshes(THREE, overlay.routeRoot, list, origin, overlay);
     }
     (lastWorld.roads || []).forEach(function (line) {
       if (!line || line.length < 2) return;
       var geo = ribbonGeometry(THREE, line, origin, 8.4, 0.01);
       if (!geo) return;
-      var mat = asphaltShader(THREE, asphaltTexture(THREE));
+      var mat = clayRoadMat(THREE);
       rememberRoadMat(overlay, mat);
       overlay.roadRoot.add(new THREE.Mesh(geo, mat));
     });
+    buildClayEnvironment(THREE, overlay.envRoot, list, origin);
     (lastWorld.marks || []).forEach(function (mark) {
       var g = makeMarker(THREE, mark);
       var p = enuOffset(origin, mark.lng, mark.lat);
@@ -1899,13 +2051,14 @@
     if (THREE.NoToneMapping !== undefined) overlay.renderer.toneMapping = THREE.NoToneMapping;
     overlay.envMap = null;
     overlay.scene = new THREE.Scene();
+    overlay.scene.background = new THREE.Color(FOG_COLOR);
     overlay.scene.fog = new THREE.FogExp2(FOG_COLOR, FOG_DENSITY);
     overlay.sky = makeSky(THREE);
     overlay.scene.add(overlay.sky);
-    overlay.scene.add(new THREE.AmbientLight(0x9aa8b8, 0.72));
-    overlay.scene.add(new THREE.HemisphereLight(0xf2efe8, 0x4a4036, 0.7));
-    var sun = new THREE.DirectionalLight(0xffffff, 0.85);
-    sun.position.set(10, 24, -8);
+    overlay.scene.add(new THREE.AmbientLight(0xfff4e0, 0.95));
+    overlay.scene.add(new THREE.HemisphereLight(0xfff8e8, 0x7fbf88, 0.58));
+    var sun = new THREE.DirectionalLight(0xfff1c8, 0.9);
+    sun.position.set(14, 30, -10);
     overlay.scene.add(sun);
     overlay.carRoot = new THREE.Group();
     overlay.carSlot = new THREE.Group();
@@ -1914,7 +2067,9 @@
     overlay.markRoot = new THREE.Group();
     overlay.buildRoot = new THREE.Group();
     overlay.roadRoot = new THREE.Group();
+    overlay.envRoot = new THREE.Group();
     overlay.carRoot.add(overlay.carSlot);
+    overlay.worldRoot.add(overlay.envRoot);
     overlay.worldRoot.add(overlay.roadRoot);
     overlay.worldRoot.add(overlay.routeRoot);
     overlay.worldRoot.add(overlay.markRoot);
@@ -1922,24 +2077,14 @@
     overlay.scene.add(overlay.carRoot);
     overlay.scene.add(overlay.worldRoot);
     var ground = new THREE.Mesh(
-      new THREE.CircleGeometry(CAM_FAR - 10, 48),
-      toonMaterial(THREE, { color: 0x1a1d24, fog: true })
+      new THREE.CircleGeometry(CAM_FAR - 8, 48),
+      toonMaterial(THREE, { color: CLAY_GROUND, fog: true })
     );
     ground.rotation.x = -Math.PI / 2;
-    ground.position.y = -0.02;
+    ground.position.y = -0.04;
     overlay.scene.add(ground);
-    var stripTex = asphaltTexture(THREE);
-    stripTex.wrapS = THREE.RepeatWrapping;
-    stripTex.wrapT = THREE.RepeatWrapping;
-    overlay.stripMat = new THREE.MeshBasicMaterial({
-      map: stripTex,
-      color: 0xffffff
-    });
-    var local = new THREE.Mesh(new THREE.PlaneGeometry(13, 70), overlay.stripMat);
+    overlay.stripMat = clayRoadMat(THREE);
     overlay.asphaltMats = [overlay.stripMat];
-    local.rotation.x = -Math.PI / 2;
-    local.position.set(0, 0.02, 16);
-    overlay.carRoot.add(local);
     overlay.camera = new THREE.PerspectiveCamera(56, w / Math.max(1, h), 0.2, CAM_FAR);
     overlay.camera.far = CAM_FAR;
     overlay.camera.updateProjectionMatrix();
@@ -2028,7 +2173,7 @@
     var leanRad = ((Number(vis.lean) || 0) * Math.PI) / 180;
     smoothCarPose(overlay.carRoot, overlay.worldRoot, overlay.worldOrigin, vis, headingRad);
     if (overlay.carSlot) overlay.carSlot.rotation.z = lerpNum(overlay.carSlot.rotation.z, leanRad, SMOOTH_LERP);
-    applyWorldLod(overlay.scene, overlay.worldRoot, overlay.buildRoot, overlay.markRoot, overlay.sky, overlay.roadRoot);
+    applyWorldLod(overlay.scene, overlay.worldRoot, overlay.buildRoot, overlay.markRoot, overlay.sky, overlay.envRoot);
     if (overlay.sky) overlay.sky.position.copy(overlay.camera.position);
     faceMarkers(overlay.markRoot);
     overlay.asphaltMats.forEach(function (m) {

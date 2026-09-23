@@ -3,19 +3,19 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta name="theme-color" content="#06101f">
-  <meta name="color-scheme" content="dark">
-  <meta name="description" content="Egyszerű magyar autósnavigáció.">
+  <meta name="theme-color" content="#87CEEB">
+  <meta name="color-scheme" content="light">
+  <meta name="description" content="ToonNavi: mesebeli claymation 3D autósnavigáció.">
   <meta name="format-detection" content="telephone=no">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-title" content="Navigáció">
+  <meta name="apple-mobile-web-app-title" content="ToonNavi">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <title>Navigáció</title>
+  <title>ToonNavi</title>
   <style>
-    html, body { margin: 0; background: #06101f; color: #E2E8F0; font-family: system-ui, sans-serif; }
-    #kezdolap { position: relative; height: 100vh; height: 100dvh; min-height: 100vh; overflow: hidden; background: #06101f; }
-    #map { position: absolute; top: 0; right: 0; bottom: 0; left: 0; background: #06101f; }
+    html, body { margin: 0; background: #87CEEB; color: #1e293b; font-family: system-ui, sans-serif; }
+    #kezdolap { position: relative; height: 100vh; height: 100dvh; min-height: 100vh; overflow: hidden; background: #87CEEB; }
+    #map { position: absolute; top: 0; right: 0; bottom: 0; left: 0; background: #87CEEB; }
     #infoCard { position: absolute; top: 16px; left: 16px; z-index: 20; max-width: 22rem; padding: 10px 14px; border-radius: 16px; background: rgba(15, 23, 42, 0.72); color: #E2E8F0; }
     #fabBar { position: fixed; right: 16px; bottom: 24px; z-index: 22; display: flex; flex-direction: column; gap: 6px; }
     .fab { width: 44px; height: 44px; border: 0; border-radius: 50%; background: #3B82F6; color: #fff; font-size: 1.1rem; }
@@ -25,7 +25,7 @@
   <link rel="icon" href="./icons/icon-192.png" type="image/png">
   <link rel="apple-touch-icon" href="./icons/apple-touch-icon.png">
   <link rel="stylesheet" href="./vendor/maplibre-gl.css">
-  <link rel="stylesheet" href="./style.css?v=111">
+  <link rel="stylesheet" href="./style.css?v=112">
 </head>
 <body>
   <div id="app">
@@ -134,7 +134,7 @@
         <li>A térképet húzhatod, nagyíthatod. Ekkor a követés kikapcsol; a térkép gomb visszateszi. A kereső címlistája: név felül, város/házszám alatta — koppints a találatra.</li>
         <li>Telepíthető a fejegységre, mint app (PWA). Az első betöltés letölti a térképet, a 3D autókat és a stílust — utána offline is nyílik.</li>
         <li>Hangok: a menüben minden hangfájlnál megadhatod, merre szóljon (balra, jobbra, …). A Teszt onnan játssza. Amit nem állítasz, az néma marad.</li>
-        <li>Arcade 3D nézet: éjszakai vektoros aszfalt, 78° kamera, égbolt/köd. A Garázsban low-poly chibi mini autók, kártyán forgó 3D előnézet. Kanyarban a karosszéria megdől. Jobbra két gomb: térkép, útvonal.</li>
+        <li>ToonNavi 3D: az OSRM útvonal 3D szalag, követi a kanyarokat. Claymation fák, dombok, felhők és lámpák az út mentén. A Garázsban low-poly chibi autók.</li>
         <li>Kaland mód: OSRM alternatives, a kanyargósabb út, arany neon, autópálya nélkül.</li>
         <li>Előrejelzés, következő kanyar, kijárat, sávrajz, sebesség.</li>
         <li>Otthon és munka a menüből. Az autó helye mentődik: keresőben Autó, sárga pont a térképen.</li>
@@ -232,9 +232,9 @@
   <script src="./vendor/pmtiles.js"></script>
   <script src="./vendor/three.min.js"></script>
   <script src="./vendor/GLTFLoader.js"></script>
-  <script src="./sw-register.js?v=111"></script>
-  <script src="./car-layer.js?v=111"></script>
-  <script src="./voice/audio-manager.js?v=111"></script>
-  <script src="./app.js?v=111"></script>
+  <script src="./sw-register.js?v=112"></script>
+  <script src="./car-layer.js?v=112"></script>
+  <script src="./voice/audio-manager.js?v=112"></script>
+  <script src="./app.js?v=112"></script>
 </body>
 </html>
