@@ -1908,7 +1908,7 @@
     if (coords.length < 2) return [];
     const here = state.traveled || 0;
     const behind = 90;
-    const ahead = 420;
+    const ahead = 720;
     const out = [];
     let acc = 0;
     for (let i = 1; i < coords.length; i++) {
@@ -1924,7 +1924,10 @@
     }
     const cur = AppState.currentPos;
     if (out.length >= 2 && Number.isFinite(cur.lng) && Number.isFinite(cur.lat)) {
-      out[0] = [cur.lng, cur.lat];
+      const first = { lng: out[0][0], lat: out[0][1] };
+      if (haversine(first, { lng: cur.lng, lat: cur.lat }) < 80) {
+        out[0] = [cur.lng, cur.lat];
+      }
     }
     return out;
   }
@@ -3565,6 +3568,9 @@
     setStatus("Szimuláció 50 km/h");
     syncSimBtn();
     startSmooth();
+    if (window.NavCar3D && typeof window.NavCar3D.invalidateWorld === "function") {
+      window.NavCar3D.invalidateWorld();
+    }
     pushArcadeWorld();
     startTrafficPoll();
   }
@@ -3596,6 +3602,21 @@
         setDest(to, state.destLabel || "Szimuláció");
         state.simOwnedRoute = false;
         state.arcadePreview = true;
+        const along = alongLine(state.coords, state.traveled);
+        const br = routeTangent(state.coords, state.traveled);
+        if (along) {
+          AppState.targetPos.lat = along.lat;
+          AppState.targetPos.lng = along.lng;
+          AppState.targetPos.bearing = br;
+          AppState.currentPos.lat = along.lat;
+          AppState.currentPos.lng = along.lng;
+          AppState.currentPos.bearing = br;
+          state.heading = br;
+          state.camHeading = br;
+        }
+        if (window.NavCar3D && typeof window.NavCar3D.invalidateWorld === "function") {
+          window.NavCar3D.invalidateWorld();
+        }
         addLayers();
         drawRoute();
         paintRoadUi();
