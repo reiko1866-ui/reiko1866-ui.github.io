@@ -1189,6 +1189,7 @@
   }
 
   function trafficTone(level) {
+    if (level >= 0.9) return 0x8b1020;
     if (level >= 0.65) return 0xe23b4a;
     if (level >= 0.38) return 0xf2b84b;
     return 0x3dce6a;
@@ -1198,6 +1199,13 @@
     var list = lastWorld.traffic || [];
     if (!list.length) return 0.22;
     var i;
+    var covered = null;
+    for (i = 0; i < list.length; i++) {
+      if (Number.isFinite(list[i].start) && Number.isFinite(list[i].end) && traveled >= list[i].start && traveled <= list[i].end) {
+        if (!covered || list[i].level > covered.level) covered = list[i];
+      }
+    }
+    if (covered) return Number(covered.level) || 0;
     var best = list[0];
     var d = Math.abs((best.traveled || 0) - traveled);
     for (i = 1; i < list.length; i++) {
