@@ -5,8 +5,11 @@
   var LAYER_ID = "ego-car-3d";
   var TARGET_METERS = 7.2;
   var CHIBI_SCALE = 1;
-  var CAM_FAR = 250;
-  var BUILD_RANGE = 250;
+  var CAM_FAR = 340;
+  var BUILD_RANGE = 300;
+  var ENV_RANGE = 300;
+  var ENV_KEEP = 360;
+  var ENV_STEP = 42;
   var BUILD_ZOOM_MIN = 15;
   var FOG_COLOR = 0xf3c4b0;
   var FOG_DENSITY = 0.0026;
@@ -961,17 +964,41 @@
     return tex;
   }
 
-  function makeSky(THREE) {
+  function makeSky(THREE, kind) {
     var c = document.createElement("canvas");
     c.width = 8;
     c.height = 256;
     var g = c.getContext("2d");
     var grd = g.createLinearGradient(0, 0, 0, 256);
-    grd.addColorStop(0, "#6b8fd4");
-    grd.addColorStop(0.28, "#f4a3c4");
-    grd.addColorStop(0.55, "#ffb06a");
-    grd.addColorStop(0.78, "#ffe2b0");
-    grd.addColorStop(1, "#b8e4a8");
+    kind = kind || weather.kind || "sun";
+    if (kind === "rain") {
+      grd.addColorStop(0, "#6d7f93");
+      grd.addColorStop(0.45, "#8ea0b3");
+      grd.addColorStop(1, "#b7c4b0");
+    } else if (kind === "storm") {
+      grd.addColorStop(0, "#3d4452");
+      grd.addColorStop(0.4, "#5b6474");
+      grd.addColorStop(1, "#7a7f70");
+    } else if (kind === "fog") {
+      grd.addColorStop(0, "#c8c2bc");
+      grd.addColorStop(0.5, "#ddd4cc");
+      grd.addColorStop(1, "#c8d8b8");
+    } else if (kind === "snow") {
+      grd.addColorStop(0, "#9bb6d8");
+      grd.addColorStop(0.5, "#dce7f4");
+      grd.addColorStop(1, "#eef4ea");
+    } else if (kind === "partly") {
+      grd.addColorStop(0, "#7ea4dc");
+      grd.addColorStop(0.35, "#f0b6c8");
+      grd.addColorStop(0.7, "#ffd08a");
+      grd.addColorStop(1, "#c5e6a8");
+    } else {
+      grd.addColorStop(0, "#6b8fd4");
+      grd.addColorStop(0.28, "#f4a3c4");
+      grd.addColorStop(0.55, "#ffb06a");
+      grd.addColorStop(0.78, "#ffe2b0");
+      grd.addColorStop(1, "#b8e4a8");
+    }
     g.fillStyle = grd;
     g.fillRect(0, 0, 8, 256);
     var tex = new THREE.CanvasTexture(c);
@@ -1111,7 +1138,11 @@
       var vecs = [];
       for (i = 0; i < pts.length; i++) vecs.push(new THREE.Vector3(pts[i].x, 0, pts[i].z));
       var curve = new THREE.CatmullRomCurve3(vecs, false, "catmullrom", 0.08);
-      var sampled = curve.getPoints(500);
+      var total = 0;
+      for (i = 1; i < pts.length; i++) {
+        total += Math.hypot(pts[i].x - pts[i - 1].x, pts[i].z - pts[i - 1].z);
+      }
+      var sampled = curve.getPoints(Math.min(800, Math.max(180, Math.round(total / 3.5))));
       var out = [];
       for (i = 0; i < sampled.length; i++) out.push({ x: sampled[i].x, z: sampled[i].z });
       return out;
@@ -1159,16 +1190,103 @@
     return x - Math.floor(x);
   }
 
+  var weather = { code: 0, temp: null, kind: "sun" };
+
+  function weatherKind(code) {
+    var n = Number(code);
+    if (!Number.isFinite(n)) n = 0;
+    if (n === 0) return "sun";
+    if (n <= 3) return "partly";
+    if (n <= 48) return "fog";
+    if (n <= 67 || (n >= 80 && n <= 82)) return "rain";
+    if (n <= 77 || (n >= 85 && n <= 86)) return "snow";
+    return "storm";
+  }
+
+  function weatherCloudMul() {
+    if (weather.kind === "sun") return 0.35;
+    if (weather.kind === "partly") return 0.7;
+    if (weather.kind === "fog") return 0.85;
+    if (weather.kind === "snow") return 0.8;
+    if (weather.kind === "rain") return 1;
+    return 1.15;
+  }
+
   function addStoryLights(THREE, scene) {
     if (!THREE || !scene) return;
-    scene.add(new THREE.AmbientLight(0xffe4c8, 0.72));
-    scene.add(new THREE.HemisphereLight(0xffc8d8, 0x6aaa62, 0.55));
+    var ambient = new THREE.AmbientLight(0xffe4c8, 0.72);
+    var hemi = new THREE.HemisphereLight(0xffc8d8, 0x6aaa62, 0.55);
     var sun = new THREE.DirectionalLight(0xffd08a, 0.95);
     sun.position.set(18, 22, -14);
-    scene.add(sun);
     var fill = new THREE.DirectionalLight(0xff9ec4, 0.28);
     fill.position.set(-16, 12, 10);
+    scene.add(ambient);
+    scene.add(hemi);
+    scene.add(sun);
     scene.add(fill);
+    scene.userData.storyLights = { ambient: ambient, hemi: hemi, sun: sun, fill: fill };
+    applyWeatherToScene(scene, null);
+  }
+
+  function applyWeatherToScene(scene, renderer) {
+    if (!scene || !api.THREE) return;
+    var kind = weather.kind || "sun";
+    var fogHex = FOG_COLOR;
+    var fogDen = FOG_DENSITY;
+    var amb = 0xffe4c8;
+    var sunCol = 0xffd08a;
+    var sunInt = 0.95;
+    var ambInt = 0.72;
+    if (kind === "partly") {
+      fogHex = 0xe8c8b8;
+      fogDen = 0.0032;
+      sunInt = 0.78;
+    } else if (kind === "fog") {
+      fogHex = 0xd8d0c8;
+      fogDen = 0.011;
+      sunInt = 0.35;
+      ambInt = 0.9;
+      amb = 0xe8e0d8;
+    } else if (kind === "rain") {
+      fogHex = 0x9bb4c8;
+      fogDen = 0.0048;
+      sunCol = 0xc8d4e0;
+      sunInt = 0.42;
+      amb = 0xc5d2de;
+      ambInt = 0.62;
+    } else if (kind === "snow") {
+      fogHex = 0xe8eef4;
+      fogDen = 0.0038;
+      sunCol = 0xf4f7ff;
+      sunInt = 0.7;
+      amb = 0xeef3ff;
+    } else if (kind === "storm") {
+      fogHex = 0x6b7380;
+      fogDen = 0.006;
+      sunCol = 0x8a94a8;
+      sunInt = 0.28;
+      amb = 0x8b93a3;
+      ambInt = 0.5;
+    }
+    if (scene.fog) {
+      scene.fog.density = fogDen;
+      if (scene.fog.color) scene.fog.color.setHex(fogHex);
+    } else {
+      scene.fog = new api.THREE.FogExp2(fogHex, fogDen);
+    }
+    if (scene.background && scene.background.isColor) scene.background.setHex(fogHex);
+    if (renderer && renderer.setClearColor) renderer.setClearColor(fogHex, 1);
+    var lights = scene.userData && scene.userData.storyLights;
+    if (lights) {
+      if (lights.ambient) {
+        lights.ambient.color.setHex(amb);
+        lights.ambient.intensity = ambInt;
+      }
+      if (lights.sun) {
+        lights.sun.color.setHex(sunCol);
+        lights.sun.intensity = sunInt;
+      }
+    }
   }
 
   function clayRoadTexture(THREE) {
@@ -1465,45 +1583,49 @@
     pad.add(paint);
     pad.userData.fallbackRoad = road;
     pad.userData.fallbackPaint = paint;
+    var decor = new THREE.Group();
+    decor.name = "clayPadDecor";
+    pad.add(decor);
+    pad.userData.decor = decor;
     var i;
     for (i = 0; i < 10; i++) {
       var ang = (i / 10) * Math.PI * 2;
       var dist = 38 + hash01(i * 4) * 30;
       var hill = makeClayHill(THREE, i * 17 + 3);
       hill.position.set(Math.sin(ang) * dist, hill.position.y, Math.cos(ang) * dist);
-      pad.add(hill);
+      decor.add(hill);
     }
     for (i = 0; i < 26; i++) {
       var ang2 = (i / 26) * Math.PI * 2 + 0.35;
       var d2 = 12 + hash01(i * 9) * 26;
       var tree = makeClayTree(THREE, i * 23 + 5);
       tree.position.set(Math.sin(ang2) * d2, 0, Math.cos(ang2) * d2);
-      pad.add(tree);
+      decor.add(tree);
     }
     for (i = 0; i < 16; i++) {
       var clump = makeFlowerClump(THREE, i * 41 + 2);
       var fa = (i / 16) * Math.PI * 2 + 0.7;
       var fd = 9 + hash01(i * 6) * 22;
       clump.position.set(Math.sin(fa) * fd, 0, Math.cos(fa) * fd);
-      pad.add(clump);
+      decor.add(clump);
     }
     for (i = 0; i < 12; i++) {
       var bush = makeBush(THREE, i * 15);
       var ba = (i / 12) * Math.PI * 2 + 0.2;
       var bd = 8 + hash01(i * 5) * 16;
       bush.position.set(Math.sin(ba) * bd, 0, Math.cos(ba) * bd);
-      pad.add(bush);
+      decor.add(bush);
     }
-    pad.add(makeStream(THREE, 4, -18, 8, 0.12, 1));
+    decor.add(makeStream(THREE, 4, -18, 8, 0.12, 1));
     for (i = 0; i < 5; i++) {
       var lamp = makeClayLamp(THREE);
       lamp.position.set((i % 2 ? 7.2 : -7.2), 0, 8 + i * 18);
-      pad.add(lamp);
+      decor.add(lamp);
     }
     for (i = 0; i < 8; i++) {
       var cloud = makeClayCloud(THREE, i * 11);
       cloud.position.set((hash01(i) - 0.5) * 90, 30 + hash01(i + 3) * 14, 18 + hash01(i + 5) * 46);
-      pad.add(cloud);
+      decor.add(cloud);
     }
     scene.add(pad);
     if (host) host.clayPad = pad;
@@ -1515,23 +1637,86 @@
     var show = !hasRoute;
     if (host.clayPad.userData.fallbackRoad) host.clayPad.userData.fallbackRoad.visible = show;
     if (host.clayPad.userData.fallbackPaint) host.clayPad.userData.fallbackPaint.visible = show;
+    if (host.clayPad.userData.decor) host.clayPad.userData.decor.visible = show;
   }
 
-  function buildClayEnvironment(THREE, root, coords, origin) {
-    if (!root || !THREE) return;
-    clearGroup(root);
-    var pts = pathPoints(coords, origin);
-    if (pts.length < 2) {
-      pts = [{ x: 0, z: 20 }, { x: 0, z: -80 }];
+  function carLocal(origin) {
+    origin = origin || defaultOrigin();
+    if (Number.isFinite(pose.lng) && Number.isFinite(pose.lat)) {
+      return enuOffset(origin, pose.lng, pose.lat);
     }
+    return { x: 0, z: 0 };
+  }
+
+  function envRawPoints(coords, origin) {
+    var pts = [];
+    var i;
+    for (i = 0; i < (coords || []).length; i++) {
+      var p = enuOffset(origin, coords[i][0], coords[i][1]);
+      if (!pts.length || Math.hypot(p.x - pts[pts.length - 1].x, p.z - pts[pts.length - 1].z) > 2) {
+        pts.push(p);
+      }
+    }
+    if (pts.length < 2) return [{ x: 0, z: 20 }, { x: 0, z: -80 }];
+    return densifyEnu(pts, 10);
+  }
+
+  function putEnv(root, live, key, obj, x, y, z, kind) {
+    obj.position.set(x, y, z);
+    obj.userData.cullX = x;
+    obj.userData.cullZ = z;
+    obj.userData.envKey = key;
+    obj.userData.envKind = kind || "";
+    obj.visible = true;
+    live[key] = obj;
+    root.add(obj);
+  }
+
+  function dropEnv(root, live, key) {
+    var obj = live[key];
+    if (!obj) return;
+    root.remove(obj);
+    try {
+      obj.traverse(function (n) {
+        if (n.geometry) n.geometry.dispose();
+      });
+    } catch (_e) {}
+    delete live[key];
+  }
+
+  function buildClayEnvironment(THREE, root, coords, origin, carX, carZ) {
+    if (!root || !THREE) return;
+    if (!root.userData) root.userData = {};
+    var live = root.userData.live;
+    if (!live) live = root.userData.live = {};
+    var here;
+    if (!Number.isFinite(carX) || !Number.isFinite(carZ)) {
+      here = carLocal(origin);
+      carX = here.x;
+      carZ = here.z;
+    }
+    var spawn2 = ENV_RANGE * ENV_RANGE;
+    var keep2 = ENV_KEEP * ENV_KEEP;
+    Object.keys(live).forEach(function (key) {
+      var obj = live[key];
+      if (!obj) {
+        delete live[key];
+        return;
+      }
+      var dx = (Number.isFinite(obj.userData.cullX) ? obj.userData.cullX : obj.position.x) - carX;
+      var dz = (Number.isFinite(obj.userData.cullZ) ? obj.userData.cullZ : obj.position.z) - carZ;
+      if (dx * dx + dz * dz > keep2) dropEnv(root, live, key);
+    });
+    var pts = envRawPoints(coords, origin);
     var acc = 0;
     var trees = 0;
-    var hills = 0;
     var lamps = 0;
     var flowers = 0;
     var bushes = 0;
     var streams = 0;
     var i;
+    var key;
+    var near;
     for (i = 1; i < pts.length; i++) {
       var dx = pts[i].x - pts[i - 1].x;
       var dz = pts[i].z - pts[i - 1].z;
@@ -1541,66 +1726,128 @@
       var nz = dx / len;
       var midX = (pts[i].x + pts[i - 1].x) * 0.5;
       var midZ = (pts[i].z + pts[i - 1].z) * 0.5;
-      if (lamps < 26 && acc > lamps * 16 + 6) {
-        var side = lamps % 2 ? 1 : -1;
-        var lamp = makeClayLamp(THREE);
-        lamp.position.set(midX + nx * 6.4 * side, 0, midZ + nz * 6.4 * side);
-        root.add(lamp);
+      near = (midX - carX) * (midX - carX) + (midZ - carZ) * (midZ - carZ) <= spawn2;
+      if (acc > lamps * 16 + 6) {
+        key = "l:" + lamps;
+        if (near && !live[key]) {
+          var lamp = makeClayLamp(THREE);
+          var side = lamps % 2 ? 1 : -1;
+          putEnv(root, live, key, lamp, midX + nx * 6.4 * side, 0, midZ + nz * 6.4 * side, "lamp");
+        }
         lamps += 1;
       }
-      if (trees < 36 && acc > trees * 8 + 3) {
+      if (acc > trees * 8 + 3) {
         var tOff = 10 + hash01(trees * 3) * 8;
-        var treeL = makeClayTree(THREE, trees * 13 + Math.round(acc));
-        treeL.position.set(midX - nx * tOff, 0, midZ - nz * tOff);
-        root.add(treeL);
-        var treeR = makeClayTree(THREE, trees * 29 + Math.round(acc) + 5);
-        treeR.position.set(midX + nx * (tOff + 1.4), 0, midZ + nz * (tOff + 1.4));
-        root.add(treeR);
+        key = "tl:" + trees;
+        if (near && !live[key]) {
+          putEnv(root, live, key, makeClayTree(THREE, trees * 13 + Math.round(acc)), midX - nx * tOff, 0, midZ - nz * tOff, "tree");
+        }
+        key = "tr:" + trees;
+        if (near && !live[key]) {
+          putEnv(
+            root,
+            live,
+            key,
+            makeClayTree(THREE, trees * 29 + Math.round(acc) + 5),
+            midX + nx * (tOff + 1.4),
+            0,
+            midZ + nz * (tOff + 1.4),
+            "tree"
+          );
+        }
         trees += 1;
       }
-      if (flowers < 28 && acc > flowers * 12 + 7) {
-        var fSide = flowers % 2 ? 1 : -1;
-        var fOff = 8 + hash01(flowers) * 6;
-        var clump = makeFlowerClump(THREE, flowers * 31);
-        clump.position.set(midX + nx * fOff * fSide, 0, midZ + nz * fOff * fSide);
-        root.add(clump);
+      if (acc > flowers * 12 + 7) {
+        key = "f:" + flowers;
+        if (near && !live[key]) {
+          var fSide = flowers % 2 ? 1 : -1;
+          var fOff = 8 + hash01(flowers) * 6;
+          putEnv(root, live, key, makeFlowerClump(THREE, flowers * 31), midX + nx * fOff * fSide, 0, midZ + nz * fOff * fSide, "flower");
+        }
         flowers += 1;
       }
-      if (bushes < 24 && acc > bushes * 14 + 5) {
-        var bSide = bushes % 2 ? -1 : 1;
-        var bOff = 7.2 + hash01(bushes * 2) * 4;
-        var bush = makeBush(THREE, bushes * 11);
-        bush.position.set(midX + nx * bOff * bSide, 0, midZ + nz * bOff * bSide);
-        root.add(bush);
+      if (acc > bushes * 14 + 5) {
+        key = "b:" + bushes;
+        if (near && !live[key]) {
+          var bSide = bushes % 2 ? -1 : 1;
+          var bOff = 7.2 + hash01(bushes * 2) * 4;
+          putEnv(root, live, key, makeBush(THREE, bushes * 11), midX + nx * bOff * bSide, 0, midZ + nz * bOff * bSide, "bush");
+        }
         bushes += 1;
       }
-      if (streams < 5 && acc > streams * 70 + 30) {
-        var sSide = streams % 2 ? 1 : -1;
-        var stream = makeStream(
-          THREE,
-          streams * 17,
-          midX + nx * 18 * sSide,
-          midZ + nz * 18 * sSide,
-          dz / len,
-          -dx / len
-        );
-        root.add(stream);
+      if (acc > streams * 70 + 30) {
+        key = "s:" + streams;
+        if (near && !live[key]) {
+          var sSide = streams % 2 ? 1 : -1;
+          var stream = makeStream(
+            THREE,
+            streams * 17,
+            midX + nx * 18 * sSide,
+            midZ + nz * 18 * sSide,
+            dz / len,
+            -dx / len
+          );
+          stream.userData.cullX = midX;
+          stream.userData.cullZ = midZ;
+          stream.userData.envKey = key;
+          stream.userData.envKind = "stream";
+          live[key] = stream;
+          root.add(stream);
+        }
         streams += 1;
       }
-      if (hills < 14 && acc > hills * 36 + 18) {
-        var hSide = hash01(hills * 9 + 2) > 0.5 ? 1 : -1;
-        var hOff = 28 + hash01(hills * 5) * 22;
-        var hill = makeClayHill(THREE, hills * 21);
-        hill.position.set(midX + nx * hOff * hSide, hill.position.y, midZ + nz * hOff * hSide);
-        root.add(hill);
-        hills += 1;
+    }
+    var gx = Math.round(carX / 90);
+    var gz = Math.round(carZ / 90);
+    var di;
+    var dj;
+    var cloudMul = weatherCloudMul();
+    for (di = -4; di <= 4; di++) {
+      for (dj = -4; dj <= 4; dj++) {
+        var cx = (gx + di) * 90 + (hash01(gx + di + 3) - 0.5) * 24;
+        var cz = (gz + dj) * 90 + (hash01(gz + dj + 8) - 0.5) * 24;
+        if ((cx - carX) * (cx - carX) + (cz - carZ) * (cz - carZ) > spawn2) continue;
+        if (((gx + di + gz + dj) & 1) === 0) {
+          key = "h:" + (gx + di) + ":" + (gz + dj);
+          if (!live[key]) {
+            var hill = makeClayHill(THREE, (gx + di) * 21 + (gz + dj) * 9);
+            putEnv(root, live, key, hill, cx, hill.position.y, cz, "hill");
+          }
+        }
+        key = "c:" + (gx + di) + ":" + (gz + dj);
+        if (hash01((gx + di) * 17 + (gz + dj) * 5) < cloudMul && !live[key]) {
+          var cloud = makeClayCloud(THREE, (gx + di) * 19 + (gz + dj) * 7);
+          putEnv(root, live, key, cloud, cx, 36 + hash01(gx + di + gz + dj) * 16, cz, "cloud");
+        }
       }
     }
-    for (i = 0; i < 12; i++) {
-      var cloud = makeClayCloud(THREE, i * 19);
-      cloud.position.set((hash01(i + 1) - 0.5) * 160, 38 + hash01(i + 4) * 22, (hash01(i + 8) - 0.5) * 160);
-      root.add(cloud);
+    Object.keys(live).forEach(function (k) {
+      if (k.indexOf("c:") !== 0 || !live[k]) return;
+      live[k].visible = hash01(k.length + k.charCodeAt(2)) < cloudMul + 0.15;
+    });
+  }
+
+  function maybeStreamEnv(host) {
+    if (!host || !host.envRoot || !api.THREE) return;
+    var origin = lastWorld.origin || host.worldOrigin || defaultOrigin();
+    var p = carLocal(origin);
+    if (
+      host.envAnchorX != null &&
+      Math.hypot(p.x - host.envAnchorX, p.z - host.envAnchorZ) < ENV_STEP &&
+      host.envRoot.children.length
+    ) {
+      return;
     }
+    host.envAnchorX = p.x;
+    host.envAnchorZ = p.z;
+    buildClayEnvironment(api.THREE, host.envRoot, lastWorld.coords, origin, p.x, p.z);
+  }
+
+  function refreshSky(host) {
+    if (!host || !host.scene || !api.THREE) return;
+    if (host.sky && host.sky.parent) host.sky.parent.remove(host.sky);
+    host.sky = makeSky(api.THREE, weather.kind);
+    host.scene.add(host.sky);
   }
 
   function addClayRouteMeshes(THREE, root, coords, origin, host) {
@@ -1942,6 +2189,7 @@
           .scale(this._scaleVec.set(scale, -scale, scale))
           .multiply(this._matRotX);
         this.camera.projectionMatrix = m.multiply(l);
+        maybeStreamEnv(this);
         applyWorldLod(this.scene, this.worldRoot, this.buildRoot, this.markRoot, this.sky, this.envRoot);
         this.renderer.resetState();
         this.renderer.render(this.scene, this.camera);
@@ -2027,7 +2275,13 @@
     if (list.length >= 2) {
       addClayRouteMeshes(api.THREE, layer.routeRoot, list, here, layer);
     }
-    if (layer.envRoot) buildClayEnvironment(api.THREE, layer.envRoot, list, here);
+    if (layer.envRoot) {
+      clearGroup(layer.envRoot);
+      layer.envRoot.userData.live = {};
+      layer.envAnchorX = null;
+      layer.envAnchorZ = null;
+      maybeStreamEnv(layer);
+    }
     syncClayPadRoad(layer, list.length >= 2);
     if (mapRef) mapRef.triggerRepaint();
   };
@@ -2354,7 +2608,10 @@
       ":" +
       origin.lat.toFixed(4) +
       origin.lng.toFixed(4);
-    if (key === overlayWorldKey && overlay.routeRoot && overlay.routeRoot.children.length) return;
+    if (key === overlayWorldKey && overlay.routeRoot && overlay.routeRoot.children.length) {
+      maybeStreamEnv(overlay);
+      return;
+    }
     overlayWorldKey = key;
     var THREE = api.THREE;
     overlay.worldOrigin = origin;
@@ -2364,10 +2621,13 @@
     clearGroup(overlay.buildRoot);
     clearGroup(overlay.roadRoot);
     clearGroup(overlay.envRoot);
+    overlay.envRoot.userData.live = {};
+    overlay.envAnchorX = null;
+    overlay.envAnchorZ = null;
     if (list.length >= 2) {
       addClayRouteMeshes(THREE, overlay.routeRoot, list, origin, overlay);
     }
-    buildClayEnvironment(THREE, overlay.envRoot, list, origin);
+    maybeStreamEnv(overlay);
     syncClayPadRoad(overlay, list.length >= 2);
     (lastWorld.marks || []).forEach(function (mark) {
       var g = makeMarker(THREE, mark);
@@ -2437,6 +2697,7 @@
     addDefaultClayPad(THREE, overlay.scene, overlay);
     overlay.stripMat = clayRoadMat(THREE);
     overlay.asphaltMats = [overlay.stripMat];
+    applyWeatherToScene(overlay.scene, overlay.renderer);
     overlay.camera = new THREE.PerspectiveCamera(CAM_FOV_CHASE, w / Math.max(1, h), 0.2, CAM_FAR);
     overlay.camera.far = CAM_FAR;
     overlay.camera.updateProjectionMatrix();
@@ -2529,6 +2790,7 @@
     var leanRad = ((Number(vis.lean) || 0) * Math.PI) / 180;
     smoothCarPose(overlay.carRoot, overlay.worldRoot, overlay.worldOrigin, vis, headingRad, dt);
     if (overlay.carSlot) overlay.carSlot.rotation.z = lerpNum(overlay.carSlot.rotation.z, leanRad, expK(dt, TURN_TAU));
+    maybeStreamEnv(overlay);
     applyWorldLod(overlay.scene, overlay.worldRoot, overlay.buildRoot, overlay.markRoot, overlay.sky, overlay.envRoot);
     if (overlay.sky) overlay.sky.position.copy(overlay.camera.position);
     faceMarkers(overlay.markRoot);
@@ -2738,6 +3000,21 @@
     } else {
       startOverlay();
     }
+  };
+
+  api.setWeather = function (code, temp) {
+    weather.code = Number(code) || 0;
+    weather.temp = Number.isFinite(temp) ? temp : weather.temp;
+    weather.kind = weatherKind(weather.code);
+    if (overlay.scene) {
+      applyWeatherToScene(overlay.scene, overlay.renderer);
+      refreshSky(overlay);
+    }
+    if (layer && layer.scene) {
+      applyWeatherToScene(layer.scene, layer.renderer);
+      refreshSky(layer);
+    }
+    return weather.kind;
   };
 
   api.toggleCabin = function (on) {

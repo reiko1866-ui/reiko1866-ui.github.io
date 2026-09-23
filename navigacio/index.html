@@ -25,7 +25,7 @@
   <link rel="icon" href="./icons/icon-192.png" type="image/png">
   <link rel="apple-touch-icon" href="./icons/apple-touch-icon.png">
   <link rel="stylesheet" href="./vendor/maplibre-gl.css">
-  <link rel="stylesheet" href="./style.css?v=118">
+  <link rel="stylesheet" href="./style.css?v=119">
 </head>
 <body>
   <div id="app">
@@ -66,7 +66,7 @@
       </form>
       <ul id="results" hidden></ul>
       <div id="pinAdjust" hidden>
-        <p id="pinAdjustText">Húzd a piros tűt a pontos bejárathoz. Közelítéskor a házszámok a térképen látszanak — a tűre kattintva is ráteheted.</p>
+        <p id="pinAdjustText">Húzd a rajzfilmes tűt a pontos bejárathoz. Közelítéskor a házszámok a térképen látszanak — a tűre kattintva is ráteheted.</p>
         <button type="button" id="pinAdjustGo">Útvonal innét</button>
       </div>
 
@@ -138,7 +138,7 @@
         <li>A térképet húzhatod, nagyíthatod. Ekkor a követés kikapcsol; a térkép gomb visszateszi. A kereső címlistája: név felül, város/házszám alatta — koppints a találatra.</li>
         <li>Telepíthető a fejegységre, mint app (PWA). Az első betöltés letölti a térképet, a 3D autókat és a stílust — utána offline is nyílik.</li>
         <li>Hangok: a menüben minden hangfájlnál megadhatod, merre szóljon (balra, jobbra, …). A Teszt onnan játssza. Amit nem állítasz, az néma marad.</li>
-        <li>ToonNavi 3D: mesebeli erdő, rózsaszín-zöld fák, virágok, patakok és naplementés ég. A jobb oldali kamera gomb a külső és a belső (szélvédő) nézet között vált. A Garázsban low-poly chibi autók.</li>
+        <li>ToonNavi 3D: mesebeli erdő az autó körül 300 méteren, procedurálisan. A 2D térkép pasztellzöld-sárga rajzfilm, a cél egy 3D gombostű. Az időjárás widget a 3D eget és a felhőket is állítja. A kamera gomb külső/belső nézetet vált.</li>
         <li>Az autó mindig az útvonal közepére tapad (snap-to-road), még ha a GPS 20–30 métert téved is. 5 km/h alatt az orr az út irányába néz. A Teszt 50 gomb szobában, 50 km/h-val viszi végig a megtervezett utat.</li>
         <li>Kaland mód: OSRM alternatives, a kanyargósabb út, arany neon, autópálya nélkül.</li>
         <li>Előrejelzés, következő kanyar, kijárat, sávrajz, sebesség.</li>
@@ -244,9 +244,9 @@
   <script src="./vendor/pmtiles.js"></script>
   <script src="./vendor/three.min.js"></script>
   <script src="./vendor/GLTFLoader.js"></script>
-  <script src="./sw-register.js?v=118"></script>
-  <script src="./car-layer.js?v=118"></script>
-  <script src="./voice/audio-manager.js?v=118"></script>
-  <script src="./app.js?v=118"></script>
+  <script src="./sw-register.js?v=119"></script>
+  <script src="./car-layer.js?v=119"></script>
+  <script src="./voice/audio-manager.js?v=119"></script>
+  <script src="./app.js?v=119"></script>
 </body>
 </html>
