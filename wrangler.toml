@@ -1,0 +1,11 @@
+# Cloudflare Workers — static site (divian2026)
+# Workers Sites `[site]` is removed in Wrangler v4 and fails the build in 0s.
+# Static files live in ./public and are served by index.js via the ASSETS binding.
+
+name = "divian2026"
+main = "index.js"
+compatibility_date = "2026-01-01"
+
+[assets]
+directory = "./public"
+binding = "ASSETS"
