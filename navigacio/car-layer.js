@@ -1150,11 +1150,10 @@
     return chaikinOnce(chaikinOnce(densifyEnu(pts, 3.2)));
   }
 
-  function ribbonGeometry(THREE, coords, origin, width, y) {
-    var pts = pathPoints(coords, origin);
+  function ribbonFromPts(THREE, pts, width, y) {
     var i;
     var elev = y == null ? 0.08 : y;
-    if (pts.length < 2) return null;
+    if (!pts || pts.length < 2) return null;
     var pos = [];
     var uvs = [];
     var acc = 0;
@@ -1183,6 +1182,71 @@
     geo.setIndex(idx);
     geo.computeVertexNormals();
     return geo;
+  }
+
+  function ribbonGeometry(THREE, coords, origin, width, y) {
+    return ribbonFromPts(THREE, pathPoints(coords, origin), width, y);
+  }
+
+  function trafficTone(level) {
+    if (level >= 0.65) return 0xe23b4a;
+    if (level >= 0.38) return 0xf2b84b;
+    return 0x3dce6a;
+  }
+
+  function trafficAt(traveled) {
+    var list = lastWorld.traffic || [];
+    if (!list.length) return 0.22;
+    var i;
+    var best = list[0];
+    var d = Math.abs((best.traveled || 0) - traveled);
+    for (i = 1; i < list.length; i++) {
+      var n = Math.abs((list[i].traveled || 0) - traveled);
+      if (n < d) {
+        d = n;
+        best = list[i];
+      }
+    }
+    return Number(best.level) || 0;
+  }
+
+  function slicePtsByDist(pts, t0, t1) {
+    var out = [];
+    var acc = 0;
+    var i;
+    for (i = 0; i < pts.length; i++) {
+      if (i > 0) acc += Math.hypot(pts[i].x - pts[i - 1].x, pts[i].z - pts[i - 1].z);
+      if (acc >= t0 - 0.8 && acc <= t1 + 0.8) out.push(pts[i]);
+    }
+    return out;
+  }
+
+  function poseOnPts(pts, traveled) {
+    var acc = 0;
+    var i;
+    for (i = 1; i < pts.length; i++) {
+      var dx = pts[i].x - pts[i - 1].x;
+      var dz = pts[i].z - pts[i - 1].z;
+      var len = Math.hypot(dx, dz) || 1;
+      if (acc + len >= traveled) {
+        var t = (traveled - acc) / len;
+        return {
+          x: pts[i - 1].x + dx * t,
+          z: pts[i - 1].z + dz * t,
+          hx: dx / len,
+          hz: dz / len,
+          nx: -dz / len,
+          nz: dx / len
+        };
+      }
+      acc += len;
+    }
+    var last = pts[pts.length - 1];
+    var prev = pts[Math.max(0, pts.length - 2)];
+    var ldx = last.x - prev.x;
+    var ldz = last.z - prev.z;
+    var llen = Math.hypot(ldx, ldz) || 1;
+    return { x: last.x, z: last.z, hx: ldx / llen, hz: ldz / llen, nx: -ldz / llen, nz: ldx / llen };
   }
 
   function hash01(n) {
@@ -1542,6 +1606,38 @@
     return g;
   }
 
+  function makeNpcMesh(THREE, kind) {
+    var g = new THREE.Group();
+    var bodyCol = kind === "bus" ? 0xf2b84b : kind === "van" ? 0x6ec8ff : 0xff6eb4;
+    var w = kind === "bus" ? 2.2 : kind === "van" ? 1.85 : 1.55;
+    var h = kind === "bus" ? 1.45 : kind === "van" ? 1.2 : 0.85;
+    var d = kind === "bus" ? 6.2 : kind === "van" ? 4.4 : 3.4;
+    var body = new THREE.Mesh(
+      new THREE.BoxGeometry(w, h, d),
+      toonMaterial(THREE, { color: bodyCol, fog: true })
+    );
+    body.position.y = 0.42 + h * 0.5;
+    var cabin = new THREE.Mesh(
+      new THREE.BoxGeometry(w * 0.86, h * 0.55, d * 0.38),
+      toonMaterial(THREE, { color: 0xfff6e8, fog: true })
+    );
+    cabin.position.set(0, 0.42 + h + 0.12, kind === "bus" ? d * 0.18 : d * 0.16);
+    var i;
+    for (i = 0; i < 4; i++) {
+      var wheel = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.28, 0.28, 0.22, 8),
+        toonMaterial(THREE, { color: 0x2a2a2a, fog: true })
+      );
+      wheel.rotation.z = Math.PI / 2;
+      wheel.position.set((i < 2 ? -1 : 1) * w * 0.52, 0.28, (i % 2 ? 1 : -1) * d * 0.32);
+      g.add(wheel);
+    }
+    g.add(body);
+    g.add(cabin);
+    g.userData.npcKind = kind;
+    return g;
+  }
+
   function defaultOrigin() {
     if (lastWorld.origin && Number.isFinite(lastWorld.origin.lat) && Number.isFinite(lastWorld.origin.lng)) {
       return lastWorld.origin;
@@ -1827,6 +1923,139 @@
     });
   }
 
+  function npcKindFor(i) {
+    var n = hash01(i * 19 + 4);
+    if (n > 0.82) return "bus";
+    if (n > 0.58) return "van";
+    return "car";
+  }
+
+  function rebuildNpcs(host) {
+    if (!host || !host.npcRoot || !api.THREE) return;
+    clearGroup(host.npcRoot);
+    host.npcs = [];
+    var origin = lastWorld.origin || host.worldOrigin || defaultOrigin();
+    var pts = pathPoints(lastWorld.coords, origin);
+    if (pts.length < 2) return;
+    var car = carLocal(origin);
+    var total = 0;
+    var i;
+    for (i = 1; i < pts.length; i++) total += Math.hypot(pts[i].x - pts[i - 1].x, pts[i].z - pts[i - 1].z);
+    host.npcPath = pts;
+    host.npcPathLen = total;
+    var t = 18;
+    var n = 0;
+    while (t < total - 12 && n < 36) {
+      var pose = poseOnPts(pts, t);
+      var dx = pose.x - car.x;
+      var dz = pose.z - car.z;
+      if (dx * dx + dz * dz <= ENV_RANGE * ENV_RANGE) {
+        var level = trafficAt(t);
+        var jam = level >= 0.38;
+        if (jam || hash01(t + 3) > 0.72) {
+          var mesh = makeNpcMesh(api.THREE, npcKindFor(n));
+          var lane = 1.7;
+          mesh.position.set(pose.x + pose.nx * lane, 0, pose.z + pose.nz * lane);
+          mesh.rotation.y = Math.atan2(pose.hx, pose.hz);
+          host.npcRoot.add(mesh);
+          host.npcs.push({
+            mesh: mesh,
+            traveled: t,
+            lane: lane,
+            dir: 1,
+            speed: jam ? (level >= 0.65 ? 0.6 : 4.5) : 12
+          });
+          n += 1;
+        }
+        if (hash01(t + 11) > 0.55) {
+          var on = makeNpcMesh(api.THREE, npcKindFor(n + 20));
+          on.position.set(pose.x - pose.nx * 1.7, 0, pose.z - pose.nz * 1.7);
+          on.rotation.y = Math.atan2(-pose.hx, -pose.hz);
+          host.npcRoot.add(on);
+          host.npcs.push({
+            mesh: on,
+            traveled: t,
+            lane: -1.7,
+            dir: -1,
+            speed: 14
+          });
+          n += 1;
+        }
+      }
+      t += levelGap(t);
+    }
+  }
+
+  function levelGap(traveled) {
+    var level = trafficAt(traveled);
+    if (level >= 0.65) return 14;
+    if (level >= 0.38) return 22;
+    return 46;
+  }
+
+  function tickNpcs(host, dt) {
+    if (!host || !host.npcs || !host.npcPath) {
+      rebuildNpcs(host);
+      return;
+    }
+    if (!host.npcs.length) return;
+    var origin = lastWorld.origin || host.worldOrigin || defaultOrigin();
+    var car = carLocal(origin);
+    var i;
+    for (i = 0; i < host.npcs.length; i++) {
+      var npc = host.npcs[i];
+      npc.traveled += npc.dir * npc.speed * Math.max(0.001, dt);
+      if (npc.traveled < 2 || npc.traveled > (host.npcPathLen || 0) - 2) {
+        npc.traveled = npc.dir > 0 ? 8 : Math.max(8, (host.npcPathLen || 20) - 8);
+      }
+      var pose = poseOnPts(host.npcPath, npc.traveled);
+      npc.mesh.position.set(pose.x + pose.nx * npc.lane, 0, pose.z + pose.nz * npc.lane);
+      npc.mesh.rotation.y = Math.atan2(pose.hx * npc.dir, pose.hz * npc.dir);
+      var dx = pose.x - car.x;
+      var dz = pose.z - car.z;
+      npc.mesh.visible = dx * dx + dz * dz <= ENV_RANGE * ENV_RANGE;
+    }
+    if (host.npcAnchorX == null || Math.hypot(car.x - host.npcAnchorX, car.z - host.npcAnchorZ) > 70) {
+      host.npcAnchorX = car.x;
+      host.npcAnchorZ = car.z;
+      rebuildNpcs(host);
+    }
+  }
+
+  function nearestNpcAhead() {
+    var host = overlay.npcRoot ? overlay : layer;
+    if (!host || !host.npcs || !host.npcPath) return null;
+    var origin = lastWorld.origin || defaultOrigin();
+    var car = carLocal(origin);
+    var here = 0;
+    var pts = host.npcPath;
+    var acc = 0;
+    var i;
+    for (i = 1; i < pts.length; i++) {
+      var dx = pts[i].x - pts[i - 1].x;
+      var dz = pts[i].z - pts[i - 1].z;
+      var len = Math.hypot(dx, dz);
+      var t = ((car.x - pts[i - 1].x) * dx + (car.z - pts[i - 1].z) * dz) / ((len * len) || 1);
+      if (t >= 0 && t <= 1) {
+        here = acc + t * len;
+        break;
+      }
+      acc += len;
+    }
+    var best = null;
+    var bestD = 40;
+    for (i = 0; i < host.npcs.length; i++) {
+      var npc = host.npcs[i];
+      if (npc.dir < 0) continue;
+      var d = npc.traveled - here;
+      if (d > 0.8 && d < bestD) {
+        bestD = d;
+        best = npc;
+      }
+    }
+    return best ? { npc: best, gap: bestD, level: trafficAt(here) } : { npc: null, gap: 99, level: trafficAt(here) };
+  }
+
   function maybeStreamEnv(host) {
     if (!host || !host.envRoot || !api.THREE) return;
     var origin = lastWorld.origin || host.worldOrigin || defaultOrigin();
@@ -1858,8 +2087,35 @@
       rememberRoadMat(host, mat);
       root.add(new THREE.Mesh(road, mat));
     }
-    var paint = ribbonGeometry(THREE, coords, origin, 3.4, PAINT_Y);
-    if (paint) root.add(new THREE.Mesh(paint, clayRouteMat(THREE)));
+    var pts = pathPoints(coords, origin);
+    var traffic = lastWorld.traffic || [];
+    if (!traffic.length) {
+      var paint = ribbonFromPts(THREE, pts, 3.4, PAINT_Y);
+      if (paint) root.add(new THREE.Mesh(paint, clayRouteMat(THREE)));
+    } else {
+      var acc = 0;
+      var i;
+      var start = 0;
+      var tone = trafficTone(trafficAt(0));
+      for (i = 1; i <= pts.length; i++) {
+        if (i < pts.length) acc += Math.hypot(pts[i].x - pts[i - 1].x, pts[i].z - pts[i - 1].z);
+        var nextTone = i < pts.length ? trafficTone(trafficAt(acc)) : -1;
+        if (nextTone !== tone || i === pts.length) {
+          var slice = pts.slice(Math.max(0, start - 1), i);
+          var geo = ribbonFromPts(THREE, slice, 3.4, PAINT_Y);
+          if (geo) {
+            root.add(
+              new THREE.Mesh(
+                geo,
+                toonMaterial(THREE, { color: tone, fog: true, side: THREE.DoubleSide })
+              )
+            );
+          }
+          start = i - 1;
+          tone = nextTone;
+        }
+      }
+    }
     var yel = edgeLine(THREE, coords, origin, -1, 0xf3efe4);
     var wht = edgeLine(THREE, coords, origin, 1, 0xf3efe4);
     if (yel) root.add(yel);
@@ -2117,8 +2373,10 @@
         this.markRoot = new THREE.Group();
         this.buildRoot = new THREE.Group();
         this.envRoot = new THREE.Group();
+        this.npcRoot = new THREE.Group();
         this.carRoot.add(this.carSlot);
         this.worldRoot.add(this.envRoot);
+        this.worldRoot.add(this.npcRoot);
         this.worldRoot.add(this.routeRoot);
         this.worldRoot.add(this.markRoot);
         this.worldRoot.add(this.buildRoot);
@@ -2190,6 +2448,7 @@
           .multiply(this._matRotX);
         this.camera.projectionMatrix = m.multiply(l);
         maybeStreamEnv(this);
+        tickNpcs(this, dt);
         applyWorldLod(this.scene, this.worldRoot, this.buildRoot, this.markRoot, this.sky, this.envRoot);
         this.renderer.resetState();
         this.renderer.render(this.scene, this.camera);
@@ -2281,6 +2540,10 @@
       layer.envAnchorX = null;
       layer.envAnchorZ = null;
       maybeStreamEnv(layer);
+    }
+    if (layer.npcRoot) {
+      layer.npcAnchorX = null;
+      rebuildNpcs(layer);
     }
     syncClayPadRoad(layer, list.length >= 2);
     if (mapRef) mapRef.triggerRepaint();
@@ -2628,6 +2891,10 @@
       addClayRouteMeshes(THREE, overlay.routeRoot, list, origin, overlay);
     }
     maybeStreamEnv(overlay);
+    if (overlay.npcRoot) {
+      overlay.npcAnchorX = null;
+      rebuildNpcs(overlay);
+    }
     syncClayPadRoad(overlay, list.length >= 2);
     (lastWorld.marks || []).forEach(function (mark) {
       var g = makeMarker(THREE, mark);
@@ -2686,8 +2953,10 @@
     overlay.buildRoot = new THREE.Group();
     overlay.roadRoot = new THREE.Group();
     overlay.envRoot = new THREE.Group();
+    overlay.npcRoot = new THREE.Group();
     overlay.carRoot.add(overlay.carSlot);
     overlay.worldRoot.add(overlay.envRoot);
+    overlay.worldRoot.add(overlay.npcRoot);
     overlay.worldRoot.add(overlay.roadRoot);
     overlay.worldRoot.add(overlay.routeRoot);
     overlay.worldRoot.add(overlay.markRoot);
@@ -2791,6 +3060,7 @@
     smoothCarPose(overlay.carRoot, overlay.worldRoot, overlay.worldOrigin, vis, headingRad, dt);
     if (overlay.carSlot) overlay.carSlot.rotation.z = lerpNum(overlay.carSlot.rotation.z, leanRad, expK(dt, TURN_TAU));
     maybeStreamEnv(overlay);
+    tickNpcs(overlay, dt);
     applyWorldLod(overlay.scene, overlay.worldRoot, overlay.buildRoot, overlay.markRoot, overlay.sky, overlay.envRoot);
     if (overlay.sky) overlay.sky.position.copy(overlay.camera.position);
     faceMarkers(overlay.markRoot);
@@ -2900,6 +3170,8 @@
     overlay.buildRoot = null;
     overlay.roadRoot = null;
     overlay.envRoot = null;
+    overlay.npcRoot = null;
+    overlay.npcs = [];
     overlay.clayPad = null;
     overlay.smoothCam = null;
     overlay.camYaw = null;
@@ -3000,6 +3272,32 @@
     } else {
       startOverlay();
     }
+  };
+
+  api.setTraffic = function (samples, apply) {
+    lastWorld.traffic = samples || [];
+    if (apply === false) return lastWorld.traffic.length;
+    overlayWorldKey = "";
+    routeCache = "";
+    if (api.arcade) syncOverlayWorld();
+    if (layer && layer.routeRoot && lastWorld.coords && lastWorld.coords.length >= 2) {
+      api.setRoute(lastWorld.coords, lastWorld.origin);
+    }
+    if (overlay.npcRoot) rebuildNpcs(overlay);
+    if (layer && layer.npcRoot) rebuildNpcs(layer);
+    return lastWorld.traffic.length;
+  };
+
+  api.trafficPace = function () {
+    var hit = nearestNpcAhead();
+    var pace = 1;
+    if (hit && hit.level >= 0.38) pace = hit.level >= 0.65 ? 0.22 : 0.55;
+    if (hit && hit.npc && hit.gap < 28) {
+      if (hit.gap < 8) pace = Math.min(pace, 0.08);
+      else if (hit.gap < 16) pace = Math.min(pace, 0.32);
+      else pace = Math.min(pace, 0.62);
+    }
+    return pace;
   };
 
   api.setWeather = function (code, temp) {
