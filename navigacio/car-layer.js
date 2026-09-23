@@ -136,11 +136,9 @@
     lastPoseT = now;
     shown.lng = lerpNum(shown.lng, pose.lng, SMOOTH_LERP);
     shown.lat = lerpNum(shown.lat, pose.lat, SMOOTH_LERP);
-    if (movingEnough() || !shown.headingLocked) {
-      shown.heading = (shown.heading + angDeltaDeg(shown.heading, pose.heading) * SMOOTH_LERP + 360) % 360;
-      shown.lean = lerpNum(shown.lean, pose.lean, SMOOTH_LERP);
-      shown.headingLocked = true;
-    }
+    shown.heading = (shown.heading + angDeltaDeg(shown.heading, pose.heading) * SMOOTH_LERP + 360) % 360;
+    shown.lean = lerpNum(shown.lean, pose.lean, SMOOTH_LERP);
+    shown.headingLocked = true;
     return shown;
   }
   var cache = {};
@@ -1731,12 +1729,12 @@
     pose.lat = lat;
     if (Number.isFinite(speed) && speed >= 0) pose.speed = speed;
     var kmh = (Number(pose.speed) || 0) * 3.6;
-    if (Number.isFinite(heading) && (kmh >= DEADBAND_KMH || !pose.headingSeeded)) {
+    if (Number.isFinite(heading)) {
       pose.heading = heading;
       pose.headingSeeded = true;
     }
     if (Number.isFinite(lean)) {
-      if (kmh >= DEADBAND_KMH || !pose.headingSeeded) pose.lean = lean;
+      pose.lean = lean;
     }
     if (mapRef) mapRef.triggerRepaint();
   };

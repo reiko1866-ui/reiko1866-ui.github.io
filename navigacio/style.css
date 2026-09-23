@@ -1134,6 +1134,47 @@ html.dark #results button.is-shortcut .result-title {
   bottom: calc(1.25rem + var(--safe-bottom));
 }
 
+#simDriveBtn {
+  position: absolute;
+  right: calc(var(--pad) + 0.1rem);
+  bottom: calc(7.2rem + var(--safe-bottom));
+  z-index: 22;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin: 0;
+  padding: 0.5rem 0.8rem;
+  border: 0;
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.82);
+  color: #e2e8f0;
+  font: 700 0.88rem/1.1 system-ui, sans-serif;
+  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.28);
+  pointer-events: auto;
+}
+
+#simDriveBtn strong {
+  display: grid;
+  place-items: center;
+  min-width: 1.85rem;
+  height: 1.5rem;
+  padding: 0 0.2rem;
+  border-radius: 999px;
+  background: #f2b84b;
+  color: #3b2a08;
+  font-size: 0.72rem;
+}
+
+#simDriveBtn.is-on {
+  background: #fff;
+  color: #111;
+  box-shadow: 0 0 0 3px rgba(242, 184, 75, 0.45), 0 8px 18px rgba(15, 23, 42, 0.24);
+}
+
+#app.is-nav #simDriveBtn {
+  bottom: calc(6.4rem + var(--safe-bottom));
+}
+
 #roadThen,
 #hazardThen {
   display: flex;
