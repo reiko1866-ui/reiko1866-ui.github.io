@@ -8,9 +8,12 @@
   var CAM_FAR = 250;
   var BUILD_RANGE = 250;
   var BUILD_ZOOM_MIN = 15;
-  var FOG_COLOR = 0x87ceeb;
-  var FOG_DENSITY = 0.0038;
-  var CLAY_GROUND = 0x6db37a;
+  var FOG_COLOR = 0xf3c4b0;
+  var FOG_DENSITY = 0.0026;
+  var CLAY_GROUND = 0x7ecf7a;
+  var CANOPY_COLORS = [0xff8fb3, 0xa8e86a, 0xd8e85a, 0xff6eb4, 0xf7b3d0, 0x9be37a];
+  var CAM_FOV_CHASE = 78;
+  var CAM_FOV_DASH = 70;
   var CLAY_ROAD = 0x5c616a;
   var CLAY_ROUTE = 0xf2b84b;
   var DEADBAND_KMH = 3;
@@ -20,6 +23,12 @@
   var CAM_BACK = 13.5;
   var CAM_HEIGHT = 5.2;
   var CAM_LOOK = 18;
+  var CAM_BLEND_TAU = 0.28;
+  var CAM_DASH_FWD = 0.78;
+  var CAM_DASH_HEIGHT = 1.18;
+  var CAM_DASH_LOOK = 28;
+  var ROAD_Y = 0.05;
+  var PAINT_Y = 0.1;
   var ROAD_TEX_GAIN = 0.1;
   var THREE_LOCAL = "./vendor/three.min.js";
   var GLTF_LOCAL = "./vendor/GLTFLoader.js";
@@ -490,6 +499,25 @@
   }
 
   function toonMaterial(THREE, opts) {
+    if (THREE.MeshStandardMaterial) {
+      var std = new THREE.MeshStandardMaterial({
+        color: opts.color,
+        map: opts.map || null,
+        transparent: !!opts.transparent,
+        opacity: opts.opacity != null ? opts.opacity : 1,
+        side: opts.side || THREE.FrontSide,
+        depthWrite: opts.depthWrite !== false,
+        fog: opts.fog !== false,
+        roughness: opts.roughness != null ? opts.roughness : 0.8,
+        metalness: opts.metalness != null ? opts.metalness : 0.02,
+        flatShading: true
+      });
+      if (opts.emissive && std.emissive) {
+        std.emissive = opts.emissive.clone ? opts.emissive.clone() : new THREE.Color(opts.emissive);
+        if (std.emissiveIntensity !== undefined) std.emissiveIntensity = opts.emissiveIntensity || 0.45;
+      }
+      return std;
+    }
     var Ctor = THREE.MeshToonMaterial || THREE.MeshLambertMaterial || THREE.MeshBasicMaterial;
     var mat = new Ctor({
       color: opts.color,
@@ -939,11 +967,11 @@
     c.height = 256;
     var g = c.getContext("2d");
     var grd = g.createLinearGradient(0, 0, 0, 256);
-    grd.addColorStop(0, "#6ec6ea");
-    grd.addColorStop(0.35, "#87ceeb");
-    grd.addColorStop(0.7, "#c7eaf6");
-    grd.addColorStop(0.88, "#fff6e0");
-    grd.addColorStop(1, "#b8e4c2");
+    grd.addColorStop(0, "#6b8fd4");
+    grd.addColorStop(0.28, "#f4a3c4");
+    grd.addColorStop(0.55, "#ffb06a");
+    grd.addColorStop(0.78, "#ffe2b0");
+    grd.addColorStop(1, "#b8e4a8");
     g.fillStyle = grd;
     g.fillRect(0, 0, 8, 256);
     var tex = new THREE.CanvasTexture(c);
@@ -1131,6 +1159,18 @@
     return x - Math.floor(x);
   }
 
+  function addStoryLights(THREE, scene) {
+    if (!THREE || !scene) return;
+    scene.add(new THREE.AmbientLight(0xffe4c8, 0.72));
+    scene.add(new THREE.HemisphereLight(0xffc8d8, 0x6aaa62, 0.55));
+    var sun = new THREE.DirectionalLight(0xffd08a, 0.95);
+    sun.position.set(18, 22, -14);
+    scene.add(sun);
+    var fill = new THREE.DirectionalLight(0xff9ec4, 0.28);
+    fill.position.set(-16, 12, 10);
+    scene.add(fill);
+  }
+
   function clayRoadTexture(THREE) {
     var c = document.createElement("canvas");
     c.width = 256;
@@ -1188,43 +1228,174 @@
     });
   }
 
+  function pickCanopy(seed) {
+    return CANOPY_COLORS[Math.floor(hash01(seed) * CANOPY_COLORS.length) % CANOPY_COLORS.length];
+  }
+
+  function canopyGeo(THREE, radius, seed) {
+    if (hash01(seed) > 0.5 && THREE.DodecahedronGeometry) {
+      return new THREE.DodecahedronGeometry(radius, 0);
+    }
+    return new THREE.IcosahedronGeometry(radius, 0);
+  }
+
   function makeClayTree(THREE, seed) {
     var g = new THREE.Group();
+    var trunkH = 1.55 + hash01(seed) * 1.15;
     var trunk = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.38, 0.55, 2.1, 6),
-      toonMaterial(THREE, { color: 0xb8895a, fog: true })
+      new THREE.CylinderGeometry(0.22, 0.4, trunkH, 6),
+      toonMaterial(THREE, { color: 0xc48a5a, fog: true })
     );
-    trunk.position.y = 1.05;
-    var canopy = new THREE.Mesh(
-      new THREE.IcosahedronGeometry(2.15 + hash01(seed) * 0.7, 0),
-      toonMaterial(THREE, { color: hash01(seed + 2) > 0.5 ? 0x3f9a4f : 0x5cb86a, fog: true })
-    );
-    canopy.position.y = 2.85;
-    canopy.scale.y = 0.88;
+    trunk.position.y = trunkH * 0.5;
     g.add(trunk);
-    g.add(canopy);
+    var puffs = 2 + Math.floor(hash01(seed + 11) * 3);
+    var i;
+    for (i = 0; i < puffs; i++) {
+      var r = 1.05 + hash01(seed + i * 3) * 1.05;
+      var puff = new THREE.Mesh(
+        canopyGeo(THREE, r, seed + i * 4),
+        toonMaterial(THREE, { color: pickCanopy(seed + i * 19 + 7), fog: true })
+      );
+      puff.position.set(
+        (hash01(seed + i * 5) - 0.5) * 1.45,
+        trunkH + 0.55 + hash01(seed + i * 2) * 1.05,
+        (hash01(seed + i * 8) - 0.5) * 1.45
+      );
+      puff.scale.y = 0.74 + hash01(seed + i) * 0.24;
+      g.add(puff);
+    }
     return g;
+  }
+
+  function makeFlower(THREE, seed) {
+    var g = new THREE.Group();
+    var stem = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.028, 0.036, 0.26, 5),
+      toonMaterial(THREE, { color: 0x5aaa4a, fog: true })
+    );
+    stem.position.y = 0.13;
+    g.add(stem);
+    var petalColor = hash01(seed) > 0.5 ? 0xfff8ee : 0xffe566;
+    var i;
+    for (i = 0; i < 5; i++) {
+      var petal = new THREE.Mesh(
+        new THREE.SphereGeometry(0.085, 6, 5),
+        toonMaterial(THREE, { color: petalColor, fog: true })
+      );
+      var a = (i / 5) * Math.PI * 2;
+      petal.position.set(Math.cos(a) * 0.11, 0.28, Math.sin(a) * 0.11);
+      petal.scale.set(1, 0.42, 0.78);
+      g.add(petal);
+    }
+    var center = new THREE.Mesh(
+      new THREE.SphereGeometry(0.065, 6, 5),
+      toonMaterial(THREE, { color: hash01(seed + 2) > 0.5 ? 0xffd84a : 0xfff6d8, fog: true })
+    );
+    center.position.y = 0.28;
+    g.add(center);
+    return g;
+  }
+
+  function makeFlowerClump(THREE, seed) {
+    var g = new THREE.Group();
+    var n = 3 + Math.floor(hash01(seed) * 4);
+    var i;
+    for (i = 0; i < n; i++) {
+      var flower = makeFlower(THREE, seed + i * 13);
+      flower.position.set((hash01(seed + i) - 0.5) * 1.55, 0, (hash01(seed + i + 4) - 0.5) * 1.55);
+      flower.rotation.y = hash01(seed + i + 2) * Math.PI * 2;
+      g.add(flower);
+    }
+    return g;
+  }
+
+  function makeBush(THREE, seed) {
+    var g = new THREE.Group();
+    var color = hash01(seed) > 0.5 ? 0x5cb86a : 0x8fd46a;
+    var i;
+    for (i = 0; i < 3; i++) {
+      var puff = new THREE.Mesh(
+        canopyGeo(THREE, 0.52 + hash01(seed + i) * 0.38, seed + i),
+        toonMaterial(THREE, { color: color, fog: true })
+      );
+      puff.position.set((i - 1) * 0.4, 0.36, (hash01(seed + i * 3) - 0.5) * 0.38);
+      puff.scale.y = 0.6;
+      g.add(puff);
+    }
+    return g;
+  }
+
+  function makeStream(THREE, seed, startX, startZ, dirX, dirZ) {
+    var vecs = [];
+    var i;
+    var x = startX;
+    var z = startZ;
+    var len = Math.hypot(dirX, dirZ) || 1;
+    dirX /= len;
+    dirZ /= len;
+    var px = -dirZ;
+    var pz = dirX;
+    for (i = 0; i < 9; i++) {
+      var wobble = Math.sin(i * 0.9 + seed) * 6 + (hash01(seed + i * 7) - 0.5) * 5;
+      x += dirX * (9 + hash01(seed + i) * 4);
+      z += dirZ * (9 + hash01(seed + i + 3) * 4);
+      vecs.push(new THREE.Vector3(x + px * wobble, 0.035, z + pz * wobble));
+    }
+    var sampled = vecs;
+    if (THREE.CatmullRomCurve3) {
+      sampled = new THREE.CatmullRomCurve3(vecs, false, "catmullrom", 0.35).getPoints(48);
+    }
+    var pos = [];
+    var hw = 1.15;
+    for (i = 0; i < sampled.length; i++) {
+      var a = sampled[Math.max(0, i - 1)];
+      var b = sampled[Math.min(sampled.length - 1, i + 1)];
+      var dx = b.x - a.x;
+      var dz = b.z - a.z;
+      var sl = Math.hypot(dx, dz) || 1;
+      pos.push(sampled[i].x + (-dz / sl) * hw, sampled[i].y, sampled[i].z + (dx / sl) * hw);
+      pos.push(sampled[i].x - (-dz / sl) * hw, sampled[i].y, sampled[i].z - (dx / sl) * hw);
+    }
+    var idx = [];
+    for (i = 0; i < sampled.length - 1; i++) {
+      var o = i * 2;
+      idx.push(o, o + 1, o + 2, o + 1, o + 3, o + 2);
+    }
+    var geo = new THREE.BufferGeometry();
+    geo.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
+    geo.setIndex(idx);
+    geo.computeVertexNormals();
+    return new THREE.Mesh(
+      geo,
+      toonMaterial(THREE, {
+        color: 0x7ad8f5,
+        fog: true,
+        side: THREE.DoubleSide,
+        roughness: 0.35,
+        metalness: 0.08
+      })
+    );
   }
 
   function makeClayHill(THREE, seed) {
     var r = 14 + hash01(seed) * 18;
     var hill = new THREE.Mesh(
       new THREE.SphereGeometry(r, 10, 8),
-      toonMaterial(THREE, { color: hash01(seed + 1) > 0.45 ? 0x4f9d5c : 0x7fbf88, fog: true })
+      toonMaterial(THREE, { color: hash01(seed + 1) > 0.45 ? 0x8fe08c : 0xb4ebb4, fog: true })
     );
-    hill.scale.y = 0.42 + hash01(seed + 3) * 0.16;
+    hill.scale.y = 0.32 + hash01(seed + 3) * 0.18;
     hill.position.y = -r * hill.scale.y * 0.28;
     return hill;
   }
 
   function makeClayCloud(THREE, seed) {
     var g = new THREE.Group();
-    var mat = toonMaterial(THREE, { color: 0xffffff, fog: true });
+    var mat = toonMaterial(THREE, { color: hash01(seed) > 0.55 ? 0xfff6ee : 0xffe4ef, fog: true });
     var i;
-    for (i = 0; i < 3; i++) {
-      var puff = new THREE.Mesh(new THREE.SphereGeometry(2.2 + hash01(seed + i) * 1.4, 8, 6), mat);
-      puff.position.set((i - 1) * 2.4, hash01(seed + i * 3) * 0.6, (hash01(seed + 9 + i) - 0.5) * 1.4);
-      puff.scale.y = 0.55;
+    for (i = 0; i < 5; i++) {
+      var puff = new THREE.Mesh(new THREE.SphereGeometry(2.05 + hash01(seed + i) * 1.55, 8, 6), mat);
+      puff.position.set((i - 2) * 1.85, hash01(seed + i * 3) * 0.7, (hash01(seed + 9 + i) - 0.5) * 1.7);
+      puff.scale.y = 0.52;
       g.add(puff);
     }
     return g;
@@ -1281,7 +1452,7 @@
       clayRoadMat(THREE)
     );
     road.rotation.x = -Math.PI / 2;
-    road.position.set(0, 0.04, 32);
+    road.position.set(0, ROAD_Y, 32);
     road.frustumCulled = false;
     pad.add(road);
     var paint = new THREE.Mesh(
@@ -1289,7 +1460,7 @@
       clayRouteMat(THREE)
     );
     paint.rotation.x = -Math.PI / 2;
-    paint.position.set(0, 0.08, 32);
+    paint.position.set(0, PAINT_Y, 32);
     paint.frustumCulled = false;
     pad.add(paint);
     pad.userData.fallbackRoad = road;
@@ -1302,19 +1473,34 @@
       hill.position.set(Math.sin(ang) * dist, hill.position.y, Math.cos(ang) * dist);
       pad.add(hill);
     }
-    for (i = 0; i < 18; i++) {
-      var ang2 = (i / 18) * Math.PI * 2 + 0.35;
-      var d2 = 15 + hash01(i * 9) * 24;
+    for (i = 0; i < 26; i++) {
+      var ang2 = (i / 26) * Math.PI * 2 + 0.35;
+      var d2 = 12 + hash01(i * 9) * 26;
       var tree = makeClayTree(THREE, i * 23 + 5);
       tree.position.set(Math.sin(ang2) * d2, 0, Math.cos(ang2) * d2);
       pad.add(tree);
     }
+    for (i = 0; i < 16; i++) {
+      var clump = makeFlowerClump(THREE, i * 41 + 2);
+      var fa = (i / 16) * Math.PI * 2 + 0.7;
+      var fd = 9 + hash01(i * 6) * 22;
+      clump.position.set(Math.sin(fa) * fd, 0, Math.cos(fa) * fd);
+      pad.add(clump);
+    }
+    for (i = 0; i < 12; i++) {
+      var bush = makeBush(THREE, i * 15);
+      var ba = (i / 12) * Math.PI * 2 + 0.2;
+      var bd = 8 + hash01(i * 5) * 16;
+      bush.position.set(Math.sin(ba) * bd, 0, Math.cos(ba) * bd);
+      pad.add(bush);
+    }
+    pad.add(makeStream(THREE, 4, -18, 8, 0.12, 1));
     for (i = 0; i < 5; i++) {
       var lamp = makeClayLamp(THREE);
       lamp.position.set((i % 2 ? 7.2 : -7.2), 0, 8 + i * 18);
       pad.add(lamp);
     }
-    for (i = 0; i < 6; i++) {
+    for (i = 0; i < 8; i++) {
       var cloud = makeClayCloud(THREE, i * 11);
       cloud.position.set((hash01(i) - 0.5) * 90, 30 + hash01(i + 3) * 14, 18 + hash01(i + 5) * 46);
       pad.add(cloud);
@@ -1342,6 +1528,9 @@
     var trees = 0;
     var hills = 0;
     var lamps = 0;
+    var flowers = 0;
+    var bushes = 0;
+    var streams = 0;
     var i;
     for (i = 1; i < pts.length; i++) {
       var dx = pts[i].x - pts[i - 1].x;
@@ -1359,15 +1548,46 @@
         root.add(lamp);
         lamps += 1;
       }
-      if (trees < 40 && acc > trees * 11 + 4) {
-        var tSide = hash01(trees * 17 + acc) > 0.5 ? 1 : -1;
-        var tOff = 11 + hash01(trees * 3) * 10;
-        var tree = makeClayTree(THREE, trees * 13 + Math.round(acc));
-        tree.position.set(midX + nx * tOff * tSide, 0, midZ + nz * tOff * tSide);
-        root.add(tree);
+      if (trees < 36 && acc > trees * 8 + 3) {
+        var tOff = 10 + hash01(trees * 3) * 8;
+        var treeL = makeClayTree(THREE, trees * 13 + Math.round(acc));
+        treeL.position.set(midX - nx * tOff, 0, midZ - nz * tOff);
+        root.add(treeL);
+        var treeR = makeClayTree(THREE, trees * 29 + Math.round(acc) + 5);
+        treeR.position.set(midX + nx * (tOff + 1.4), 0, midZ + nz * (tOff + 1.4));
+        root.add(treeR);
         trees += 1;
       }
-      if (hills < 12 && acc > hills * 36 + 18) {
+      if (flowers < 28 && acc > flowers * 12 + 7) {
+        var fSide = flowers % 2 ? 1 : -1;
+        var fOff = 8 + hash01(flowers) * 6;
+        var clump = makeFlowerClump(THREE, flowers * 31);
+        clump.position.set(midX + nx * fOff * fSide, 0, midZ + nz * fOff * fSide);
+        root.add(clump);
+        flowers += 1;
+      }
+      if (bushes < 24 && acc > bushes * 14 + 5) {
+        var bSide = bushes % 2 ? -1 : 1;
+        var bOff = 7.2 + hash01(bushes * 2) * 4;
+        var bush = makeBush(THREE, bushes * 11);
+        bush.position.set(midX + nx * bOff * bSide, 0, midZ + nz * bOff * bSide);
+        root.add(bush);
+        bushes += 1;
+      }
+      if (streams < 5 && acc > streams * 70 + 30) {
+        var sSide = streams % 2 ? 1 : -1;
+        var stream = makeStream(
+          THREE,
+          streams * 17,
+          midX + nx * 18 * sSide,
+          midZ + nz * 18 * sSide,
+          dz / len,
+          -dx / len
+        );
+        root.add(stream);
+        streams += 1;
+      }
+      if (hills < 14 && acc > hills * 36 + 18) {
         var hSide = hash01(hills * 9 + 2) > 0.5 ? 1 : -1;
         var hOff = 28 + hash01(hills * 5) * 22;
         var hill = makeClayHill(THREE, hills * 21);
@@ -1376,7 +1596,7 @@
         hills += 1;
       }
     }
-    for (i = 0; i < 10; i++) {
+    for (i = 0; i < 12; i++) {
       var cloud = makeClayCloud(THREE, i * 19);
       cloud.position.set((hash01(i + 1) - 0.5) * 160, 38 + hash01(i + 4) * 22, (hash01(i + 8) - 0.5) * 160);
       root.add(cloud);
@@ -1385,13 +1605,13 @@
 
   function addClayRouteMeshes(THREE, root, coords, origin, host) {
     if (!root || !coords || coords.length < 2 || !origin) return;
-    var road = ribbonGeometry(THREE, coords, origin, 13.6, 0.05);
+    var road = ribbonGeometry(THREE, coords, origin, 13.6, ROAD_Y);
     if (road) {
       var mat = clayRoadMat(THREE);
       rememberRoadMat(host, mat);
       root.add(new THREE.Mesh(road, mat));
     }
-    var paint = ribbonGeometry(THREE, coords, origin, 3.4, 0.09);
+    var paint = ribbonGeometry(THREE, coords, origin, 3.4, PAINT_Y);
     if (paint) root.add(new THREE.Mesh(paint, clayRouteMat(THREE)));
     var yel = edgeLine(THREE, coords, origin, -1, 0xf3efe4);
     var wht = edgeLine(THREE, coords, origin, 1, 0xf3efe4);
@@ -1642,11 +1862,7 @@
         this.sky.scale.set(1, 0.42, 1);
         this.sky.position.y = 40;
         this.scene.add(this.sky);
-        this.scene.add(new THREE.AmbientLight(0xfff4e0, 0.55));
-        this.scene.add(new THREE.HemisphereLight(0xfff8e8, 0x4f9d5c, 0.42));
-        var sun = new THREE.DirectionalLight(0xfff1c8, 0.62);
-        sun.position.set(12, 28, -8);
-        this.scene.add(sun);
+        addStoryLights(THREE, this.scene);
         this.carRoot = new THREE.Group();
         this.carSlot = new THREE.Group();
         this.worldRoot = new THREE.Group();
@@ -1893,6 +2109,9 @@
     postMat: null,
     blur: 0,
     lookBound: false,
+    camBound: false,
+    cabin: false,
+    camBlend: 0,
     look: {
       enabled: false,
       yaw: 0,
@@ -1908,12 +2127,16 @@
   };
 
   function overlayTmp() {
-    if (overlay.tmp) return overlay.tmp;
+    if (overlay.tmp && overlay.tmp.dashPos) return overlay.tmp;
     var THREE = api.THREE;
     overlay.tmp = {
       camLocal: new THREE.Vector3(),
       camPos: new THREE.Vector3(),
       camLook: new THREE.Vector3(),
+      chasePos: new THREE.Vector3(),
+      chaseLook: new THREE.Vector3(),
+      dashPos: new THREE.Vector3(),
+      dashLook: new THREE.Vector3(),
       carPos: new THREE.Vector3(),
       lookFar: new THREE.Vector3(),
       rayDelta: new THREE.Vector3(),
@@ -2023,9 +2246,9 @@
       overlay.look.down = false;
     }
     if (btn) {
-      btn.hidden = !stopped;
-      btn.classList.toggle("is-on", stopped && overlay.look.enabled);
-      btn.setAttribute("aria-pressed", stopped && overlay.look.enabled ? "true" : "false");
+      btn.hidden = !stopped || !!overlay.cabin;
+      btn.classList.toggle("is-on", stopped && overlay.look.enabled && !overlay.cabin);
+      btn.setAttribute("aria-pressed", stopped && overlay.look.enabled && !overlay.cabin ? "true" : "false");
     }
     if (canvas) {
       canvas.style.pointerEvents = stopped && overlay.look.enabled ? "auto" : "none";
@@ -2081,6 +2304,36 @@
     on(canvas, "pointermove", onLookMove);
     on(canvas, "pointerup", onLookUp);
     on(canvas, "pointercancel", onLookUp);
+  }
+
+  function setExteriorVisible(host, show) {
+    if (!host) return;
+    if (host.carSlot) host.carSlot.visible = !!show;
+    if (host.carRoot) {
+      host.carRoot.children.forEach(function (child) {
+        if (child.userData && child.userData.contactShadow) child.visible = !!show;
+      });
+    }
+  }
+
+  function syncCamUi() {
+    var btn = document.getElementById("camViewBtn");
+    if (!btn) return;
+    var onCabin = !!overlay.cabin;
+    btn.classList.toggle("is-on", onCabin);
+    btn.setAttribute("aria-pressed", onCabin ? "true" : "false");
+    btn.title = onCabin ? "Belső nézet — koppints a külsőhöz" : "Külső nézet — koppints a belsőhöz";
+  }
+
+  function bindCamUi() {
+    if (overlay.camBound) return;
+    overlay.camBound = true;
+    on(document.getElementById("camViewBtn"), "click", function () {
+      overlay.cabin = !overlay.cabin;
+      if (overlay.cabin) overlay.look.enabled = false;
+      syncCamUi();
+      syncLookUi();
+    });
   }
 
   function syncOverlayWorld() {
@@ -2164,11 +2417,7 @@
     overlay.scene.fog = new THREE.FogExp2(FOG_COLOR, FOG_DENSITY);
     overlay.sky = makeSky(THREE);
     overlay.scene.add(overlay.sky);
-    overlay.scene.add(new THREE.AmbientLight(0xfff4e0, 0.58));
-    overlay.scene.add(new THREE.HemisphereLight(0xfff8e8, 0x4f9d5c, 0.45));
-    var sun = new THREE.DirectionalLight(0xfff1c8, 0.64);
-    sun.position.set(14, 30, -10);
-    overlay.scene.add(sun);
+    addStoryLights(THREE, overlay.scene);
     overlay.carRoot = new THREE.Group();
     overlay.carSlot = new THREE.Group();
     overlay.worldRoot = new THREE.Group();
@@ -2188,11 +2437,14 @@
     addDefaultClayPad(THREE, overlay.scene, overlay);
     overlay.stripMat = clayRoadMat(THREE);
     overlay.asphaltMats = [overlay.stripMat];
-    overlay.camera = new THREE.PerspectiveCamera(56, w / Math.max(1, h), 0.2, CAM_FAR);
+    overlay.camera = new THREE.PerspectiveCamera(CAM_FOV_CHASE, w / Math.max(1, h), 0.2, CAM_FAR);
     overlay.camera.far = CAM_FAR;
     overlay.camera.updateProjectionMatrix();
+    overlay.camBlend = overlay.cabin ? 1 : 0;
     bootSpeedBlur(THREE, overlay.renderer, w, h);
     bindLookUi();
+    bindCamUi();
+    syncCamUi();
     putOverlayCar(api.currentId || savedId());
     syncOverlayWorld();
     return true;
@@ -2289,7 +2541,12 @@
     var canvas = overlay.canvas;
     var cw = canvas.clientWidth || window.innerWidth;
     var ch = canvas.clientHeight || window.innerHeight;
-    var fov = ch > cw ? 58 : 52;
+    if (overlay.camBlend == null || !Number.isFinite(overlay.camBlend)) {
+      overlay.camBlend = overlay.cabin ? 1 : 0;
+    } else {
+      overlay.camBlend = lerpNum(overlay.camBlend, overlay.cabin ? 1 : 0, expK(dt, CAM_BLEND_TAU));
+    }
+    var fov = lerpNum(CAM_FOV_CHASE, CAM_FOV_DASH, overlay.camBlend);
     var aspect = cw / Math.max(1, ch);
     if (
       overlay.camera.aspect !== aspect ||
@@ -2319,7 +2576,7 @@
     } else {
       overlay.camYaw = lerpRad(overlay.camYaw, overlay.carRoot.rotation.y, ck);
     }
-    if (overlay.look.enabled && kmh < 1) {
+    if (overlay.look.enabled && kmh < 1 && overlay.camBlend < 0.35) {
       var yaw = overlay.look.yaw;
       var pitch = overlay.look.pitch;
       var dist = overlay.look.dist;
@@ -2337,9 +2594,14 @@
       var ox = overlay.carRoot.position.x;
       var oy = overlay.carRoot.position.y;
       var oz = overlay.carRoot.position.z;
-      camPos.set(ox - Math.sin(cy) * CAM_BACK, oy + CAM_HEIGHT, oz - Math.cos(cy) * CAM_BACK);
-      camLook.set(ox + Math.sin(cy) * CAM_LOOK, oy + 0.35, oz + Math.cos(cy) * CAM_LOOK);
+      tmp.chasePos.set(ox - Math.sin(cy) * CAM_BACK, oy + CAM_HEIGHT, oz - Math.cos(cy) * CAM_BACK);
+      tmp.chaseLook.set(ox + Math.sin(cy) * CAM_LOOK, oy + 0.35, oz + Math.cos(cy) * CAM_LOOK);
+      tmp.dashPos.set(ox + Math.sin(cy) * CAM_DASH_FWD, oy + CAM_DASH_HEIGHT, oz + Math.cos(cy) * CAM_DASH_FWD);
+      tmp.dashLook.set(ox + Math.sin(cy) * CAM_DASH_LOOK, oy + 0.62, oz + Math.cos(cy) * CAM_DASH_LOOK);
+      camPos.lerpVectors(tmp.chasePos, tmp.dashPos, overlay.camBlend);
+      camLook.lerpVectors(tmp.chaseLook, tmp.dashLook, overlay.camBlend);
     }
+    setExteriorVisible(overlay, overlay.camBlend < 0.55);
     overlay.camera.position.copy(camPos);
     overlay.camera.lookAt(camLook);
     try {
@@ -2379,6 +2641,7 @@
     overlay.clayPad = null;
     overlay.smoothCam = null;
     overlay.camYaw = null;
+    overlay.camBlend = overlay.cabin ? 1 : 0;
     overlay.sky = null;
     overlay.stripMat = null;
     overlay.asphaltMats = [];
@@ -2426,6 +2689,8 @@
       canvas.removeAttribute("hidden");
     }
     bindLookUi();
+    bindCamUi();
+    syncCamUi();
     if (overlay.renderer && overlay.raf) {
       setArcadeLive(true);
       return;
@@ -2473,6 +2738,15 @@
     } else {
       startOverlay();
     }
+  };
+
+  api.toggleCabin = function (on) {
+    if (on == null) overlay.cabin = !overlay.cabin;
+    else overlay.cabin = !!on;
+    if (overlay.cabin) overlay.look.enabled = false;
+    syncCamUi();
+    syncLookUi();
+    return overlay.cabin;
   };
 
   api.setModel = function (id, skipStore) {
