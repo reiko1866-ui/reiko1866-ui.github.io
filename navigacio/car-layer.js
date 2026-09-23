@@ -3164,14 +3164,10 @@
       camPos.copy(tmp.camLocal);
       overlay.carRoot.localToWorld(camLook.set(0, 1.05, 0));
     } else {
-      var cy = overlay.camYaw;
-      var ox = overlay.carRoot.position.x;
-      var oy = overlay.carRoot.position.y;
-      var oz = overlay.carRoot.position.z;
-      tmp.chasePos.set(ox - Math.sin(cy) * CAM_BACK, oy + CAM_HEIGHT, oz - Math.cos(cy) * CAM_BACK);
-      tmp.chaseLook.set(ox + Math.sin(cy) * CAM_LOOK, oy + 0.35, oz + Math.cos(cy) * CAM_LOOK);
-      tmp.dashPos.set(ox + Math.sin(cy) * CAM_DASH_FWD, oy + CAM_DASH_HEIGHT, oz + Math.cos(cy) * CAM_DASH_FWD);
-      tmp.dashLook.set(ox + Math.sin(cy) * CAM_DASH_LOOK, oy + 0.62, oz + Math.cos(cy) * CAM_DASH_LOOK);
+      overlay.carRoot.localToWorld(tmp.chasePos.set(0, CAM_HEIGHT, -CAM_BACK));
+      overlay.carRoot.localToWorld(tmp.chaseLook.set(0, 0.55, CAM_LOOK));
+      overlay.carRoot.localToWorld(tmp.dashPos.set(0, CAM_DASH_HEIGHT, CAM_DASH_FWD));
+      overlay.carRoot.localToWorld(tmp.dashLook.set(0, 0.62, CAM_DASH_LOOK));
       camPos.lerpVectors(tmp.chasePos, tmp.dashPos, overlay.camBlend);
       camLook.lerpVectors(tmp.chaseLook, tmp.dashLook, overlay.camBlend);
     }
