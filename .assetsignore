@@ -3,6 +3,10 @@
 *.pmtiles
 navigacio/map/*.pmtiles
 public/navigacio/map/*.pmtiles
+hungary_jf
+english-journey
+ketten
+index.js
 .wrangler
 .git
 node_modules

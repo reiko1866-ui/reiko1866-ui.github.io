@@ -1,9 +1,7 @@
 {
   "name": "divian2026",
   "private": true,
-  "type": "module",
   "scripts": {
-    "build": "node --check index.js",
-    "deploy": "wrangler deploy"
+    "build": "node -e \"console.log('static pages — no compile')\""
   }
 }

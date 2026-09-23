@@ -1405,6 +1405,7 @@
       setArcadeMapMode(false);
     }
     if (window.NavCar3D) window.NavCar3D.ensure(state.map);
+    pushArcadeWorld();
     addHouseNumbers();
     AppState.targetPos.lat = BUDAPEST[1];
     AppState.targetPos.lng = BUDAPEST[0];
@@ -3859,6 +3860,64 @@
     }
   }
 
+  function pastelFallbackStyle(dark) {
+    return {
+      version: 8,
+      name: "toonnavi-pastel",
+      sources: {},
+      layers: [
+        {
+          id: "bg",
+          type: "background",
+          paint: { "background-color": dark ? "#5fa86c" : "#8ecf96" }
+        }
+      ]
+    };
+  }
+
+  async function probePmtiles() {
+    const url = europePmtilesUrl();
+    try {
+      const res = await fetch(url, {
+        headers: { Range: "bytes=0-15" },
+        cache: "no-store"
+      });
+      if (!res.ok) return false;
+      const buf = await res.arrayBuffer();
+      const u8 = new Uint8Array(buf);
+      return u8.length >= 2 && u8[0] === 0x50 && u8[1] === 0x4d;
+    } catch (_e) {
+      return false;
+    }
+  }
+
+  async function fetchRemoteStyle(dark) {
+    const url = dark ? STYLES.dark : STYLES.light;
+    const res = await fetch(url, { cache: "no-store" });
+    if (!res.ok) throw new Error("style " + res.status);
+    return res.json();
+  }
+
+  async function resolveMapStyle(dark) {
+    if (await probePmtiles()) {
+      try {
+        const local = await loadEuropeStyle(dark);
+        if (local) {
+          state.mapOffline = true;
+          return local;
+        }
+      } catch (_e) {}
+    }
+    try {
+      const remote = await fetchRemoteStyle(dark);
+      state.mapOffline = false;
+      return remote;
+    } catch (_e2) {
+      state.mapOffline = false;
+      return pastelFallbackStyle(dark);
+    }
+  }
+
   function localVectorSource() {
     try {
       const q = new URLSearchParams(location.search);
@@ -4255,15 +4314,14 @@
     const done = function () {
       state.map.once("style.load", addLayers);
     };
-    loadEuropeStyle(dark)
+    resolveMapStyle(dark)
       .then(function (st) {
-        state.mapOffline = true;
-        state.map.setStyle(st);
+        state.map.setStyle(st || pastelFallbackStyle(dark));
         done();
       })
       .catch(function () {
         state.mapOffline = false;
-        state.map.setStyle(dark ? STYLES.dark : STYLES.light);
+        state.map.setStyle(pastelFallbackStyle(dark));
         done();
       });
   }
@@ -4285,9 +4343,15 @@
         setStatus("Online utcaszintű térkép");
       }
     }, 8000);
-    state.map.on("error", (e) => {
-      const msg = e && e.error && (e.error.message || e.error.statusText);
-      if (msg) setStatus("Térkép: " + msg, true);
+    state.map.on("error", function (e) {
+      const msg = String((e && e.error && (e.error.message || e.error.statusText)) || "");
+      if (!msg) return;
+      if (!state.tileFallback && /failed to fetch|404|pmtiles|networkerror|load tile/i.test(msg)) {
+        state.tileFallback = true;
+        try {
+          state.map.setStyle(pastelFallbackStyle(document.documentElement.classList.contains("dark")));
+        } catch (_fb) {}
+      }
     });
     state.map.on("load", function () {
       addLayers();
@@ -4375,15 +4439,14 @@
     const dark = localStorage.getItem(THEME_KEY) !== "light";
     document.documentElement.classList.toggle("dark", dark);
     if ($("dark")) $("dark").checked = dark;
-    return loadEuropeStyle(dark)
+    return resolveMapStyle(dark)
       .then(function (st) {
-        state.mapOffline = true;
-        state.map = createNavMap(st);
+        state.map = createNavMap(st || pastelFallbackStyle(dark));
         bindMapEvents(dark);
       })
       .catch(function () {
         state.mapOffline = false;
-        state.map = createNavMap(dark ? STYLES.dark : STYLES.light);
+        state.map = createNavMap(pastelFallbackStyle(dark));
         bindMapEvents(dark);
       });
   }
