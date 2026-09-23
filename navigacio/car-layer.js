@@ -15,6 +15,11 @@
   var CLAY_ROUTE = 0xf2b84b;
   var DEADBAND_KMH = 3;
   var SMOOTH_LERP = 0.1;
+  var TURN_TAU = 0.16;
+  var CAM_TAU = 0.12;
+  var CAM_BACK = 13.5;
+  var CAM_HEIGHT = 5.2;
+  var CAM_LOOK = 20;
   var ROAD_TEX_GAIN = 0.1;
   var THREE_LOCAL = "./vendor/three.min.js";
   var GLTF_LOCAL = "./vendor/GLTFLoader.js";
@@ -111,6 +116,10 @@
       return api.THREE.MathUtils.lerp(a, b, t);
     }
     return a + (b - a) * t;
+  }
+
+  function expK(dt, tau) {
+    return 1 - Math.exp(-Math.max(0.001, dt) / Math.max(0.04, tau || 0.14));
   }
 
   function lerpRad(from, to, t) {
@@ -333,7 +342,7 @@
 
   function alignAndFit(model) {
     var THREE = api.THREE;
-    /* GLB marad Y-up: a kerekek az y=0 aszfalton. A Z-up váltás a MapLibre mátrixban van. */
+    /* Pivot = bounding-box alja + XZ közepe, hogy kanyarban ne a far körül forogjon. */
     model.rotation.set(0, 0, 0);
     model.updateMatrixWorld(true);
     var box = new THREE.Box3().setFromObject(model);
@@ -344,6 +353,12 @@
     model.updateMatrixWorld(true);
     box.setFromObject(model);
     var center = box.getCenter(new THREE.Vector3());
+    model.position.x -= center.x;
+    model.position.z -= center.z;
+    model.position.y -= box.min.y;
+    model.updateMatrixWorld(true);
+    box.setFromObject(model);
+    center = box.getCenter(new THREE.Vector3());
     model.position.x -= center.x;
     model.position.z -= center.z;
     model.position.y -= box.min.y;
@@ -840,17 +855,18 @@
     }
   }
 
-  function smoothCarPose(root, worldRoot, origin, vis, headingRad) {
+  function smoothCarPose(root, worldRoot, origin, vis, headingRad, dt) {
     if (!root) return;
+    var k = expK(dt || 0.016, TURN_TAU);
     if (!root.userData.poseLive) {
       root.rotation.y = headingRad;
       root.position.x = 0;
       root.position.z = 0;
       root.userData.poseLive = true;
     } else {
-      root.rotation.y = lerpRad(root.rotation.y, headingRad, SMOOTH_LERP);
-      root.position.x = lerpNum(root.position.x, 0, SMOOTH_LERP);
-      root.position.z = lerpNum(root.position.z, 0, SMOOTH_LERP);
+      root.rotation.y = lerpRad(root.rotation.y, headingRad, k);
+      root.position.x = lerpNum(root.position.x, 0, k);
+      root.position.z = lerpNum(root.position.z, 0, k);
     }
     if (worldRoot && origin) {
       var w = enuOffset({ lng: vis.lng, lat: vis.lat }, origin.lng, origin.lat);
@@ -858,8 +874,9 @@
         worldRoot.position.set(w.x, 0, w.z);
         worldRoot.userData.poseLive = true;
       } else {
-        worldRoot.position.x = lerpNum(worldRoot.position.x, w.x, SMOOTH_LERP);
-        worldRoot.position.z = lerpNum(worldRoot.position.z, w.z, SMOOTH_LERP);
+        var wk = expK(dt || 0.016, TURN_TAU);
+        worldRoot.position.x = lerpNum(worldRoot.position.x, w.x, wk);
+        worldRoot.position.z = lerpNum(worldRoot.position.z, w.z, wk);
       }
     }
   }
@@ -1049,7 +1066,22 @@
       }
     }
     if (pts.length < 2) return pts;
-    return chaikinOnce(densifyEnu(pts, 5.2));
+    var THREE = api.THREE;
+    if (THREE && THREE.CatmullRomCurve3 && pts.length >= 2) {
+      var vecs = [];
+      for (i = 0; i < pts.length; i++) vecs.push(new THREE.Vector3(pts[i].x, 0, pts[i].z));
+      var curve = new THREE.CatmullRomCurve3(vecs, false, "catmullrom", 0.12);
+      var len = 0;
+      for (i = 1; i < pts.length; i++) {
+        len += Math.hypot(pts[i].x - pts[i - 1].x, pts[i].z - pts[i - 1].z);
+      }
+      var n = Math.max(80, Math.min(500, Math.round(len / 1.15)));
+      var sampled = curve.getPoints(n);
+      var out = [];
+      for (i = 0; i < sampled.length; i++) out.push({ x: sampled[i].x, z: sampled[i].z });
+      return out;
+    }
+    return chaikinOnce(chaikinOnce(densifyEnu(pts, 3.2)));
   }
 
   function ribbonGeometry(THREE, coords, origin, width, y) {
@@ -1666,8 +1698,8 @@
         var scale = mc.meterInMercatorCoordinateUnits();
         var headingRad = ((180 - (Number(vis.heading) || 0)) * Math.PI) / 180;
         var leanRad = ((Number(vis.lean) || 0) * Math.PI) / 180;
-        smoothCarPose(this.carRoot, this.worldRoot, this.worldOrigin, vis, headingRad);
-        if (this.carSlot) this.carSlot.rotation.z = lerpNum(this.carSlot.rotation.z, leanRad, SMOOTH_LERP);
+        smoothCarPose(this.carRoot, this.worldRoot, this.worldOrigin, vis, headingRad, dt);
+        if (this.carSlot) this.carSlot.rotation.z = lerpNum(this.carSlot.rotation.z, leanRad, expK(dt, TURN_TAU));
         stepRoadTextures(this.asphaltMats, dt);
         faceMarkers(this.markRoot);
         var raw =
@@ -2235,8 +2267,8 @@
     var vis = lerpPose(nowT);
     var headingRad = ((180 - (Number(vis.heading) || 0)) * Math.PI) / 180;
     var leanRad = ((Number(vis.lean) || 0) * Math.PI) / 180;
-    smoothCarPose(overlay.carRoot, overlay.worldRoot, overlay.worldOrigin, vis, headingRad);
-    if (overlay.carSlot) overlay.carSlot.rotation.z = lerpNum(overlay.carSlot.rotation.z, leanRad, SMOOTH_LERP);
+    smoothCarPose(overlay.carRoot, overlay.worldRoot, overlay.worldOrigin, vis, headingRad, dt);
+    if (overlay.carSlot) overlay.carSlot.rotation.z = lerpNum(overlay.carSlot.rotation.z, leanRad, expK(dt, TURN_TAU));
     applyWorldLod(overlay.scene, overlay.worldRoot, overlay.buildRoot, overlay.markRoot, overlay.sky, overlay.envRoot);
     if (overlay.sky) overlay.sky.position.copy(overlay.camera.position);
     faceMarkers(overlay.markRoot);
@@ -2287,51 +2319,24 @@
       camPos.copy(tmp.camLocal);
       overlay.carRoot.localToWorld(camLook.set(0, 1.05, 0));
     } else {
-      overlay.carRoot.localToWorld(camPos.set(0, 5.5, -14));
-      overlay.carRoot.localToWorld(camLook.set(0, 0.25, 22));
+      overlay.carRoot.localToWorld(camPos.set(0, CAM_HEIGHT, -CAM_BACK));
+      overlay.carRoot.localToWorld(camLook.set(0, 0.35, CAM_LOOK));
     }
-    var carPos = overlay.carRoot.localToWorld(tmp.carPos.set(0, 1.15, 0));
-    if (overlay.worldRoot) overlay.worldRoot.updateMatrixWorld(true);
-    if (overlay.buildRoot && overlay.buildRoot.visible) {
-      overlay.buildRoot.children.forEach(function (g) {
-        if (!g.visible || !g.userData.glass) return;
-        g.userData.glass.opacity = g.userData.baseOpacity;
-        g.userData.glass.depthWrite = false;
-        if (g.userData.edgeMat) g.userData.edgeMat.opacity = g.userData.baseEdge;
-        if (g.userData.wireMat) g.userData.wireMat.opacity = 0.88;
-      });
-      if (!overlay.raycaster) overlay.raycaster = new api.THREE.Raycaster();
-      if (!overlay.hitBox) overlay.hitBox = new api.THREE.Box3();
-      var i;
-      var hits = rayHits(carPos, camPos);
-      for (i = 0; i < hits.length; i++) ghostBuilding(buildingFromHit(hits[i].object));
-      if (!(overlay.look.enabled && kmh < 1)) {
-        var step;
-        for (step = 0; step < 8; step++) {
-          hits = rayHits(carPos, camPos);
-          if (!hits.length) break;
-          camPos.y += 1.25;
-        }
-        if (hits.length) camPos.y = Math.max(camPos.y, 5.4);
-        overlay.buildRoot.children.forEach(function (g) {
-          if (!g.visible) return;
-          overlay.hitBox.setFromObject(g);
-          if (overlay.hitBox.containsPoint(camPos)) {
-            ghostBuilding(g);
-            camPos.y = Math.max(camPos.y, overlay.hitBox.max.y + 1.15);
-          }
-        });
-        var lookFar = overlay.carRoot.localToWorld(tmp.lookFar.set(0, 0.4, 80));
-        var block = rayHits(camPos, lookFar);
-        for (i = 0; i < block.length; i++) ghostBuilding(buildingFromHit(block[i].object));
-        if (block.length) camPos.y = Math.max(camPos.y, 3.4);
-      } else {
-        overlay.buildRoot.children.forEach(function (g) {
-          if (!g.visible) return;
-          overlay.hitBox.setFromObject(g);
-          if (overlay.hitBox.containsPoint(camPos)) ghostBuilding(g);
-        });
-      }
+    if (!overlay.smoothCam) {
+      overlay.smoothCam = {
+        pos: camPos.clone(),
+        look: camLook.clone()
+      };
+    } else {
+      var ck = expK(dt, CAM_TAU);
+      overlay.smoothCam.pos.x = lerpNum(overlay.smoothCam.pos.x, camPos.x, ck);
+      overlay.smoothCam.pos.y = lerpNum(overlay.smoothCam.pos.y, camPos.y, ck);
+      overlay.smoothCam.pos.z = lerpNum(overlay.smoothCam.pos.z, camPos.z, ck);
+      overlay.smoothCam.look.x = lerpNum(overlay.smoothCam.look.x, camLook.x, ck);
+      overlay.smoothCam.look.y = lerpNum(overlay.smoothCam.look.y, camLook.y, ck);
+      overlay.smoothCam.look.z = lerpNum(overlay.smoothCam.look.z, camLook.z, ck);
+      camPos.copy(overlay.smoothCam.pos);
+      camLook.copy(overlay.smoothCam.look);
     }
     overlay.camera.position.copy(camPos);
     overlay.camera.lookAt(camLook);
@@ -2370,6 +2375,7 @@
     overlay.roadRoot = null;
     overlay.envRoot = null;
     overlay.clayPad = null;
+    overlay.smoothCam = null;
     overlay.sky = null;
     overlay.stripMat = null;
     overlay.asphaltMats = [];
