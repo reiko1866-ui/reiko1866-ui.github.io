@@ -906,6 +906,7 @@
       root.position.x = 0;
       root.position.z = 0;
       root.userData.poseLive = true;
+      root.userData.justSnapped = true;
     } else {
       root.rotation.y = lerpRad(root.rotation.y, headingRad, k);
       root.position.x = lerpNum(root.position.x, 0, k);
@@ -2898,17 +2899,17 @@
     var key =
       list.length +
       ":" +
-      (list[0] ? list[0][0].toFixed(5) : "x") +
+      (list[0] ? list[0][0].toFixed(3) + "," + list[0][1].toFixed(3) : "x") +
+      ":" +
+      (list[list.length - 1] ? list[list.length - 1][0].toFixed(3) + "," + list[list.length - 1][1].toFixed(3) : "y") +
       ":" +
       (lastWorld.marks || []).length +
       ":" +
       (lastWorld.buildings || []).length +
       ":" +
-      (lastWorld.roads || []).length +
-      ":" +
-      origin.lat.toFixed(4) +
-      origin.lng.toFixed(4);
+      (lastWorld.roads || []).length;
     if (key === overlayWorldKey && overlay.routeRoot && overlay.routeRoot.children.length) {
+      overlay.worldOrigin = origin;
       maybeStreamEnv(overlay);
       return;
     }
@@ -3095,6 +3096,10 @@
     var headingRad = ((180 - (Number(vis.heading) || 0)) * Math.PI) / 180;
     var leanRad = ((Number(vis.lean) || 0) * Math.PI) / 180;
     smoothCarPose(overlay.carRoot, overlay.worldRoot, overlay.worldOrigin, vis, headingRad, dt);
+    if (overlay.carRoot && overlay.carRoot.userData.justSnapped) {
+      overlay.camYaw = headingRad;
+      overlay.carRoot.userData.justSnapped = false;
+    }
     if (overlay.carSlot) overlay.carSlot.rotation.z = lerpNum(overlay.carSlot.rotation.z, leanRad, expK(dt, TURN_TAU));
     maybeStreamEnv(overlay);
     tickNpcs(overlay, dt);
