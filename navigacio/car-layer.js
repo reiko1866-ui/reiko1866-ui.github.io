@@ -13,7 +13,7 @@
   var BUILD_ZOOM_MIN = 15;
   var FOG_COLOR = 0xf3c4b0;
   var FOG_DENSITY = 0.0026;
-  var CLAY_GROUND = 0x7ecf7a;
+  var CLAY_GROUND = 0x5fbf62;
   var CANOPY_COLORS = [0xff8fb3, 0xa8e86a, 0xd8e85a, 0xff6eb4, 0xf7b3d0, 0x9be37a];
   var CAM_FOV_CHASE = 78;
   var CAM_FOV_DASH = 70;
@@ -1943,16 +1943,45 @@
     for (i = 1; i < pts.length; i++) total += Math.hypot(pts[i].x - pts[i - 1].x, pts[i].z - pts[i - 1].z);
     host.npcPath = pts;
     host.npcPathLen = total;
-    var t = 18;
+    var carT = 0;
+    var accT = 0;
+    for (i = 1; i < pts.length; i++) {
+      var sx = pts[i].x - pts[i - 1].x;
+      var sz = pts[i].z - pts[i - 1].z;
+      var sl = Math.hypot(sx, sz);
+      var tt = ((car.x - pts[i - 1].x) * sx + (car.z - pts[i - 1].z) * sz) / ((sl * sl) || 1);
+      if (tt >= 0 && tt <= 1) {
+        carT = accT + tt * sl;
+        break;
+      }
+      accT += sl;
+    }
+    [18, 36, 58].forEach(function (ahead, idx) {
+      var seedT = carT + ahead;
+      if (seedT >= total - 8) return;
+      var pose0 = poseOnPts(pts, seedT);
+      var mesh0 = makeNpcMesh(api.THREE, npcKindFor(idx + 3));
+      mesh0.position.set(pose0.x + pose0.nx * 1.7, 0, pose0.z + pose0.nz * 1.7);
+      mesh0.rotation.y = Math.atan2(pose0.hx, pose0.hz);
+      host.npcRoot.add(mesh0);
+      host.npcs.push({
+        mesh: mesh0,
+        traveled: seedT,
+        lane: 1.7,
+        dir: 1,
+        speed: trafficAt(seedT) >= 0.65 ? 0.7 : 5.5
+      });
+    });
+    var t = 12;
     var n = 0;
-    while (t < total - 12 && n < 36) {
+    while (t < total - 12 && n < 48) {
       var pose = poseOnPts(pts, t);
       var dx = pose.x - car.x;
       var dz = pose.z - car.z;
       if (dx * dx + dz * dz <= ENV_RANGE * ENV_RANGE) {
         var level = trafficAt(t);
-        var jam = level >= 0.38;
-        if (jam || hash01(t + 3) > 0.72) {
+        var jam = level >= 0.32;
+        if (jam || hash01(t + 3) > 0.28) {
           var mesh = makeNpcMesh(api.THREE, npcKindFor(n));
           var lane = 1.7;
           mesh.position.set(pose.x + pose.nx * lane, 0, pose.z + pose.nz * lane);
