@@ -1,17 +1,23 @@
 {
   "id": "./",
-  "name": "Navigáció",
-  "short_name": "Navigáció",
-  "description": "Magyar autósnavigáció fejegységre. Telepíthető, offline is nyílik.",
+  "name": "ToonNavi",
+  "short_name": "ToonNavi",
+  "description": "Mesebeli claymation 3D autósnavigáció. Telepíthető, offline is nyílik.",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",
   "orientation": "landscape",
-  "background_color": "#0F172A",
-  "theme_color": "#0F172A",
+  "background_color": "#87CEEB",
+  "theme_color": "#87CEEB",
   "lang": "hu",
   "categories": ["navigation", "travel"],
   "icons": [
+    {
+      "src": "icon.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
     {
       "src": "./icons/icon-192.png",
       "sizes": "192x192",
