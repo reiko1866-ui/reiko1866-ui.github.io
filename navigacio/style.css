@@ -563,6 +563,58 @@ body:has(#app.is-ar),
   touch-action: none;
 }
 
+.pin.pin-3d {
+  width: 36px;
+  height: 52px;
+  margin-left: -18px;
+  margin-top: -52px;
+  border-radius: 0;
+  background: transparent;
+  transform: none;
+  box-shadow: none;
+  position: relative;
+}
+
+.pin-3d .pin-head {
+  position: absolute;
+  left: 50%;
+  top: 0;
+  width: 26px;
+  height: 26px;
+  margin-left: -13px;
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at 32% 28%, #fff4f2 0 18%, transparent 42%),
+    radial-gradient(circle at 50% 46%, #ff5a6a 0 62%, #c81e32 100%);
+  box-shadow:
+    0 4px 0 #9f1324,
+    0 8px 14px rgba(15, 23, 42, 0.28);
+}
+
+.pin-3d .pin-stick {
+  position: absolute;
+  left: 50%;
+  top: 24px;
+  width: 7px;
+  height: 22px;
+  margin-left: -3.5px;
+  background: linear-gradient(90deg, #f4d27a, #e2b34a 45%, #c8962c);
+  border-radius: 0 0 3px 3px;
+  box-shadow: 1px 2px 0 #9a7420;
+}
+
+.pin-3d .pin-shadow {
+  position: absolute;
+  left: 50%;
+  bottom: 0;
+  width: 22px;
+  height: 7px;
+  margin-left: -11px;
+  border-radius: 50%;
+  background: rgba(15, 23, 42, 0.28);
+  filter: blur(1px);
+}
+
 .pin:active {
   cursor: grabbing;
 }
