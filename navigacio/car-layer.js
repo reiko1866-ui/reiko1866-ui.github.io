@@ -15,11 +15,11 @@
   var CLAY_ROUTE = 0xf2b84b;
   var DEADBAND_KMH = 3;
   var SMOOTH_LERP = 0.1;
-  var TURN_TAU = 0.16;
-  var CAM_TAU = 0.12;
+  var TURN_TAU = 0.22;
+  var CAM_TAU = 0.14;
   var CAM_BACK = 13.5;
   var CAM_HEIGHT = 5.2;
-  var CAM_LOOK = 20;
+  var CAM_LOOK = 18;
   var ROAD_TEX_GAIN = 0.1;
   var THREE_LOCAL = "./vendor/three.min.js";
   var GLTF_LOCAL = "./vendor/GLTFLoader.js";
@@ -359,6 +359,17 @@
     model.updateMatrixWorld(true);
     box.setFromObject(model);
     center = box.getCenter(new THREE.Vector3());
+    model.position.x -= center.x;
+    model.position.z -= center.z;
+    model.position.y -= box.min.y;
+  }
+
+  function recenterOnFloor(model) {
+    var THREE = api.THREE;
+    if (!model || !THREE) return;
+    model.updateMatrixWorld(true);
+    var box = new THREE.Box3().setFromObject(model);
+    var center = box.getCenter(new THREE.Vector3());
     model.position.x -= center.x;
     model.position.z -= center.z;
     model.position.y -= box.min.y;
@@ -718,6 +729,7 @@
         applyCarMaterials(mesh);
         alignAndFit(mesh);
         decorateCar(THREE, mesh);
+        recenterOnFloor(mesh);
         slot.add(mesh);
         attachHeadlights(THREE, slot, mesh);
         installContactShadow(THREE, layer.carRoot, mesh);
@@ -1070,13 +1082,8 @@
     if (THREE && THREE.CatmullRomCurve3 && pts.length >= 2) {
       var vecs = [];
       for (i = 0; i < pts.length; i++) vecs.push(new THREE.Vector3(pts[i].x, 0, pts[i].z));
-      var curve = new THREE.CatmullRomCurve3(vecs, false, "catmullrom", 0.12);
-      var len = 0;
-      for (i = 1; i < pts.length; i++) {
-        len += Math.hypot(pts[i].x - pts[i - 1].x, pts[i].z - pts[i - 1].z);
-      }
-      var n = Math.max(80, Math.min(500, Math.round(len / 1.15)));
-      var sampled = curve.getPoints(n);
+      var curve = new THREE.CatmullRomCurve3(vecs, false, "catmullrom", 0.08);
+      var sampled = curve.getPoints(500);
       var out = [];
       for (i = 0; i < sampled.length; i++) out.push({ x: sampled[i].x, z: sampled[i].z });
       return out;
@@ -2204,6 +2211,7 @@
         applyCarMaterials(mesh);
         alignAndFit(mesh);
         decorateCar(api.THREE, mesh);
+        recenterOnFloor(mesh);
         overlay.carSlot.add(mesh);
         attachHeadlights(api.THREE, overlay.carSlot, mesh);
         installContactShadow(api.THREE, overlay.carRoot, mesh);
@@ -2305,6 +2313,12 @@
     var tmp = overlayTmp();
     var camPos = tmp.camPos;
     var camLook = tmp.camLook;
+    var ck = expK(dt, CAM_TAU);
+    if (overlay.camYaw == null || !Number.isFinite(overlay.camYaw)) {
+      overlay.camYaw = overlay.carRoot.rotation.y;
+    } else {
+      overlay.camYaw = lerpRad(overlay.camYaw, overlay.carRoot.rotation.y, ck);
+    }
     if (overlay.look.enabled && kmh < 1) {
       var yaw = overlay.look.yaw;
       var pitch = overlay.look.pitch;
@@ -2319,24 +2333,12 @@
       camPos.copy(tmp.camLocal);
       overlay.carRoot.localToWorld(camLook.set(0, 1.05, 0));
     } else {
-      overlay.carRoot.localToWorld(camPos.set(0, CAM_HEIGHT, -CAM_BACK));
-      overlay.carRoot.localToWorld(camLook.set(0, 0.35, CAM_LOOK));
-    }
-    if (!overlay.smoothCam) {
-      overlay.smoothCam = {
-        pos: camPos.clone(),
-        look: camLook.clone()
-      };
-    } else {
-      var ck = expK(dt, CAM_TAU);
-      overlay.smoothCam.pos.x = lerpNum(overlay.smoothCam.pos.x, camPos.x, ck);
-      overlay.smoothCam.pos.y = lerpNum(overlay.smoothCam.pos.y, camPos.y, ck);
-      overlay.smoothCam.pos.z = lerpNum(overlay.smoothCam.pos.z, camPos.z, ck);
-      overlay.smoothCam.look.x = lerpNum(overlay.smoothCam.look.x, camLook.x, ck);
-      overlay.smoothCam.look.y = lerpNum(overlay.smoothCam.look.y, camLook.y, ck);
-      overlay.smoothCam.look.z = lerpNum(overlay.smoothCam.look.z, camLook.z, ck);
-      camPos.copy(overlay.smoothCam.pos);
-      camLook.copy(overlay.smoothCam.look);
+      var cy = overlay.camYaw;
+      var ox = overlay.carRoot.position.x;
+      var oy = overlay.carRoot.position.y;
+      var oz = overlay.carRoot.position.z;
+      camPos.set(ox - Math.sin(cy) * CAM_BACK, oy + CAM_HEIGHT, oz - Math.cos(cy) * CAM_BACK);
+      camLook.set(ox + Math.sin(cy) * CAM_LOOK, oy + 0.35, oz + Math.cos(cy) * CAM_LOOK);
     }
     overlay.camera.position.copy(camPos);
     overlay.camera.lookAt(camLook);
@@ -2376,6 +2378,7 @@
     overlay.envRoot = null;
     overlay.clayPad = null;
     overlay.smoothCam = null;
+    overlay.camYaw = null;
     overlay.sky = null;
     overlay.stripMat = null;
     overlay.asphaltMats = [];
