@@ -1992,8 +1992,8 @@
     const dh = angDelta(state.leanHeading, h);
     state.leanHeading = h;
     const yawRate = dh / dt;
-    const want = Math.max(-18, Math.min(18, yawRate * 0.34));
-    state.carLean = (state.carLean || 0) * 0.76 + want * 0.24;
+    const want = Math.max(-14, Math.min(14, yawRate * 0.28));
+    state.carLean = (state.carLean || 0) * 0.82 + want * 0.18;
     if (Math.abs(state.carLean) < 0.08) state.carLean = 0;
     return state.carLean;
   }
