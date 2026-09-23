@@ -1,4 +1,4 @@
-const CACHE = "nav-v111";
+const CACHE = "nav-v112";
 const CORE = [
   "./",
   "./index.html",
@@ -17,6 +17,7 @@ const CORE = [
   "./manifest.json",
   "./manifest.webmanifest",
   "./manifest-demo.webmanifest",
+  "./icon.png",
   "./icons/icon-192.png",
   "./icons/icon-512.png",
   "./icons/apple-touch-icon.png",

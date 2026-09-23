@@ -1566,20 +1566,31 @@
   }
 
   function remainingCoords() {
+    return windowCoords();
+  }
+
+  function windowCoords() {
     const coords = state.coords || [];
     if (coords.length < 2) return [];
     const here = state.traveled || 0;
+    const behind = 90;
+    const ahead = 420;
     const out = [];
-    const cur = AppState.currentPos;
-    if (Number.isFinite(cur.lng) && Number.isFinite(cur.lat)) out.push([cur.lng, cur.lat]);
     let acc = 0;
     for (let i = 1; i < coords.length; i++) {
       const a = { lng: coords[i - 1][0], lat: coords[i - 1][1] };
       const b = { lng: coords[i][0], lat: coords[i][1] };
       const seg = haversine(a, b);
-      if (acc + seg >= here - 12) out.push([b.lng, b.lat]);
+      const mid = acc + seg * 0.5;
+      if (mid >= here - behind && mid <= here + ahead) {
+        if (!out.length) out.push([a.lng, a.lat]);
+        out.push([b.lng, b.lat]);
+      }
       acc += seg;
-      if (out.length > 180) break;
+    }
+    const cur = AppState.currentPos;
+    if (out.length >= 2 && Number.isFinite(cur.lng) && Number.isFinite(cur.lat)) {
+      out[0] = [cur.lng, cur.lat];
     }
     return out;
   }
@@ -1821,7 +1832,7 @@
     if (!window.NavCar3D) return;
     const origin = arcadeOrigin();
     if (!Number.isFinite(origin.lng) || !Number.isFinite(origin.lat)) return;
-    if (window.NavCar3D.setRoute) window.NavCar3D.setRoute(remainingCoords(), origin);
+    if (window.NavCar3D.setRoute) window.NavCar3D.setRoute(windowCoords(), origin);
     if (window.NavCar3D.setMarkers && state.navigating) {
       const marks = [];
       const here = state.traveled || 0;
@@ -3095,10 +3106,14 @@
     let p = { lng: o.lng, lat: o.lat };
     coords.push([p.lng, p.lat]);
     for (let i = 0; i < 90; i++) {
-      if (i === 18) heading = 42;
-      if (i === 36) heading = 8;
-      if (i === 58) heading = -18;
-      p = offsetLngLat(p, heading, 26);
+      heading += Math.sin(i / 5.5) * 9;
+      if (i === 16) heading = 78;
+      if (i === 28) heading = 142;
+      if (i === 40) heading = 88;
+      if (i === 54) heading = 198;
+      if (i === 68) heading = 255;
+      if (i === 80) heading = 310;
+      p = offsetLngLat(p, heading, 22);
       coords.push([p.lng, p.lat]);
     }
     const dest = { lng: coords[coords.length - 1][0], lat: coords[coords.length - 1][1] };

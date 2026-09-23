@@ -130,7 +130,7 @@ button {
   width: 100%;
   height: 100%;
   pointer-events: none;
-  background: #0f172a;
+  background: #87ceeb;
 }
 
 #arcade3d[hidden] {
@@ -143,7 +143,13 @@ html.is-arcade3d #app.is-nav .maplibregl-canvas-container canvas.maplibregl-canv
 }
 
 #app.is-nav #map {
-  background: #0f172a;
+  background: #87ceeb;
+}
+
+html.is-arcade3d,
+html.is-arcade3d body,
+html.is-arcade3d #kezdolap {
+  background: #87ceeb;
 }
 
 .maplibregl-canvas-container,
