@@ -3170,6 +3170,10 @@
       camPos.lerpVectors(tmp.chasePos, tmp.dashPos, overlay.camBlend);
       camLook.lerpVectors(tmp.chaseLook, tmp.dashLook, overlay.camBlend);
     }
+    if (overlay.clayPad) {
+      overlay.clayPad.position.x = overlay.carRoot.position.x;
+      overlay.clayPad.position.z = overlay.carRoot.position.z;
+    }
     setExteriorVisible(overlay, overlay.camBlend < 0.55);
     overlay.camera.position.copy(camPos);
     overlay.camera.lookAt(camLook);
@@ -3309,6 +3313,19 @@
     } else {
       startOverlay();
     }
+  };
+
+  api.invalidateWorld = function () {
+    overlayWorldKey = "";
+    routeCache = "";
+    overlay.camYaw = null;
+    if (overlay.carRoot) overlay.carRoot.userData.poseLive = false;
+    if (overlay.worldRoot) overlay.worldRoot.userData.poseLive = false;
+    if (layer && layer.worldRoot) layer.worldRoot.userData.poseLive = false;
+    if (layer && layer.carRoot) layer.carRoot.userData.poseLive = false;
+    adoptOrigin(lastWorld.origin || defaultOrigin());
+    if (api.arcade) syncOverlayWorld();
+    return true;
   };
 
   api.setTraffic = function (samples, apply) {
