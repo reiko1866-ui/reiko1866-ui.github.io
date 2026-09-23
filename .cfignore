@@ -1,3 +1,10 @@
 # Cloudflare Pages (legacy ignore) — same 25 MiB per-file limit.
 *.pmtiles
 navigacio/map/*.pmtiles
+hungary_jf
+english-journey
+ketten
+index.js
+node_modules
+.wrangler
+.git

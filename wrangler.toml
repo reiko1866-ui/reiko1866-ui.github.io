@@ -1,11 +1,12 @@
-# Cloudflare Workers — static site (divian2026)
-# Workers Sites `[site]` is removed in Wrangler v4 and fails the build in 0s.
-# Static files live in ./public and are served by index.js via the ASSETS binding.
+# Static site only — no Worker / no backend script.
+# Cloudflare Pages reads pages_build_output_dir.
+# Cloudflare Workers static assets use [assets] without `main`.
+# Do not set `main` or `index.js`: that makes the build look for a backend
+# and fail instantly (0s).
 
 name = "divian2026"
-main = "index.js"
 compatibility_date = "2026-01-01"
+pages_build_output_dir = "./public"
 
 [assets]
 directory = "./public"
-binding = "ASSETS"
