@@ -10,9 +10,9 @@
   var BUILD_ZOOM_MIN = 15;
   var FOG_COLOR = 0x87ceeb;
   var FOG_DENSITY = 0.0038;
-  var CLAY_GROUND = 0x9ed49a;
-  var CLAY_ROAD = 0x8b909a;
-  var CLAY_ROUTE = 0xf4c15d;
+  var CLAY_GROUND = 0x6db37a;
+  var CLAY_ROAD = 0x5c616a;
+  var CLAY_ROUTE = 0xf2b84b;
   var DEADBAND_KMH = 3;
   var SMOOTH_LERP = 0.1;
   var ROAD_TEX_GAIN = 0.1;
@@ -1099,7 +1099,7 @@
     c.width = 256;
     c.height = 512;
     var g = c.getContext("2d");
-    g.fillStyle = "#8d929c";
+    g.fillStyle = "#4f545c";
     g.fillRect(0, 0, 256, 512);
     var i;
     for (i = 0; i < 900; i++) {
@@ -1135,7 +1135,7 @@
 
   function clayRoadMat(THREE) {
     var mat = toonMaterial(THREE, {
-      color: 0xffffff,
+      color: CLAY_ROAD,
       map: clayRoadTexture(THREE),
       fog: true,
       side: THREE.DoubleSide
@@ -1154,32 +1154,29 @@
   function makeClayTree(THREE, seed) {
     var g = new THREE.Group();
     var trunk = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.28, 0.42, 1.6, 6),
-      toonMaterial(THREE, { color: 0xc4a07a, fog: true })
+      new THREE.CylinderGeometry(0.38, 0.55, 2.1, 6),
+      toonMaterial(THREE, { color: 0xb8895a, fog: true })
     );
-    trunk.position.y = 0.8;
+    trunk.position.y = 1.05;
     var canopy = new THREE.Mesh(
-      new THREE.IcosahedronGeometry(1.35 + hash01(seed) * 0.55, 0),
-      toonMaterial(THREE, { color: hash01(seed + 2) > 0.5 ? 0x5cb86a : 0x7edc7a, fog: true })
+      new THREE.IcosahedronGeometry(2.15 + hash01(seed) * 0.7, 0),
+      toonMaterial(THREE, { color: hash01(seed + 2) > 0.5 ? 0x3f9a4f : 0x5cb86a, fog: true })
     );
-    canopy.position.y = 2.15;
-    canopy.scale.y = 0.85;
-    addBlackOutline(THREE, trunk);
-    addBlackOutline(THREE, canopy);
+    canopy.position.y = 2.85;
+    canopy.scale.y = 0.88;
     g.add(trunk);
     g.add(canopy);
     return g;
   }
 
   function makeClayHill(THREE, seed) {
-    var r = 9 + hash01(seed) * 16;
+    var r = 14 + hash01(seed) * 18;
     var hill = new THREE.Mesh(
       new THREE.SphereGeometry(r, 10, 8),
-      toonMaterial(THREE, { color: hash01(seed + 1) > 0.45 ? 0x9ed49a : 0x7fbf88, fog: true })
+      toonMaterial(THREE, { color: hash01(seed + 1) > 0.45 ? 0x4f9d5c : 0x7fbf88, fog: true })
     );
-    hill.scale.y = 0.38 + hash01(seed + 3) * 0.18;
-    hill.position.y = -r * hill.scale.y * 0.55;
-    addBlackOutline(THREE, hill);
+    hill.scale.y = 0.42 + hash01(seed + 3) * 0.16;
+    hill.position.y = -r * hill.scale.y * 0.28;
     return hill;
   }
 
@@ -1273,7 +1270,7 @@
 
   function addClayRouteMeshes(THREE, root, coords, origin, host) {
     if (!root || !coords || coords.length < 2 || !origin) return;
-    var road = ribbonGeometry(THREE, coords, origin, 12.4, 0.03);
+    var road = ribbonGeometry(THREE, coords, origin, 13.6, 0.05);
     if (road) {
       var mat = clayRoadMat(THREE);
       rememberRoadMat(host, mat);
@@ -1530,9 +1527,9 @@
         this.sky.scale.set(1, 0.42, 1);
         this.sky.position.y = 40;
         this.scene.add(this.sky);
-        this.scene.add(new THREE.AmbientLight(0xfff4e0, 0.92));
-        this.scene.add(new THREE.HemisphereLight(0xfff8e8, 0x7fbf88, 0.55));
-        var sun = new THREE.DirectionalLight(0xfff1c8, 0.85);
+        this.scene.add(new THREE.AmbientLight(0xfff4e0, 0.55));
+        this.scene.add(new THREE.HemisphereLight(0xfff8e8, 0x4f9d5c, 0.42));
+        var sun = new THREE.DirectionalLight(0xfff1c8, 0.62);
         sun.position.set(12, 28, -8);
         this.scene.add(sun);
         this.carRoot = new THREE.Group();
@@ -1994,24 +1991,12 @@
     if (list.length >= 2) {
       addClayRouteMeshes(THREE, overlay.routeRoot, list, origin, overlay);
     }
-    (lastWorld.roads || []).forEach(function (line) {
-      if (!line || line.length < 2) return;
-      var geo = ribbonGeometry(THREE, line, origin, 8.4, 0.01);
-      if (!geo) return;
-      var mat = clayRoadMat(THREE);
-      rememberRoadMat(overlay, mat);
-      overlay.roadRoot.add(new THREE.Mesh(geo, mat));
-    });
     buildClayEnvironment(THREE, overlay.envRoot, list, origin);
     (lastWorld.marks || []).forEach(function (mark) {
       var g = makeMarker(THREE, mark);
       var p = enuOffset(origin, mark.lng, mark.lat);
       g.position.set(p.x, 0, p.z);
       overlay.markRoot.add(g);
-    });
-    (lastWorld.buildings || []).forEach(function (b) {
-      var g = buildingGroup(THREE, b, origin);
-      if (g) overlay.buildRoot.add(g);
     });
   }
 
@@ -2055,9 +2040,9 @@
     overlay.scene.fog = new THREE.FogExp2(FOG_COLOR, FOG_DENSITY);
     overlay.sky = makeSky(THREE);
     overlay.scene.add(overlay.sky);
-    overlay.scene.add(new THREE.AmbientLight(0xfff4e0, 0.95));
-    overlay.scene.add(new THREE.HemisphereLight(0xfff8e8, 0x7fbf88, 0.58));
-    var sun = new THREE.DirectionalLight(0xfff1c8, 0.9);
+    overlay.scene.add(new THREE.AmbientLight(0xfff4e0, 0.58));
+    overlay.scene.add(new THREE.HemisphereLight(0xfff8e8, 0x4f9d5c, 0.45));
+    var sun = new THREE.DirectionalLight(0xfff1c8, 0.64);
     sun.position.set(14, 30, -10);
     overlay.scene.add(sun);
     overlay.carRoot = new THREE.Group();
