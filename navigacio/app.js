@@ -1857,10 +1857,10 @@
       window.NavCar3D.setMarkers([], origin);
     }
     if (window.NavCar3D.setBuildings) {
-      window.NavCar3D.setBuildings(state.navigating ? collectArcadeBuildings(origin) : [], origin);
+      window.NavCar3D.setBuildings([], origin);
     }
     if (window.NavCar3D.setRoads) {
-      window.NavCar3D.setRoads(state.navigating ? collectArcadeRoads(origin) : [], origin);
+      window.NavCar3D.setRoads([], origin);
     }
   }
 
