@@ -1216,12 +1216,90 @@
     return g;
   }
 
+  function defaultOrigin() {
+    if (lastWorld.origin && Number.isFinite(lastWorld.origin.lat) && Number.isFinite(lastWorld.origin.lng)) {
+      return lastWorld.origin;
+    }
+    if (Number.isFinite(pose.lat) && Number.isFinite(pose.lng)) {
+      return { lng: pose.lng, lat: pose.lat };
+    }
+    return { lng: 19.0402, lat: 47.4979 };
+  }
+
+  function addDefaultClayPad(THREE, scene, host) {
+    if (!THREE || !scene) return null;
+    if (host && host.clayPad) return host.clayPad;
+    var pad = new THREE.Group();
+    pad.name = "clayPad";
+    var ground = new THREE.Mesh(
+      new THREE.PlaneGeometry(560, 560, 1, 1),
+      toonMaterial(THREE, { color: CLAY_GROUND, fog: true, side: THREE.DoubleSide })
+    );
+    ground.rotation.x = -Math.PI / 2;
+    ground.position.y = -0.06;
+    ground.frustumCulled = false;
+    pad.add(ground);
+    var road = new THREE.Mesh(
+      new THREE.PlaneGeometry(14, 120, 1, 1),
+      clayRoadMat(THREE)
+    );
+    road.rotation.x = -Math.PI / 2;
+    road.position.set(0, 0.04, 32);
+    road.frustumCulled = false;
+    pad.add(road);
+    var paint = new THREE.Mesh(
+      new THREE.PlaneGeometry(3.2, 120, 1, 1),
+      clayRouteMat(THREE)
+    );
+    paint.rotation.x = -Math.PI / 2;
+    paint.position.set(0, 0.08, 32);
+    paint.frustumCulled = false;
+    pad.add(paint);
+    pad.userData.fallbackRoad = road;
+    pad.userData.fallbackPaint = paint;
+    var i;
+    for (i = 0; i < 10; i++) {
+      var ang = (i / 10) * Math.PI * 2;
+      var dist = 38 + hash01(i * 4) * 30;
+      var hill = makeClayHill(THREE, i * 17 + 3);
+      hill.position.set(Math.sin(ang) * dist, hill.position.y, Math.cos(ang) * dist);
+      pad.add(hill);
+    }
+    for (i = 0; i < 18; i++) {
+      var ang2 = (i / 18) * Math.PI * 2 + 0.35;
+      var d2 = 15 + hash01(i * 9) * 24;
+      var tree = makeClayTree(THREE, i * 23 + 5);
+      tree.position.set(Math.sin(ang2) * d2, 0, Math.cos(ang2) * d2);
+      pad.add(tree);
+    }
+    for (i = 0; i < 5; i++) {
+      var lamp = makeClayLamp(THREE);
+      lamp.position.set((i % 2 ? 7.2 : -7.2), 0, 8 + i * 18);
+      pad.add(lamp);
+    }
+    for (i = 0; i < 6; i++) {
+      var cloud = makeClayCloud(THREE, i * 11);
+      cloud.position.set((hash01(i) - 0.5) * 90, 30 + hash01(i + 3) * 14, 18 + hash01(i + 5) * 46);
+      pad.add(cloud);
+    }
+    scene.add(pad);
+    if (host) host.clayPad = pad;
+    return pad;
+  }
+
+  function syncClayPadRoad(host, hasRoute) {
+    if (!host || !host.clayPad || !host.clayPad.userData) return;
+    var show = !hasRoute;
+    if (host.clayPad.userData.fallbackRoad) host.clayPad.userData.fallbackRoad.visible = show;
+    if (host.clayPad.userData.fallbackPaint) host.clayPad.userData.fallbackPaint.visible = show;
+  }
+
   function buildClayEnvironment(THREE, root, coords, origin) {
     if (!root || !THREE) return;
     clearGroup(root);
     var pts = pathPoints(coords, origin);
     if (pts.length < 2) {
-      pts = [{ x: 0, z: 0 }, { x: 0, z: -40 }];
+      pts = [{ x: 0, z: 20 }, { x: 0, z: -80 }];
     }
     var acc = 0;
     var trees = 0;
@@ -1538,7 +1616,9 @@
         this.routeRoot = new THREE.Group();
         this.markRoot = new THREE.Group();
         this.buildRoot = new THREE.Group();
+        this.envRoot = new THREE.Group();
         this.carRoot.add(this.carSlot);
+        this.worldRoot.add(this.envRoot);
         this.worldRoot.add(this.routeRoot);
         this.worldRoot.add(this.markRoot);
         this.worldRoot.add(this.buildRoot);
@@ -1609,7 +1689,7 @@
           .scale(this._scaleVec.set(scale, -scale, scale))
           .multiply(this._matRotX);
         this.camera.projectionMatrix = m.multiply(l);
-        applyWorldLod(this.scene, this.worldRoot, this.buildRoot, this.markRoot, this.sky, null);
+        applyWorldLod(this.scene, this.worldRoot, this.buildRoot, this.markRoot, this.sky, this.envRoot);
         this.renderer.resetState();
         this.renderer.render(this.scene, this.camera);
         this.renderer.resetState();
@@ -1688,9 +1768,14 @@
     routeCache = key;
     layer.asphaltMats = layer.stripMat ? [layer.stripMat] : [];
     clearGroup(layer.routeRoot);
-    if (list.length < 2 || !origin) return;
-    adoptOrigin(origin);
-    addClayRouteMeshes(api.THREE, layer.routeRoot, list, origin, layer);
+    var here = origin || defaultOrigin();
+    lastWorld.origin = here;
+    adoptOrigin(here);
+    if (list.length >= 2) {
+      addClayRouteMeshes(api.THREE, layer.routeRoot, list, here, layer);
+    }
+    if (layer.envRoot) buildClayEnvironment(api.THREE, layer.envRoot, list, here);
+    syncClayPadRoad(layer, list.length >= 2);
     if (mapRef) mapRef.triggerRepaint();
   };
 
@@ -1962,8 +2047,9 @@
   }
 
   function syncOverlayWorld() {
-    if (!overlay.scene || !api.THREE || !lastWorld.origin) return;
-    var origin = lastWorld.origin;
+    if (!overlay.scene || !api.THREE) return;
+    var origin = lastWorld.origin || defaultOrigin();
+    lastWorld.origin = origin;
     var list = lastWorld.coords || [];
     var key =
       list.length +
@@ -1992,6 +2078,7 @@
       addClayRouteMeshes(THREE, overlay.routeRoot, list, origin, overlay);
     }
     buildClayEnvironment(THREE, overlay.envRoot, list, origin);
+    syncClayPadRoad(overlay, list.length >= 2);
     (lastWorld.marks || []).forEach(function (mark) {
       var g = makeMarker(THREE, mark);
       var p = enuOffset(origin, mark.lng, mark.lat);
@@ -2061,13 +2148,7 @@
     overlay.worldRoot.add(overlay.buildRoot);
     overlay.scene.add(overlay.carRoot);
     overlay.scene.add(overlay.worldRoot);
-    var ground = new THREE.Mesh(
-      new THREE.CircleGeometry(CAM_FAR - 8, 48),
-      toonMaterial(THREE, { color: CLAY_GROUND, fog: true })
-    );
-    ground.rotation.x = -Math.PI / 2;
-    ground.position.y = -0.04;
-    overlay.scene.add(ground);
+    addDefaultClayPad(THREE, overlay.scene, overlay);
     overlay.stripMat = clayRoadMat(THREE);
     overlay.asphaltMats = [overlay.stripMat];
     overlay.camera = new THREE.PerspectiveCamera(56, w / Math.max(1, h), 0.2, CAM_FAR);
@@ -2289,6 +2370,8 @@
     overlay.markRoot = null;
     overlay.buildRoot = null;
     overlay.roadRoot = null;
+    overlay.envRoot = null;
+    overlay.clayPad = null;
     overlay.sky = null;
     overlay.stripMat = null;
     overlay.asphaltMats = [];
