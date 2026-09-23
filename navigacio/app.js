@@ -35,6 +35,8 @@
   const SIM_MS = SIM_KMH / 3.6;
   const CAR_LS_KEY = "selectedCar";
   const GARAGE_LS_KEY = "nav2_car_model";
+  const TOMTOM_API_KEY = "oE6c7oDmIR80A8Vsr4o96nBlcqNRs3vD";
+  const TOMTOM_POLL_MS = 20000;
 
   function readSelectedCar() {
     try {
@@ -1324,6 +1326,10 @@
     setPaint("highway_motorway_subtle", "line-color", "#f0cf7a");
     setPaint("building", "fill-opacity", 0.18);
     setPaint("building", "fill-color", "#f3d7a8");
+    setPaint("earth", "fill-color", "#d8f0a8");
+    setPaint("landcover", "fill-color", "#b6e57a");
+    setPaint("place_label_city", "text-color", "#3b4a1f");
+    setPaint("places", "text-color", "#3b4a1f");
     const layers = (state.map.getStyle() && state.map.getStyle().layers) || [];
     layers.forEach(function (ly) {
       if (!ly) return;
@@ -1597,10 +1603,167 @@
     try {
       const q = new URLSearchParams(location.search).get("ttkey");
       if (q) return q;
-      return localStorage.getItem("nav2_tomtom_key") || "";
-    } catch (_e) {
-      return "";
+      const stored = localStorage.getItem("nav2_tomtom_key");
+      if (stored) return stored;
+    } catch (_e) {}
+    return TOMTOM_API_KEY || "";
+  }
+
+  function tomtomAvoidQs() {
+    const o = routeOpts();
+    const avoid = [];
+    if (o.avoidMotorway) avoid.push("motorways");
+    if (o.avoidToll) avoid.push("tollRoads");
+    return avoid.length ? "&avoid=" + avoid.join(",") : "";
+  }
+
+  function tomtomManeuver(type) {
+    const t = String(type || "").toUpperCase();
+    if (/ARRIVE/.test(t)) return { type: "arrive", modifier: "" };
+    if (/DEPART|START/.test(t)) return { type: "depart", modifier: "" };
+    if (/ROUNDABOUT.*EXIT|EXIT.ROUND/.test(t)) return { type: "exit roundabout", modifier: "" };
+    if (/ROUNDABOUT/.test(t)) return { type: "roundabout", modifier: "" };
+    if (/UTURN|U_TURN/.test(t)) return { type: "turn", modifier: "uturn" };
+    if (/SHARP.*LEFT/.test(t)) return { type: "turn", modifier: "sharp left" };
+    if (/SHARP.*RIGHT/.test(t)) return { type: "turn", modifier: "sharp right" };
+    if (/SLIGHT.*LEFT|KEEP.LEFT/.test(t)) return { type: "turn", modifier: "slight left" };
+    if (/SLIGHT.*RIGHT|KEEP.RIGHT/.test(t)) return { type: "turn", modifier: "slight right" };
+    if (/LEFT/.test(t)) return { type: "turn", modifier: "left" };
+    if (/RIGHT/.test(t)) return { type: "turn", modifier: "right" };
+    if (/MERGE/.test(t)) return { type: "merge", modifier: "" };
+    if (/FORK/.test(t)) return { type: "fork", modifier: "" };
+    return { type: "continue", modifier: "" };
+  }
+
+  function trafficLevelFromDelay(mag, speed) {
+    if (mag >= 4) return 0.95;
+    if (mag === 3) return 0.82;
+    if (mag === 2) return 0.58;
+    if (mag === 1) return 0.42;
+    if (Number.isFinite(speed) && speed < 8) return 0.92;
+    if (Number.isFinite(speed) && speed < 18) return 0.78;
+    if (Number.isFinite(speed) && speed < 38) return 0.48;
+    return 0.18;
+  }
+
+  function trafficFromTomTom(route) {
+    const points = [];
+    (route.legs || []).forEach(function (leg) {
+      (leg.points || []).forEach(function (p) {
+        if (Number.isFinite(p.longitude) && Number.isFinite(p.latitude)) {
+          points.push([p.longitude, p.latitude]);
+        }
+      });
+    });
+    const traveled = [0];
+    let i;
+    for (i = 1; i < points.length; i++) {
+      traveled[i] =
+        traveled[i - 1] +
+        haversine(
+          { lng: points[i - 1][0], lat: points[i - 1][1] },
+          { lng: points[i][0], lat: points[i][1] }
+        );
     }
+    const out = [];
+    const sections = (route.sections || []).filter(function (s) {
+      return /traffic/i.test(String((s && s.sectionType) || ""));
+    });
+    sections.forEach(function (sec) {
+      const a = traveled[Math.max(0, Number(sec.startPointIndex) || 0)] || 0;
+      const b = traveled[Math.min(traveled.length - 1, Number(sec.endPointIndex) || 0)] || a;
+      const mid = (a + b) * 0.5;
+      const p =
+        points[
+          Math.min(
+            points.length - 1,
+            Math.round(((Number(sec.startPointIndex) || 0) + (Number(sec.endPointIndex) || 0)) / 2)
+          )
+        ] || points[0];
+      out.push({
+        traveled: mid,
+        start: a,
+        end: Math.max(a + 8, b),
+        level: trafficLevelFromDelay(Number(sec.magnitudeOfDelay), Number(sec.effectiveSpeedInKmh)),
+        lng: p && p[0],
+        lat: p && p[1]
+      });
+    });
+    if (!out.length && points.length) {
+      const sum = route.summary || {};
+      const delay = Math.max(0, (sum.travelTimeInSeconds || 0) - (sum.noTrafficTravelTimeInSeconds || sum.travelTimeInSeconds || 0));
+      const level = delay > 400 ? 0.72 : delay > 90 ? 0.46 : 0.18;
+      out.push({ traveled: traveled[traveled.length - 1] * 0.5, start: 0, end: traveled[traveled.length - 1], level: level, lng: points[0][0], lat: points[0][1] });
+    }
+    return out;
+  }
+
+  function tomtomToRoute(data) {
+    const route = data && data.routes && data.routes[0];
+    if (!route) throw new Error("Nincs útvonal");
+    const coords = [];
+    (route.legs || []).forEach(function (leg) {
+      (leg.points || []).forEach(function (p) {
+        if (Number.isFinite(p.longitude) && Number.isFinite(p.latitude)) {
+          coords.push([p.longitude, p.latitude]);
+        }
+      });
+    });
+    if (coords.length < 2) throw new Error("Nincs útvonal");
+    const steps = [];
+    const instructions =
+      (route.guidance && route.guidance.instructions) ||
+      ((route.legs || []).reduce(function (all, leg) {
+        return all.concat(leg.instructions || []);
+      }, []));
+    instructions.forEach(function (ins) {
+      const man = tomtomManeuver(ins.instructionType || ins.maneuver || ins.type);
+      const pt = ins.point || {};
+      steps.push({
+        maneuver: { type: man.type, modifier: man.modifier },
+        name: ins.street || ins.roadNumbers || "",
+        distance: Number(ins.routeOffsetInMeters) || 0,
+        duration: 0,
+        geometry: {
+          coordinates:
+            Number.isFinite(pt.longitude) && Number.isFinite(pt.latitude)
+              ? [[pt.longitude, pt.latitude]]
+              : []
+        }
+      });
+    });
+    const summary = route.summary || {};
+    return {
+      distance: Number(summary.lengthInMeters) || lineLen(coords),
+      duration: Number(summary.travelTimeInSeconds) || 0,
+      geometry: { coordinates: coords },
+      legs: [{ steps: steps }],
+      traffic: trafficFromTomTom(route)
+    };
+  }
+
+  async function fetchTomTomRoute(from, to) {
+    const key = tomtomKey();
+    if (!key) throw new Error("Nincs TomTom kulcs");
+    const loc =
+      Number(from.lat).toFixed(6) +
+      "," +
+      Number(from.lng).toFixed(6) +
+      ":" +
+      Number(to.lat).toFixed(6) +
+      "," +
+      Number(to.lng).toFixed(6);
+    const url =
+      "https://api.tomtom.com/routing/1/calculateRoute/" +
+      loc +
+      "/json?key=" +
+      encodeURIComponent(key) +
+      "&traffic=true&travelMode=car&sectionType=traffic&routeRepresentation=polyline&computeTravelTimeFor=all&instructionsType=text&language=hu-HU" +
+      tomtomAvoidQs();
+    const res = await fetch(url);
+    if (!res.ok) throw new Error("TomTom " + res.status);
+    const data = await res.json();
+    return tomtomToRoute(data);
   }
 
   function buildTrafficProfile(coords) {
@@ -1633,6 +1796,7 @@
   }
 
   function trafficColor(level) {
+    if (level >= 0.9) return "#8b1020";
     if (level >= 0.65) return "#e23b4a";
     if (level >= 0.38) return "#f2b84b";
     return "#3dce6a";
@@ -1659,66 +1823,57 @@
     }
   }
 
-  function refreshTraffic() {
-    state.traffic = buildTrafficProfile(state.coords);
+  let trafficTimer = 0;
+  let tomtomBusy = false;
+
+  function applyTrafficSamples(samples) {
+    state.traffic = samples || [];
     if (window.NavCar3D && typeof window.NavCar3D.setTraffic === "function") {
-      window.NavCar3D.setTraffic(state.traffic);
+      window.NavCar3D.setTraffic(state.traffic, true);
     }
     applyTrafficRouteStyle();
-    maybeFetchTomTom(state.coords);
   }
 
-  async function maybeFetchTomTom(coords) {
-    const key = tomtomKey();
-    if (!key || !coords || coords.length < 2) return;
-    const picks = [];
-    let acc = 0;
-    let i;
-    for (i = 1; i < coords.length && picks.length < 8; i++) {
-      const a = coords[i - 1];
-      const b = coords[i];
-      acc += haversine({ lng: a[0], lat: a[1] }, { lng: b[0], lat: b[1] });
-      if (!picks.length || acc - picks[picks.length - 1].traveled >= 380) {
-        picks.push({ lat: b[1], lng: b[0], traveled: acc });
-      }
+  function refreshTraffic() {
+    if (state.route && state.route.traffic && state.route.traffic.length) {
+      applyTrafficSamples(state.route.traffic);
+      return;
     }
+    applyTrafficSamples(buildTrafficProfile(state.coords));
+  }
+
+  function stopTrafficPoll() {
+    if (trafficTimer) {
+      clearInterval(trafficTimer);
+      trafficTimer = 0;
+    }
+  }
+
+  function startTrafficPoll() {
+    stopTrafficPoll();
+    if (!tomtomKey()) return;
+    trafficTimer = setInterval(pollTomTomTraffic, TOMTOM_POLL_MS);
+  }
+
+  async function pollTomTomTraffic() {
+    if (tomtomBusy || state.simOwnedRoute || !state.dest) return;
+    const from =
+      state.navigating && AppState.currentPos && Number.isFinite(AppState.currentPos.lat)
+        ? { lat: AppState.currentPos.lat, lng: AppState.currentPos.lng }
+        : state.origin;
+    if (!from || !Number.isFinite(from.lat) || !Number.isFinite(from.lng)) return;
+    tomtomBusy = true;
     try {
-      const rows = await Promise.all(
-        picks.map(function (p) {
-          return fetch(
-            "https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json?key=" +
-              encodeURIComponent(key) +
-              "&point=" +
-              p.lat +
-              "," +
-              p.lng
-          ).then(function (res) {
-            return res.ok ? res.json() : null;
-          });
-        })
-      );
-      let changed = false;
-      rows.forEach(function (data, idx) {
-        const flow = data && data.flowSegmentData;
-        if (!flow || !Number.isFinite(flow.currentSpeed) || !Number.isFinite(flow.freeFlowSpeed)) return;
-        const ratio = 1 - Math.max(0, Math.min(1, flow.currentSpeed / Math.max(1, flow.freeFlowSpeed)));
-        const p = picks[idx];
-        const hit = (state.traffic || []).reduce(function (best, s) {
-          if (!best || Math.abs(s.traveled - p.traveled) < Math.abs(best.traveled - p.traveled)) return s;
-          return best;
-        }, null);
-        if (hit) {
-          hit.level = ratio;
-          changed = true;
-        }
-      });
-      if (changed) {
-        if (window.NavCar3D && typeof window.NavCar3D.setTraffic === "function") {
-          window.NavCar3D.setTraffic(state.traffic);
-        }
-        applyTrafficRouteStyle();
+      const route = await fetchTomTomRoute(from, state.dest);
+      if (route && route.traffic && route.traffic.length) {
+        state.route = state.route || route;
+        state.route.traffic = route.traffic;
+        applyTrafficSamples(route.traffic);
       }
-    } catch (_e) {}
+    } catch (_e) {
+    } finally {
+      tomtomBusy = false;
+    }
   }
 
   function routeColors() {
@@ -2048,10 +2203,12 @@
     const src = state.map.getSource("route");
     if (!src) return;
     src.setData(splitLine(state.coords, state.traveled));
-    if (!state.traffic || !state.traffic.length) state.traffic = buildTrafficProfile(state.coords);
+    if (!state.traffic || !state.traffic.length) {
+      if (state.route && state.route.traffic && state.route.traffic.length) state.traffic = state.route.traffic;
+      else state.traffic = buildTrafficProfile(state.coords);
+    }
     applyTrafficRouteStyle();
     pushArcadeWorld();
-    maybeFetchTomTom(state.coords);
   }
 
   function copyPose(p, heading) {
@@ -3243,10 +3400,12 @@
           ]
         : exclude
         ? [
+            function () { return fetchTomTomRoute(state.origin, state.dest); },
             function () { return fetchValhalla(state.origin, state.dest); },
             function () { return fetchOsrm(state.origin, state.dest, exclude); }
           ]
         : [
+            function () { return fetchTomTomRoute(state.origin, state.dest); },
             function () { return fetchOsrm(state.origin, state.dest, ""); },
             function () { return fetchValhalla(state.origin, state.dest); }
           ];
@@ -3262,7 +3421,7 @@
       if (!route) throw last || new Error("Az útvonal nem jött össze.");
       state.route = route;
       state.coords = (route.geometry && route.geometry.coordinates) || [];
-      state.traffic = null;
+      state.traffic = (route.traffic && route.traffic.length) ? route.traffic : null;
       AppState.activeRoute = { coords: state.coords, distance: Number(route.distance) || 0 };
       state.steps = [];
       state.limits = [];
@@ -3470,6 +3629,7 @@
       );
       state.camHeading = state.heading;
     }
+    startTrafficPoll();
     setStatus(state.kaland ? "Kaland mód" : "Navigáció");
     showPinAdjust();
     if (window.NavVoice && window.NavVoice.close) window.NavVoice.close();
@@ -3517,6 +3677,7 @@
   }
 
   function stopNav(opts) {
+    stopTrafficPoll();
     state.navigating = false;
     state.arcadePreview = false;
     state.simulating = false;
@@ -4719,6 +4880,7 @@
     registerPmtiles();
     try {
       if (!localStorage.getItem(THEME_KEY)) localStorage.setItem(THEME_KEY, "dark");
+      if (TOMTOM_API_KEY) localStorage.setItem("nav2_tomtom_key", TOMTOM_API_KEY);
     } catch (_e) {}
     const dark = localStorage.getItem(THEME_KEY) !== "light";
     document.documentElement.classList.toggle("dark", dark);
