@@ -2171,10 +2171,16 @@
     if (!Number.isFinite(origin.lng) || !Number.isFinite(origin.lat)) return;
     if (!state.traffic || !state.traffic.length) state.traffic = buildTrafficProfile(state.coords);
     if (window.NavCar3D.setTraffic) window.NavCar3D.setTraffic(state.traffic, false);
-    if (window.NavCar3D.setRoute) window.NavCar3D.setRoute(windowCoords(), origin);
+    const here = state.traveled || 0;
+    if (
+      window.NavCar3D.setRoute &&
+      (state._3dRouteAt == null || Math.abs(here - state._3dRouteAt) > 70)
+    ) {
+      state._3dRouteAt = here;
+      window.NavCar3D.setRoute(windowCoords(), origin);
+    }
     if (window.NavCar3D.setMarkers && state.navigating) {
       const marks = [];
-      const here = state.traveled || 0;
       let shown = 0;
       for (let i = 0; i < state.limits.length && shown < 5; i++) {
         const seg = state.limits[i];
@@ -3568,6 +3574,7 @@
     setStatus("Szimuláció 50 km/h");
     syncSimBtn();
     startSmooth();
+    state._3dRouteAt = null;
     if (window.NavCar3D && typeof window.NavCar3D.invalidateWorld === "function") {
       window.NavCar3D.invalidateWorld();
     }
@@ -3614,6 +3621,7 @@
           state.heading = br;
           state.camHeading = br;
         }
+        state._3dRouteAt = null;
         if (window.NavCar3D && typeof window.NavCar3D.invalidateWorld === "function") {
           window.NavCar3D.invalidateWorld();
         }
