@@ -25,7 +25,7 @@
   <link rel="icon" href="./icons/icon-192.png" type="image/png">
   <link rel="apple-touch-icon" href="./icons/apple-touch-icon.png">
   <link rel="stylesheet" href="./vendor/maplibre-gl.css">
-  <link rel="stylesheet" href="./style.css?v=113">
+  <link rel="stylesheet" href="./style.css?v=115">
 </head>
 <body>
   <div id="app">
@@ -122,6 +122,10 @@
         <strong>360°</strong>
         <span>Körbenézés</span>
       </button>
+      <button type="button" id="simDriveBtn" aria-pressed="false" title="Tesztvezetés 50 km/h">
+        <strong>50</strong>
+        <span>Teszt 50</span>
+      </button>
 
       <a class="peek nav-link" href="#funkciok">Funkciók ↓</a>
     </section>
@@ -135,6 +139,7 @@
         <li>Telepíthető a fejegységre, mint app (PWA). Az első betöltés letölti a térképet, a 3D autókat és a stílust — utána offline is nyílik.</li>
         <li>Hangok: a menüben minden hangfájlnál megadhatod, merre szóljon (balra, jobbra, …). A Teszt onnan játssza. Amit nem állítasz, az néma marad.</li>
         <li>ToonNavi 3D: az OSRM útvonal 3D szalag, követi a kanyarokat. Claymation fák, dombok, felhők és lámpák az út mentén. A Garázsban low-poly chibi autók.</li>
+        <li>Az autó mindig az útvonal közepére tapad (snap-to-road), még ha a GPS 20–30 métert téved is. 5 km/h alatt az orr az út irányába néz. A Teszt 50 gomb szobában, 50 km/h-val viszi végig a megtervezett utat.</li>
         <li>Kaland mód: OSRM alternatives, a kanyargósabb út, arany neon, autópálya nélkül.</li>
         <li>Előrejelzés, következő kanyar, kijárat, sávrajz, sebesség.</li>
         <li>Otthon és munka a menüből. Az autó helye mentődik: keresőben Autó, sárga pont a térképen.</li>

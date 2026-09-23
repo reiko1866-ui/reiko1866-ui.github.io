@@ -30,6 +30,9 @@
   const COAST_MIN_SPEED = 0.35;
   const DEADBAND_KMH = 3;
   const DEADBAND_MS = 0.83;
+  const PATH_HEADING_KMH = 5;
+  const SIM_KMH = 50;
+  const SIM_MS = SIM_KMH / 3.6;
   const CAR_LS_KEY = "selectedCar";
   const GARAGE_LS_KEY = "nav2_car_model";
 
@@ -228,6 +231,8 @@
     snapI: 1,
     routeLen: 0,
     lastSnap: null,
+    rawGps: null,
+    simulating: false,
     lastLocate: 0,
     lastPlaceAt: 0,
     lastUrban: null,
@@ -445,6 +450,60 @@
       acc += seg;
     }
     return { lng: coords[n - 1][0], lat: coords[n - 1][1] };
+  }
+
+  function routeTangent(coords, traveled) {
+    if (!coords || coords.length < 2) return Number(state.heading) || 0;
+    let acc = 0;
+    const at = Number(traveled) || 0;
+    for (let i = 1; i < coords.length; i++) {
+      const a = { lng: coords[i - 1][0], lat: coords[i - 1][1] };
+      const b = { lng: coords[i][0], lat: coords[i][1] };
+      const seg = haversine(a, b) || 1;
+      if (acc + seg >= at) return bearing(a, b);
+      acc += seg;
+    }
+    const n = coords.length;
+    return bearing(
+      { lng: coords[n - 2][0], lat: coords[n - 2][1] },
+      { lng: coords[n - 1][0], lat: coords[n - 1][1] }
+    );
+  }
+
+  function lockToRoute(raw, opts) {
+    opts = opts || {};
+    if (!state.coords || state.coords.length < 2) return null;
+    if (!raw || !Number.isFinite(raw.lat) || !Number.isFinite(raw.lng)) return null;
+    const snap = nearest(state.coords, raw);
+    state.lastSnap = snap;
+    const prevT = state.traveled || 0;
+    let nextT = Number.isFinite(snap.traveled) ? snap.traveled : prevT;
+    if (!opts.fromSmooth && !state.simulating) {
+      if (nextT + 8 < prevT && snap.dist < 50) nextT = prevT;
+      const maxFwd = Math.max(40, (opts.speed || state.speed || 0) * 3 + 25);
+      if (prevT > 0 && nextT > prevT + maxFwd) nextT = prevT + maxFwd;
+      state.traveled = nextT;
+    } else {
+      nextT = state.traveled || nextT;
+    }
+    const along = alongLine(state.coords, nextT);
+    if (!along) return null;
+    const pathBr = Number.isFinite(snap.bearing) ? snap.bearing : routeTangent(state.coords, nextT);
+    const kmh = (opts.speed != null ? opts.speed : state.speed || 0) * 3.6;
+    let br = pathBr;
+    if (!state.simulating && kmh >= PATH_HEADING_KMH && Number.isFinite(opts.heading)) {
+      if (Math.abs(angDelta(opts.heading, pathBr)) < 80) {
+        br = mixHeading(opts.heading, pathBr, 0.7);
+      }
+    }
+    AppState.snappedPosition = {
+      lat: along.lat,
+      lng: along.lng,
+      dist: snap.dist,
+      traveled: nextT,
+      bearing: pathBr
+    };
+    return { lat: along.lat, lng: along.lng, bearing: br, traveled: nextT, dist: snap.dist };
   }
 
   function nearest(coords, point) {
@@ -877,11 +936,7 @@
       return null;
     }
     const snap = state.lastSnap;
-    if (!snap || !Number.isFinite(snap.dist) || snap.dist > snapLimit()) {
-      AppState.snappedPosition = null;
-      return null;
-    }
-    const along = alongLine(state.coords, snap.traveled);
+    const along = alongLine(state.coords, state.traveled || (snap && snap.traveled) || 0);
     if (!along || !Number.isFinite(along.lat) || !Number.isFinite(along.lng)) {
       AppState.snappedPosition = null;
       return null;
@@ -889,9 +944,9 @@
     const pos = {
       lat: along.lat,
       lng: along.lng,
-      dist: snap.dist,
-      traveled: snap.traveled,
-      bearing: snap.bearing
+      dist: snap && Number.isFinite(snap.dist) ? snap.dist : 0,
+      traveled: state.traveled || (snap && snap.traveled) || 0,
+      bearing: (snap && snap.bearing) || routeTangent(state.coords, state.traveled || 0)
     };
     AppState.snappedPosition = pos;
     return pos;
@@ -927,40 +982,27 @@
       AppState.speed = speed;
     }
     const kmh = (state.speed || 0) * 3.6;
-    if (Number.isFinite(heading) && kmh >= DEADBAND_KMH) state.heading = heading;
-    else if (Number.isFinite(heading) && !Number.isFinite(state.heading)) state.heading = heading;
-
     let display = { lng: lngLat.lng, lat: lngLat.lat };
-    if (state.coords.length) {
-      const snap = nearest(state.coords, display);
-      state.lastSnap = snap;
-      snappedPosition();
-      const onRoad = snap.dist < snapLimit();
-      if (onRoad && !fromSmooth) {
-        const prevT = state.traveled || 0;
-        let nextT = snap.traveled;
-        if (nextT + 8 < prevT && snap.dist < 35) nextT = prevT;
-        const maxFwd = Math.max(40, (state.speed || 0) * 2.5 + 25);
-        if (prevT > 0 && nextT > prevT + maxFwd) nextT = prevT + maxFwd;
-        state.traveled = nextT;
-        const along = alongLine(state.coords, nextT);
-        if (along) display = along;
-        const br = snap.bearing;
-        if (Number.isFinite(br) && (kmh >= DEADBAND_KMH || state.navigating) && (!Number.isFinite(heading) || Math.abs(angDelta(heading, br)) < 70)) {
-          state.heading = mixHeading(state.heading, br, kmh >= DEADBAND_KMH ? 0.48 : 0.22);
-        }
-      } else if (onRoad) {
-        const along = alongLine(state.coords, state.traveled || snap.traveled);
-        if (along) display = along;
-      } else if (snap.dist < offRouteLimit() && state.traveled > 0) {
-        const along = alongLine(state.coords, state.traveled);
-        if (along) display = along;
+    if (state.coords.length >= 2) {
+      const locked = lockToRoute(display, {
+        speed: state.speed,
+        heading: heading,
+        fromSmooth: !!fromSmooth
+      });
+      if (locked) {
+        display = { lng: locked.lng, lat: locked.lat };
+        if (state.simulating || kmh < PATH_HEADING_KMH) state.heading = locked.bearing;
+        else state.heading = locked.bearing;
+      } else if (Number.isFinite(heading) && kmh >= PATH_HEADING_KMH) {
+        state.heading = heading;
       }
       state.origin = display;
       drawRoute();
       updateNav();
       updateRoadFromRoute();
     } else {
+      if (Number.isFinite(heading) && kmh >= PATH_HEADING_KMH) state.heading = heading;
+      else if (Number.isFinite(heading) && !Number.isFinite(state.heading)) state.heading = heading;
       state.origin = display;
       locateRoad();
       AppState.snappedPosition = null;
@@ -2020,17 +2062,20 @@
     const speed = Number(AppState.speed);
     if (!(speed > COAST_MIN_SPEED) || !(dt > 0)) return;
     const heading = Number.isFinite(tgt.bearing) ? tgt.bearing : state.heading || 0;
-    if (state.coords.length && (state.traveled > 0 || state.navigating)) {
-      state.traveled = (state.traveled || 0) + speed * dt;
+    if (state.coords.length >= 2 && (state.traveled > 0 || state.navigating || state.simulating)) {
+      const step = state.simulating ? SIM_MS : speed;
+      state.traveled = (state.traveled || 0) + step * dt;
+      if (state.simulating && state.routeLen && state.traveled >= state.routeLen - 1) {
+        state.traveled = state.routeLen;
+        stopSimDrive({ arrived: true });
+        return;
+      }
       const along = alongLine(state.coords, state.traveled);
       if (along) {
         tgt.lat = along.lat;
         tgt.lng = along.lng;
       }
-      const snap = nearest(state.coords, { lat: tgt.lat, lng: tgt.lng });
-      if (Number.isFinite(snap.bearing)) {
-        tgt.bearing = mixHeading(heading, snap.bearing, 0.22);
-      }
+      tgt.bearing = routeTangent(state.coords, state.traveled);
       return;
     }
     const next = offsetLngLat({ lng: tgt.lng, lat: tgt.lat }, heading, speed * dt);
@@ -2053,12 +2098,35 @@
         cur.lat = tgt.lat;
         cur.lng = tgt.lng;
         cur.bearing = tgt.bearing || 0;
+        if (state.coords.length >= 2) {
+          const glued0 = alongLine(state.coords, state.traveled || 0);
+          if (glued0) {
+            cur.lat = glued0.lat;
+            cur.lng = glued0.lng;
+          }
+          cur.bearing = routeTangent(state.coords, state.traveled || 0);
+        }
         cur._seeded = true;
       } else {
         cur.lat = lerp(cur.lat, tgt.lat, POS_LERP);
         cur.lng = lerp(cur.lng, tgt.lng, POS_LERP);
-        if ((AppState.speed || 0) * 3.6 >= DEADBAND_KMH) {
+        if ((AppState.speed || 0) * 3.6 >= PATH_HEADING_KMH && !state.simulating) {
           cur.bearing = mixHeading(cur.bearing || 0, tgt.bearing || 0, HEAD_LERP);
+        } else if (state.coords.length >= 2) {
+          cur.bearing = routeTangent(state.coords, state.traveled || 0);
+        }
+      }
+      if (state.coords.length >= 2) {
+        const glued = alongLine(state.coords, state.traveled || 0);
+        if (glued) {
+          cur.lat = glued.lat;
+          cur.lng = glued.lng;
+          tgt.lat = glued.lat;
+          tgt.lng = glued.lng;
+        }
+        cur.bearing = routeTangent(state.coords, state.traveled || 0);
+        if (state.simulating || (AppState.speed || 0) * 3.6 < PATH_HEADING_KMH) {
+          tgt.bearing = cur.bearing;
         }
       }
       const pose = { lng: cur.lng, lat: cur.lat };
@@ -3097,10 +3165,8 @@
     return plan(reroute);
   }
 
-  function maybeArcadePreview() {
-    if (!/[?&](?:arcade|demo)=1/.test(location.search) || state.navigating || state.arcadePreview) return;
+  function seedDemoRoute() {
     const o = { lng: BUDAPEST[0], lat: BUDAPEST[1] };
-    state.arcadePreview = true;
     state.origin = o;
     const coords = [];
     let heading = 12;
@@ -3118,7 +3184,7 @@
       coords.push([p.lng, p.lat]);
     }
     const dest = { lng: coords[coords.length - 1][0], lat: coords[coords.length - 1][1] };
-    setDest(dest, "Arcade teszt");
+    setDest(dest, "Szimuláció");
     state.route = {
       distance: lineLen(coords),
       duration: 28 * 60,
@@ -3128,7 +3194,7 @@
     state.coords = coords;
     state.routeLen = state.route.distance;
     state.steps = [];
-    state.traveled = 30;
+    state.traveled = 8;
     state.limits = [
       { start: 0, end: 90, limit: 50, urban: true, cls: "residential" },
       { start: 90, end: 420, limit: 70, urban: false, cls: "primary" },
@@ -3139,24 +3205,87 @@
     const cam2 = alongLine(coords, 380);
     state.cameras = [];
     if (cam) state.cameras.push({ lng: cam.lng, lat: cam.lat, traveled: 160 });
-    if (cam2) state.cameras.push({ lng: cam2.lng, lat: cam2.lat, traveled: 380 });
+    if (cam2) state.cameras.push({ lng: cam2.lng, lat: cam.lat, traveled: 380 });
     state.road = { limit: 50, urban: true, cls: "residential" };
-    state.speed = 18.3;
-    AppState.speed = 18.3;
-    state.follow = true;
-    AppState.targetPos.lat = o.lat;
-    AppState.targetPos.lng = o.lng;
-    AppState.targetPos.bearing = 12;
-    AppState.currentPos.lat = o.lat;
-    AppState.currentPos.lng = o.lng;
-    AppState.currentPos.bearing = 12;
-    AppState.currentPos._seeded = true;
-    state.heading = 12;
-    state.camHeading = 12;
+    state.simOwnedRoute = true;
+    state.arcadePreview = true;
     addLayers();
     drawRoute();
-    startNav();
     paintRoadUi();
+    return coords;
+  }
+
+  function syncSimBtn() {
+    const btn = $("simDriveBtn");
+    if (!btn) return;
+    const on = !!state.simulating;
+    btn.classList.toggle("is-on", on);
+    btn.setAttribute("aria-pressed", on ? "true" : "false");
+    btn.title = on ? "Szimuláció leállítása" : "Tesztvezetés 50 km/h";
+    const label = btn.querySelector("span");
+    if (label) label.textContent = on ? "Stop" : "Teszt 50";
+  }
+
+  function startSimDrive() {
+    if (state.simulating) return;
+    if (state.coords.length < 2) seedDemoRoute();
+    if (state.coords.length < 2) return setStatus("Előbb tervezz útvonalat.", true);
+    state.simulating = true;
+    state.speed = SIM_MS;
+    AppState.speed = SIM_MS;
+    if (!(state.traveled > 0)) state.traveled = 4;
+    const along = alongLine(state.coords, state.traveled);
+    const br = routeTangent(state.coords, state.traveled);
+    if (along) {
+      AppState.targetPos.lat = along.lat;
+      AppState.targetPos.lng = along.lng;
+      AppState.targetPos.bearing = br;
+      AppState.targetPos._coasting = true;
+      AppState.currentPos.lat = along.lat;
+      AppState.currentPos.lng = along.lng;
+      AppState.currentPos.bearing = br;
+      AppState.currentPos._seeded = true;
+      state.origin = { lng: along.lng, lat: along.lat };
+      state.heading = br;
+      state.camHeading = br;
+    }
+    state.follow = true;
+    if ($("follow")) {
+      $("follow").classList.add("is-on");
+      $("follow").setAttribute("aria-pressed", "true");
+    }
+    if (!state.navigating) startNav();
+    setStatus("Szimuláció 50 km/h");
+    syncSimBtn();
+    startSmooth();
+    pushArcadeWorld();
+  }
+
+  function stopSimDrive(opts) {
+    if (!state.simulating && !(opts && opts.arrived)) {
+      syncSimBtn();
+      return;
+    }
+    state.simulating = false;
+    state.speed = 0;
+    AppState.speed = 0;
+    syncSimBtn();
+    if (opts && opts.arrived) {
+      setStatus("Szimuláció vége");
+      stopNav({ arrived: true });
+      return;
+    }
+    if (state.arcadePreview || state.simOwnedRoute) {
+      stopNav(opts);
+      return;
+    }
+    setStatus("Szimuláció ki — GPS");
+  }
+
+  function maybeArcadePreview() {
+    if (!/[?&](?:arcade|demo)=1/.test(location.search) || state.navigating || state.arcadePreview) return;
+    seedDemoRoute();
+    startSimDrive();
   }
 
   function startNav() {
@@ -3241,7 +3370,10 @@
   function stopNav(opts) {
     state.navigating = false;
     state.arcadePreview = false;
+    state.simulating = false;
+    state.simOwnedRoute = false;
     state.follow = false;
+    syncSimBtn();
     if ($("follow")) {
       $("follow").classList.remove("is-on");
       $("follow").setAttribute("aria-pressed", "false");
@@ -3285,14 +3417,15 @@
   }
 
   function maybeReroute() {
-    if (state.arcadePreview) return;
+    if (state.arcadePreview || state.simulating) return;
     if (!state.navigating || !state.dest || state.planning) return;
     const coords =
       (AppState.activeRoute && AppState.activeRoute.coords) || state.coords || [];
     if (!coords.length) return;
+    const raw = state.rawGps || {};
     const here = {
-      lat: AppState.currentPos.lat,
-      lng: AppState.currentPos.lng
+      lat: Number.isFinite(raw.lat) ? raw.lat : AppState.currentPos.lat,
+      lng: Number.isFinite(raw.lng) ? raw.lng : AppState.currentPos.lng
     };
     if (!Number.isFinite(here.lat) || !Number.isFinite(here.lng)) return;
     const snap = nearest(coords, here);
@@ -3310,7 +3443,7 @@
   }
 
   function ingestGps(pos) {
-    if (state.arcadePreview) return;
+    if (state.arcadePreview || state.simulating) return;
     const c = pos && pos.coords;
     if (!c || !Number.isFinite(c.latitude) || !Number.isFinite(c.longitude)) return;
     const acc = Number(c.accuracy);
@@ -3328,13 +3461,25 @@
     }
     state.fixRejects = 0;
     const kmh = (spd || 0) * 3.6;
-    const gpsHeading = Number.isFinite(c.heading) && kmh >= DEADBAND_KMH ? c.heading : AppState.targetPos.bearing;
+    const gpsHeading = Number.isFinite(c.heading) && kmh >= PATH_HEADING_KMH ? c.heading : AppState.targetPos.bearing;
+    state.rawGps = raw;
     state.lastFix = { ll: raw, t: now, speed: spd || 0, heading: gpsHeading };
     AppState.accuracy = acc;
     state.gpsAcc = acc;
     AppState.speed = spd;
     const tgt = AppState.targetPos;
-    if (tgt._coasting && Number.isFinite(tgt.lat) && Number.isFinite(tgt.lng)) {
+    const locked = lockToRoute(raw, { speed: spd, heading: gpsHeading });
+    if (locked) {
+      tgt.lat = locked.lat;
+      tgt.lng = locked.lng;
+      tgt.bearing = locked.bearing;
+      if (!tgt._coasting) {
+        AppState.currentPos.lat = locked.lat;
+        AppState.currentPos.lng = locked.lng;
+        AppState.currentPos.bearing = locked.bearing;
+        AppState.currentPos._seeded = true;
+      }
+    } else if (tgt._coasting && Number.isFinite(tgt.lat) && Number.isFinite(tgt.lng)) {
       tgt.lat = lerp(tgt.lat, raw.lat, GPS_CORRECT);
       tgt.lng = lerp(tgt.lng, raw.lng, GPS_CORRECT);
     } else {
@@ -3342,26 +3487,12 @@
       tgt.lng = raw.lng;
       AppState.currentPos.lat = raw.lat;
       AppState.currentPos.lng = raw.lng;
-      if (kmh >= DEADBAND_KMH) AppState.currentPos.bearing = gpsHeading || 0;
+      if (kmh >= PATH_HEADING_KMH) AppState.currentPos.bearing = gpsHeading || 0;
       AppState.currentPos._seeded = true;
     }
     tgt._coasting = true;
-    if (Number.isFinite(c.heading) && kmh >= DEADBAND_KMH) {
+    if (!locked && Number.isFinite(c.heading) && kmh >= PATH_HEADING_KMH) {
       tgt.bearing = mixHeading(tgt.bearing || gpsHeading, gpsHeading, 0.55);
-    }
-    if (state.coords.length) {
-      const snap = nearest(state.coords, raw);
-      if (snap.dist < snapLimit()) {
-        const prevT = state.traveled || snap.traveled;
-        let nextT = snap.traveled;
-        if (nextT + 8 < prevT && snap.dist < 35) nextT = prevT;
-        const maxFwd = Math.max(40, (spd || 0) * 3 + 25);
-        if (prevT > 0 && nextT > prevT + maxFwd) nextT = prevT + maxFwd;
-        state.traveled = lerp(prevT, nextT, 0.42);
-        if (Number.isFinite(snap.bearing) && (kmh >= DEADBAND_KMH || state.navigating)) {
-          tgt.bearing = mixHeading(tgt.bearing || snap.bearing, snap.bearing, 0.4);
-        }
-      }
     }
     startSmooth();
   }
@@ -4502,6 +4633,11 @@
     on("searchForm", "submit", onSearch);
     on("q", "input", onQueryInput);
     on("stop", "click", stopNav);
+    on("simDriveBtn", "click", function () {
+      if (state.simulating) stopSimDrive();
+      else startSimDrive();
+    });
+    syncSimBtn();
     const follow = $("follow");
     let followHold = 0;
     let followMenu = false;
@@ -4826,12 +4962,26 @@
       state.gpsAcc = 8;
       AppState.accuracy = 8;
       if (Number.isFinite(speed)) AppState.speed = speed;
-      AppState.targetPos.lat = lat;
-      AppState.targetPos.lng = lng;
-      if (Number.isFinite(heading) && !(Number.isFinite(speed) && speed < DEADBAND_MS)) {
-        AppState.targetPos.bearing = heading;
+      const raw = { lat: lat, lng: lng };
+      state.rawGps = raw;
+      const locked = lockToRoute(raw, { speed: speed, heading: heading });
+      if (locked) {
+        AppState.targetPos.lat = locked.lat;
+        AppState.targetPos.lng = locked.lng;
+        AppState.targetPos.bearing = locked.bearing;
+      } else {
+        AppState.targetPos.lat = lat;
+        AppState.targetPos.lng = lng;
+        if (Number.isFinite(heading) && !(Number.isFinite(speed) && speed < DEADBAND_MS)) {
+          AppState.targetPos.bearing = heading;
+        }
       }
       startSmooth();
+    },
+    sim: function (on) {
+      if (on === false) stopSimDrive();
+      else startSimDrive();
+      return !!state.simulating;
     },
     go: function (lng, lat, label) {
       if (!state.map) return Promise.reject(new Error("nincs térkép"));
