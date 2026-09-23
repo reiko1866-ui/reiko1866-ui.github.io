@@ -1600,13 +1600,14 @@
   }
 
   function tomtomKey() {
+    if (TOMTOM_API_KEY) return TOMTOM_API_KEY;
     try {
       const q = new URLSearchParams(location.search).get("ttkey");
       if (q) return q;
       const stored = localStorage.getItem("nav2_tomtom_key");
       if (stored) return stored;
     } catch (_e) {}
-    return TOMTOM_API_KEY || "";
+    return "";
   }
 
   function tomtomAvoidQs() {

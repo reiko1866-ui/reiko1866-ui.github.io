@@ -1,4 +1,4 @@
-const CACHE = "nav-v123";
+const CACHE = "nav-v124";
 const CORE = [
   "./",
   "./index.html",
