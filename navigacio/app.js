@@ -1856,7 +1856,7 @@
   }
 
   async function pollTomTomTraffic() {
-    if (tomtomBusy || state.simOwnedRoute || !state.dest) return;
+    if (tomtomBusy || !state.dest) return;
     const from =
       state.navigating && AppState.currentPos && Number.isFinite(AppState.currentPos.lat)
         ? { lat: AppState.currentPos.lat, lng: AppState.currentPos.lng }
@@ -3534,9 +3534,7 @@
     if (label) label.textContent = on ? "Stop" : "Teszt 50";
   }
 
-  function startSimDrive() {
-    if (state.simulating) return;
-    if (state.coords.length < 2) seedDemoRoute();
+  function beginSimDrive() {
     if (state.coords.length < 2) return setStatus("Előbb tervezz útvonalat.", true);
     state.simulating = true;
     state.speed = SIM_MS;
@@ -3567,6 +3565,48 @@
     syncSimBtn();
     startSmooth();
     pushArcadeWorld();
+    startTrafficPoll();
+  }
+
+  function startSimDrive() {
+    if (state.simulating || state.simStarting) return;
+    if (state.coords.length >= 2) {
+      beginSimDrive();
+      return;
+    }
+    const from = state.origin || { lng: BUDAPEST[0], lat: BUDAPEST[1] };
+    const to = state.dest || { lng: BUDAPEST[0] + 0.028, lat: BUDAPEST[1] + 0.014 };
+    state.simStarting = true;
+    setStatus("TomTom útvonal…");
+    fetchTomTomRoute(from, to)
+      .then(function (route) {
+        state.route = route;
+        state.coords = (route.geometry && route.geometry.coordinates) || [];
+        state.traffic = route.traffic || [];
+        state.routeLen = Number(route.distance) || lineLen(state.coords);
+        state.steps = [];
+        (route.legs || []).forEach(function (leg) {
+          (leg.steps || []).forEach(function (s) {
+            state.steps.push(s);
+          });
+        });
+        state.traveled = 8;
+        state.origin = from;
+        setDest(to, state.destLabel || "Szimuláció");
+        state.simOwnedRoute = false;
+        state.arcadePreview = true;
+        addLayers();
+        drawRoute();
+        paintRoadUi();
+        beginSimDrive();
+      })
+      .catch(function () {
+        seedDemoRoute();
+        beginSimDrive();
+      })
+      .finally(function () {
+        state.simStarting = false;
+      });
   }
 
   function stopSimDrive(opts) {
