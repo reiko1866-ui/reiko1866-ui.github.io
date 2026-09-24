@@ -1912,7 +1912,8 @@
   }
 
   function arcadeCoords() {
-    return sliceRouteCoords(180, 720, false);
+    const coords = state.coords || [];
+    return coords.length >= 2 ? coords : [];
   }
 
   function sliceRouteCoords(behind, ahead, snapToCar) {
@@ -1998,6 +1999,7 @@
         if (live) {
           setNavGestures(true);
           state._3dRouteAt = null;
+          state._3dRouteId = null;
           pushArcadeWorld();
         }
       };
@@ -2188,14 +2190,18 @@
     if (!state.traffic || !state.traffic.length) state.traffic = buildTrafficProfile(state.coords);
     if (window.NavCar3D.setTraffic) window.NavCar3D.setTraffic(state.traffic, false);
     const here = state.traveled || 0;
-    const routeMissing =
-      window.NavCar3D.routeReady && !window.NavCar3D.routeReady();
-    if (
-      window.NavCar3D.setRoute &&
-      (routeMissing || state._3dRouteAt == null || Math.abs(here - state._3dRouteAt) > 140)
-    ) {
+    const coords = arcadeCoords();
+    const routeId =
+      coords.length +
+      ":" +
+      (coords[0] ? coords[0][0].toFixed(5) + "," + coords[0][1].toFixed(5) : "x") +
+      ":" +
+      (coords.length ? coords[coords.length - 1][0].toFixed(5) : "y");
+    const routeMissing = window.NavCar3D.routeReady && !window.NavCar3D.routeReady();
+    if (window.NavCar3D.setRoute && (routeMissing || state._3dRouteId !== routeId)) {
+      state._3dRouteId = routeId;
       state._3dRouteAt = here;
-      window.NavCar3D.setRoute(arcadeCoords(), origin);
+      window.NavCar3D.setRoute(coords, origin);
     }
     if (window.NavCar3D.setMarkers && state.navigating) {
       const marks = [];
@@ -3600,6 +3606,7 @@
     syncSimBtn();
     startSmooth();
     state._3dRouteAt = null;
+    state._3dRouteId = null;
     if (window.NavCar3D && typeof window.NavCar3D.invalidateWorld === "function") {
       window.NavCar3D.invalidateWorld();
     }
