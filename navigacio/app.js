@@ -4369,21 +4369,33 @@
     };
   }
 
-  async function probePmtiles() {
+  function memoryPmtilesSource(buf, key) {
+    return {
+      getKey: function () {
+        return key;
+      },
+      getBytes: function (offset, length) {
+        return Promise.resolve({ data: buf.slice(offset, offset + length) });
+      }
+    };
+  }
+
+  async function loadPmtilesArchive() {
+    registerPmtiles();
+    if (window.__pmtilesArchive) return true;
+    if (!window.pmtiles || !window.__pmtilesProtocol) return false;
     const url = europePmtilesUrl();
     try {
-      const ctrl = typeof AbortController !== "undefined" ? new AbortController() : null;
-      const timer = ctrl ? window.setTimeout(function () { ctrl.abort(); }, 2500) : 0;
-      const res = await fetch(url, {
-        headers: { Range: "bytes=0-15" },
-        cache: "no-store",
-        signal: ctrl ? ctrl.signal : undefined
-      });
-      if (timer) window.clearTimeout(timer);
+      setStatus("Rajzfilmes térkép betöltése…");
+      const res = await fetch(url, { cache: "force-cache" });
       if (!res.ok) return false;
       const buf = await res.arrayBuffer();
       const u8 = new Uint8Array(buf);
-      return u8.length >= 2 && u8[0] === 0x50 && u8[1] === 0x4d;
+      if (u8.length < 16 || u8[0] !== 0x50 || u8[1] !== 0x4d) return false;
+      const tiles = new window.pmtiles.PMTiles(memoryPmtilesSource(buf, url));
+      window.__pmtilesProtocol.add(tiles);
+      window.__pmtilesArchive = tiles;
+      return true;
     } catch (_e) {
       return false;
     }
@@ -4397,7 +4409,7 @@
   }
 
   async function resolveMapStyle(dark) {
-    if (await probePmtiles()) {
+    if (await loadPmtilesArchive()) {
       try {
         const local = await loadEuropeStyle(dark);
         if (local) {
@@ -4452,9 +4464,10 @@
   }
 
   function registerPmtiles() {
-    if (window.__pmtilesReady || !window.pmtiles || !window.maplibregl) return;
+    if (window.__pmtilesProtocol || !window.pmtiles || !window.maplibregl) return;
     const protocol = new window.pmtiles.Protocol();
     maplibregl.addProtocol("pmtiles", protocol.tile);
+    window.__pmtilesProtocol = protocol;
     window.__pmtilesReady = true;
   }
 

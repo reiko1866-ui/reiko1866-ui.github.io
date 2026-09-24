@@ -1,4 +1,4 @@
-const CACHE = "nav-v150";
+const CACHE = "nav-v151";
 const CORE = [
   "./",
   "./index.html",
@@ -69,7 +69,16 @@ async function handleRange(req) {
   if (!cached) cached = await cache.match(new Request(url));
   if (!cached) {
     try {
-      return await fetch(req);
+      const fresh = await fetch(req);
+      if (fresh && fresh.ok) {
+        try {
+          await cache.put(url, fresh.clone());
+        } catch (_put) {}
+        cached = await cache.match(url);
+        if (!cached) cached = fresh;
+      } else {
+        return fresh;
+      }
     } catch (_e) {
       return new Response("", { status: 503, statusText: "Offline map missing" });
     }
