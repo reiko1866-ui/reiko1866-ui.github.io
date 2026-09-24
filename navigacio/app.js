@@ -971,12 +971,11 @@
   function playNavCue(eventId, key) {
     if (!eventId || !window.NavVoice || typeof window.NavVoice.playEvent !== "function") return;
     if (window.NavVoice.isMuted && window.NavVoice.isMuted()) return;
-    if (key) {
-      if (state.audioCue[key] === eventId) return;
-      state.audioCue[key] = eventId;
-    }
+    if (key && state.audioCue[key] === eventId) return;
     unlockNavVoice();
-    window.NavVoice.playEvent(eventId, true);
+    const urgent = eventId === "recalculating" || eventId === "arrived";
+    const ok = window.NavVoice.playEvent(eventId, urgent);
+    if (ok && key) state.audioCue[key] = eventId;
   }
 
   function plausibleJump(prev, next, acc) {
@@ -1731,13 +1730,22 @@
       ((route.legs || []).reduce(function (all, leg) {
         return all.concat(leg.instructions || []);
       }, []));
+    let prevOff = 0;
     instructions.forEach(function (ins) {
       const man = tomtomManeuver(ins.instructionType || ins.maneuver || ins.type);
       const pt = ins.point || {};
+      const off = Number(ins.routeOffsetInMeters);
+      const raw = Number(ins.distance);
+      const dist = Number.isFinite(off)
+        ? Math.max(0, off - prevOff)
+        : Number.isFinite(raw)
+          ? Math.max(0, raw)
+          : 0;
+      if (Number.isFinite(off)) prevOff = off;
       steps.push({
         maneuver: { type: man.type, modifier: man.modifier },
         name: ins.street || ins.roadNumbers || "",
-        distance: Number(ins.routeOffsetInMeters) || 0,
+        distance: dist,
         duration: 0,
         geometry: {
           coordinates:
@@ -2020,7 +2028,6 @@
       setNavGestures(false);
       return;
     }
-    setMapLayerVis(false);
     setNavGestures(true);
   }
 
