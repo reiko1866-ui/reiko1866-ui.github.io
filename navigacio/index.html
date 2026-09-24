@@ -25,7 +25,7 @@
   <link rel="icon" href="./icons/icon-192.png" type="image/png">
   <link rel="apple-touch-icon" href="./icons/apple-touch-icon.png">
   <link rel="stylesheet" href="./vendor/maplibre-gl.css">
-  <link rel="stylesheet" href="./style.css?v=146">
+  <link rel="stylesheet" href="./style.css?v=147">
 </head>
 <body>
   <div id="app">
@@ -138,6 +138,7 @@
         <li>A kereső házszámot is talál: írd be az utcát és a számot, pl. Kossuth utca 12, Budapest. A találatra koppintva a piros tű a házhoz megy — húzd a pontos bejárathoz, vagy koppints a térképen a házszámra, aztán Útvonal innét.</li>
         <li>A térképet húzhatod, nagyíthatod. Ekkor a követés kikapcsol; a térkép gomb visszateszi. A kereső címlistája: név felül, város/házszám alatta — koppints a találatra.</li>
         <li>Telepíthető a fejegységre, mint app (PWA). Az első betöltés letölti a térképet, a 3D autókat és a stílust — utána offline is nyílik.</li>
+        <li>A 2D térkép ugyanaz a rajzfilmes clay stílus, mint a 3D: zöld talaj, pasztell víz, szürke/sárga út. Európa a helyi pmtiles-ból jön, feliratok a helyi betűkből — net nélkül is megmarad.</li>
         <li>Hangok: a fájlnevek (left, right, straight, keep, roundabout, u_turn) automatikusan kategóriába kerülnek. Egy kanyarnál a kategória összes klipje közül véletlenül szólal meg egy. A menüben a Hangok panelen ezt felülírhatod, a Teszt onnan játssza.</li>
         <li>ToonNavi 3D: mesebeli erdő az autó körül 300 méteren. A 2D térkép pasztell, a cél 3D tű. Az út zöld/sárga/piros a forgalomtól, NPC autók jönnek szembe és dugóban lassítanak. Az időjárás a 3D eget is állítja. Kamera: külső/belső.</li>
         <li>Az autó mindig az útvonal közepére tapad (snap-to-road), még ha a GPS 20–30 métert téved is. 5 km/h alatt az orr az út irányába néz. A Teszt 50 gomb szobában, 50 km/h-val viszi végig a megtervezett utat.</li>
@@ -247,9 +248,9 @@
   <script src="./vendor/pmtiles.js"></script>
   <script src="./vendor/three.min.js"></script>
   <script src="./vendor/GLTFLoader.js"></script>
-  <script src="./sw-register.js?v=146"></script>
-  <script src="./car-layer.js?v=146"></script>
-  <script src="./voice/audio-manager.js?v=146"></script>
-  <script src="./app.js?v=146"></script>
+  <script src="./sw-register.js?v=147"></script>
+  <script src="./car-layer.js?v=147"></script>
+  <script src="./voice/audio-manager.js?v=147"></script>
+  <script src="./app.js?v=147"></script>
 </body>
 </html>
