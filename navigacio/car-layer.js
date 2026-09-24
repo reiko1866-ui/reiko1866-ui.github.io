@@ -952,7 +952,8 @@
     }
     if (worldRoot && origin) {
       var w = enuOffset({ lng: vis.lng, lat: vis.lat }, origin.lng, origin.lat);
-      if (!worldRoot.userData.poseLive) {
+      var jump = Math.hypot(worldRoot.position.x - w.x, worldRoot.position.z - w.z);
+      if (!worldRoot.userData.poseLive || jump > 8) {
         worldRoot.position.set(w.x, 0, w.z);
         worldRoot.userData.poseLive = true;
       } else {
