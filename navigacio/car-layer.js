@@ -39,6 +39,10 @@
   var LAMP_FROM_EDGE = 0.75;
   var TREE_FROM_EDGE_MIN = 3;
   var TREE_FROM_EDGE_MAX = 6;
+  var LANE_SAME = 1.8;
+  var LANE_ONCOMING = -1.8;
+  var NPC_SPAWN_CLEAR = 20;
+  var NPC_FOLLOW_GAP = 15;
   var THREE_LOCAL = "./vendor/three.min.js";
   var GLTF_LOCAL = "./vendor/GLTFLoader.js";
   var THREE_CDN = "https://cdn.jsdelivr.net/npm/three@0.147.0/build/three.min.js";
@@ -2039,6 +2043,82 @@
     return "car";
   }
 
+  function traveledOnPts(pts, x, z) {
+    var acc = 0;
+    var best = 0;
+    var bestD = 1e9;
+    var i;
+    for (i = 1; i < pts.length; i++) {
+      var sx = pts[i].x - pts[i - 1].x;
+      var sz = pts[i].z - pts[i - 1].z;
+      var sl = Math.hypot(sx, sz) || 1;
+      var tt = ((x - pts[i - 1].x) * sx + (z - pts[i - 1].z) * sz) / (sl * sl);
+      if (tt < 0) tt = 0;
+      else if (tt > 1) tt = 1;
+      var qx = pts[i - 1].x + sx * tt;
+      var qz = pts[i - 1].z + sz * tt;
+      var d = (x - qx) * (x - qx) + (z - qz) * (z - qz);
+      if (d < bestD) {
+        bestD = d;
+        best = acc + tt * sl;
+      }
+      acc += sl;
+    }
+    return best;
+  }
+
+  function pathLength(pts) {
+    var total = 0;
+    var i;
+    for (i = 1; i < pts.length; i++) total += Math.hypot(pts[i].x - pts[i - 1].x, pts[i].z - pts[i - 1].z);
+    return total;
+  }
+
+  function npcLanePos(pose, lane) {
+    return {
+      x: pose.x - pose.nx * lane,
+      z: pose.z - pose.nz * lane
+    };
+  }
+
+  function npcCruise(traveled, dir) {
+    var level = trafficAt(traveled);
+    if (dir < 0) return level >= 0.65 ? 3.2 : 13;
+    if (level >= 0.65) return 0.7;
+    if (level >= 0.38) return 5;
+    return 11;
+  }
+
+  function npcSlotFree(slots, t, carT, total, car, pts) {
+    if (t < 8 || t > total - 8) return false;
+    if (Math.abs(t - carT) < NPC_SPAWN_CLEAR) return false;
+    var pose = poseOnPts(pts, t);
+    var dx = pose.x - car.x;
+    var dz = pose.z - car.z;
+    if (dx * dx + dz * dz < NPC_SPAWN_CLEAR * NPC_SPAWN_CLEAR) return false;
+    var i;
+    for (i = 0; i < slots.length; i++) {
+      if (Math.abs(slots[i] - t) < NPC_FOLLOW_GAP) return false;
+    }
+    return true;
+  }
+
+  function addNpc(host, pts, traveled, lane, dir, kind) {
+    var pose = poseOnPts(pts, traveled);
+    var at = npcLanePos(pose, lane);
+    var mesh = makeNpcMesh(api.THREE, kind);
+    mesh.position.set(at.x, 0, at.z);
+    mesh.rotation.y = Math.atan2(pose.hx * dir, pose.hz * dir);
+    host.npcRoot.add(mesh);
+    host.npcs.push({
+      mesh: mesh,
+      traveled: traveled,
+      lane: lane,
+      dir: dir,
+      speed: npcCruise(traveled, dir)
+    });
+  }
+
   function rebuildNpcs(host) {
     if (!host || !host.npcRoot || !api.THREE) return;
     clearGroup(host.npcRoot);
@@ -2047,88 +2127,56 @@
     var pts = pathPoints(lastWorld.coords, origin);
     if (pts.length < 2) return;
     var car = carLocal(origin);
-    var total = 0;
-    var i;
-    for (i = 1; i < pts.length; i++) total += Math.hypot(pts[i].x - pts[i - 1].x, pts[i].z - pts[i - 1].z);
+    var total = pathLength(pts);
     host.npcPath = pts;
     host.npcPathLen = total;
-    var carT = 0;
-    var accT = 0;
-    for (i = 1; i < pts.length; i++) {
-      var sx = pts[i].x - pts[i - 1].x;
-      var sz = pts[i].z - pts[i - 1].z;
-      var sl = Math.hypot(sx, sz);
-      var tt = ((car.x - pts[i - 1].x) * sx + (car.z - pts[i - 1].z) * sz) / ((sl * sl) || 1);
-      if (tt >= 0 && tt <= 1) {
-        carT = accT + tt * sl;
-        break;
-      }
-      accT += sl;
-    }
-    [18, 36, 58].forEach(function (ahead, idx) {
+    var carT = traveledOnPts(pts, car.x, car.z);
+    var same = [];
+    var opp = [];
+    var n = 0;
+    [24, 42, 64].forEach(function (ahead, idx) {
       var seedT = carT + ahead;
-      if (seedT >= total - 8) return;
-      var pose0 = poseOnPts(pts, seedT);
-      var mesh0 = makeNpcMesh(api.THREE, npcKindFor(idx + 3));
-      mesh0.position.set(pose0.x + pose0.nx * 1.7, 0, pose0.z + pose0.nz * 1.7);
-      mesh0.rotation.y = Math.atan2(pose0.hx, pose0.hz);
-      host.npcRoot.add(mesh0);
-      host.npcs.push({
-        mesh: mesh0,
-        traveled: seedT,
-        lane: 1.7,
-        dir: 1,
-        speed: trafficAt(seedT) >= 0.65 ? 0.7 : 5.5
-      });
+      if (!npcSlotFree(same, seedT, carT, total, car, pts)) return;
+      addNpc(host, pts, seedT, LANE_SAME, 1, npcKindFor(idx + 3));
+      same.push(seedT);
+      n += 1;
     });
     var t = 12;
-    var n = 0;
-    while (t < total - 12 && n < 48) {
+    while (t < total - 12 && n < 40) {
       var pose = poseOnPts(pts, t);
-      var dx = pose.x - car.x;
-      var dz = pose.z - car.z;
-      if (dx * dx + dz * dz <= ENV_RANGE * ENV_RANGE) {
+      var near = (pose.x - car.x) * (pose.x - car.x) + (pose.z - car.z) * (pose.z - car.z) <= ENV_RANGE * ENV_RANGE;
+      if (near) {
         var level = trafficAt(t);
         var jam = level >= 0.32;
-        if (jam || hash01(t + 3) > 0.28) {
-          var mesh = makeNpcMesh(api.THREE, npcKindFor(n));
-          var lane = 1.7;
-          mesh.position.set(pose.x + pose.nx * lane, 0, pose.z + pose.nz * lane);
-          mesh.rotation.y = Math.atan2(pose.hx, pose.hz);
-          host.npcRoot.add(mesh);
-          host.npcs.push({
-            mesh: mesh,
-            traveled: t,
-            lane: lane,
-            dir: 1,
-            speed: jam ? (level >= 0.65 ? 0.6 : 4.5) : 12
-          });
+        if ((jam || hash01(t + 3) > 0.34) && npcSlotFree(same, t, carT, total, car, pts)) {
+          addNpc(host, pts, t, LANE_SAME, 1, npcKindFor(n));
+          same.push(t);
           n += 1;
         }
-        if (hash01(t + 11) > 0.55) {
-          var on = makeNpcMesh(api.THREE, npcKindFor(n + 20));
-          on.position.set(pose.x - pose.nx * 1.7, 0, pose.z - pose.nz * 1.7);
-          on.rotation.y = Math.atan2(-pose.hx, -pose.hz);
-          host.npcRoot.add(on);
-          host.npcs.push({
-            mesh: on,
-            traveled: t,
-            lane: -1.7,
-            dir: -1,
-            speed: 14
-          });
+        if (hash01(t + 11) > 0.48 && npcSlotFree(opp, t, carT, total, car, pts)) {
+          addNpc(host, pts, t, LANE_ONCOMING, -1, npcKindFor(n + 20));
+          opp.push(t);
           n += 1;
         }
       }
-      t += levelGap(t);
+      t += trafficAt(t) >= 0.65 ? 16 : trafficAt(t) >= 0.38 ? 22 : 36;
     }
   }
 
-  function levelGap(traveled) {
-    var level = trafficAt(traveled);
-    if (level >= 0.65) return 14;
-    if (level >= 0.38) return 22;
-    return 46;
+  function npcGapAhead(host, npc, carT) {
+    var best = 1e9;
+    var i;
+    for (i = 0; i < host.npcs.length; i++) {
+      var other = host.npcs[i];
+      if (other === npc || other.lane !== npc.lane || other.dir !== npc.dir) continue;
+      var gap = npc.dir > 0 ? other.traveled - npc.traveled : npc.traveled - other.traveled;
+      if (gap > 0.2 && gap < best) best = gap;
+    }
+    if (npc.dir > 0 && npc.traveled < carT) {
+      var ego = carT - npc.traveled;
+      if (ego > 0.2 && ego < best) best = ego;
+    }
+    return best;
   }
 
   function tickNpcs(host, dt) {
@@ -2139,18 +2187,30 @@
     if (!host.npcs.length) return;
     var origin = lastWorld.origin || host.worldOrigin || defaultOrigin();
     var car = carLocal(origin);
+    var carT = traveledOnPts(host.npcPath, car.x, car.z);
+    var total = host.npcPathLen || 0;
+    var step = Math.max(0.001, dt);
     var i;
     for (i = 0; i < host.npcs.length; i++) {
       var npc = host.npcs[i];
-      npc.traveled += npc.dir * npc.speed * Math.max(0.001, dt);
-      if (npc.traveled < 2 || npc.traveled > (host.npcPathLen || 0) - 2) {
-        npc.traveled = npc.dir > 0 ? 8 : Math.max(8, (host.npcPathLen || 20) - 8);
+      var cruise = npcCruise(npc.traveled, npc.dir);
+      var gap = npcGapAhead(host, npc, carT);
+      if (gap < NPC_FOLLOW_GAP) npc.speed = cruise * Math.max(0.04, gap / NPC_FOLLOW_GAP);
+      else npc.speed = cruise;
+      npc.traveled += npc.dir * npc.speed * step;
+      if (npc.dir > 0 && npc.traveled > total - 4) {
+        npc.traveled = Math.max(8, carT - 48);
+        if (Math.abs(npc.traveled - carT) < NPC_SPAWN_CLEAR) npc.traveled = Math.max(8, carT - NPC_SPAWN_CLEAR - 4);
+      } else if (npc.dir < 0 && npc.traveled < 4) {
+        npc.traveled = Math.min(total - 8, carT + 48);
+        if (Math.abs(npc.traveled - carT) < NPC_SPAWN_CLEAR) npc.traveled = Math.min(total - 8, carT + NPC_SPAWN_CLEAR + 4);
       }
       var pose = poseOnPts(host.npcPath, npc.traveled);
-      npc.mesh.position.set(pose.x + pose.nx * npc.lane, 0, pose.z + pose.nz * npc.lane);
+      var at = npcLanePos(pose, npc.lane);
+      npc.mesh.position.set(at.x, 0, at.z);
       npc.mesh.rotation.y = Math.atan2(pose.hx * npc.dir, pose.hz * npc.dir);
-      var dx = pose.x - car.x;
-      var dz = pose.z - car.z;
+      var dx = at.x - car.x;
+      var dz = at.z - car.z;
       npc.mesh.visible = dx * dx + dz * dz <= ENV_RANGE * ENV_RANGE;
     }
     if (host.npcAnchorX == null || Math.hypot(car.x - host.npcAnchorX, car.z - host.npcAnchorZ) > 70) {
@@ -2165,26 +2225,13 @@
     if (!host || !host.npcs || !host.npcPath) return null;
     var origin = lastWorld.origin || defaultOrigin();
     var car = carLocal(origin);
-    var here = 0;
-    var pts = host.npcPath;
-    var acc = 0;
-    var i;
-    for (i = 1; i < pts.length; i++) {
-      var dx = pts[i].x - pts[i - 1].x;
-      var dz = pts[i].z - pts[i - 1].z;
-      var len = Math.hypot(dx, dz);
-      var t = ((car.x - pts[i - 1].x) * dx + (car.z - pts[i - 1].z) * dz) / ((len * len) || 1);
-      if (t >= 0 && t <= 1) {
-        here = acc + t * len;
-        break;
-      }
-      acc += len;
-    }
+    var here = traveledOnPts(host.npcPath, car.x, car.z);
     var best = null;
     var bestD = 40;
+    var i;
     for (i = 0; i < host.npcs.length; i++) {
       var npc = host.npcs[i];
-      if (npc.dir < 0) continue;
+      if (npc.dir < 0 || npc.lane !== LANE_SAME) continue;
       var d = npc.traveled - here;
       if (d > 0.8 && d < bestD) {
         bestD = d;
