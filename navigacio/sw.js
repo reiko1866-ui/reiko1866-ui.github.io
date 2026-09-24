@@ -1,5 +1,4 @@
-const CACHE = "nav-v153";
-const CORE = [
+const CACHE = "nav-v155";const CORE = [
   "./",
   "./index.html",
   "./demo.html",
