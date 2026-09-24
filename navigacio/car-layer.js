@@ -33,6 +33,12 @@
   var ROAD_Y = 0.05;
   var PAINT_Y = 0.1;
   var ROAD_TEX_GAIN = 0.1;
+  var ROAD_WIDTH = 7.2;
+  var ROAD_HALF = ROAD_WIDTH * 0.5;
+  var DECOR_CLEAR = ROAD_HALF + 2.5;
+  var LAMP_FROM_EDGE = 0.75;
+  var TREE_FROM_EDGE_MIN = 3;
+  var TREE_FROM_EDGE_MAX = 6;
   var THREE_LOCAL = "./vendor/three.min.js";
   var GLTF_LOCAL = "./vendor/GLTFLoader.js";
   var THREE_CDN = "https://cdn.jsdelivr.net/npm/three@0.147.0/build/three.min.js";
@@ -1448,9 +1454,9 @@
         toonMaterial(THREE, { color: pickCanopy(seed + i * 19 + 7), fog: true })
       );
       puff.position.set(
-        (hash01(seed + i * 5) - 0.5) * 1.45,
+        (hash01(seed + i * 5) - 0.5) * 0.72,
         trunkH + 0.55 + hash01(seed + i * 2) * 1.05,
-        (hash01(seed + i * 8) - 0.5) * 1.45
+        (hash01(seed + i * 8) - 0.5) * 0.72
       );
       puff.scale.y = 0.74 + hash01(seed + i) * 0.24;
       g.add(puff);
@@ -1599,17 +1605,23 @@
       toonMaterial(THREE, { color: 0xd4c4a8, fog: true })
     );
     pole.position.y = 1.7;
+    var arm = new THREE.Mesh(
+      new THREE.BoxGeometry(0.1, 0.1, 0.92),
+      toonMaterial(THREE, { color: 0xcfc0a4, fog: true })
+    );
+    arm.position.set(0, 3.28, 0.42);
     var bulb = new THREE.Mesh(
-      new THREE.SphereGeometry(0.28, 8, 6),
+      new THREE.SphereGeometry(0.22, 8, 6),
       toonMaterial(THREE, { color: 0xfff4c2, fog: true, emissive: 0xffe08a, emissiveIntensity: 0.8 })
     );
-    bulb.position.y = 3.45;
+    bulb.position.set(0, 3.12, 0.88);
     var hat = new THREE.Mesh(
-      new THREE.ConeGeometry(0.48, 0.28, 8),
+      new THREE.ConeGeometry(0.36, 0.22, 8),
       toonMaterial(THREE, { color: 0xe8d7b0, fog: true })
     );
-    hat.position.y = 3.7;
+    hat.position.set(0, 3.34, 0.88);
     g.add(pole);
+    g.add(arm);
     g.add(bulb);
     g.add(hat);
     return g;
@@ -1671,7 +1683,7 @@
     ground.frustumCulled = false;
     pad.add(ground);
     var road = new THREE.Mesh(
-      new THREE.PlaneGeometry(14, 120, 1, 1),
+      new THREE.PlaneGeometry(ROAD_WIDTH, 120, 1, 1),
       clayRoadMat(THREE)
     );
     road.rotation.x = -Math.PI / 2;
@@ -1704,27 +1716,44 @@
       var ang2 = (i / 26) * Math.PI * 2 + 0.35;
       var d2 = 12 + hash01(i * 9) * 26;
       var tree = makeClayTree(THREE, i * 23 + 5);
-      tree.position.set(Math.sin(ang2) * d2, 0, Math.cos(ang2) * d2);
+      var tx = Math.sin(ang2) * d2;
+      var tz = Math.cos(ang2) * d2;
+      if (Math.abs(tx) < DECOR_CLEAR && tz > -12 && tz < 92) {
+        tx = (tx < 0 ? -1 : 1) * (ROAD_HALF + TREE_FROM_EDGE_MIN + hash01(i * 3) * (TREE_FROM_EDGE_MAX - TREE_FROM_EDGE_MIN));
+      }
+      tree.position.set(tx, 0, tz);
       decor.add(tree);
     }
     for (i = 0; i < 16; i++) {
       var clump = makeFlowerClump(THREE, i * 41 + 2);
       var fa = (i / 16) * Math.PI * 2 + 0.7;
       var fd = 9 + hash01(i * 6) * 22;
-      clump.position.set(Math.sin(fa) * fd, 0, Math.cos(fa) * fd);
+      var fx = Math.sin(fa) * fd;
+      var fz = Math.cos(fa) * fd;
+      if (Math.abs(fx) < DECOR_CLEAR && fz > -12 && fz < 92) {
+        fx = (fx < 0 ? -1 : 1) * (ROAD_HALF + TREE_FROM_EDGE_MIN + hash01(i * 2) * 2);
+      }
+      clump.position.set(fx, 0, fz);
       decor.add(clump);
     }
     for (i = 0; i < 12; i++) {
       var bush = makeBush(THREE, i * 15);
       var ba = (i / 12) * Math.PI * 2 + 0.2;
       var bd = 8 + hash01(i * 5) * 16;
-      bush.position.set(Math.sin(ba) * bd, 0, Math.cos(ba) * bd);
+      var bx = Math.sin(ba) * bd;
+      var bz = Math.cos(ba) * bd;
+      if (Math.abs(bx) < DECOR_CLEAR && bz > -12 && bz < 92) {
+        bx = (bx < 0 ? -1 : 1) * (ROAD_HALF + TREE_FROM_EDGE_MIN + hash01(i * 7) * 2);
+      }
+      bush.position.set(bx, 0, bz);
       decor.add(bush);
     }
     decor.add(makeStream(THREE, 4, -18, 8, 0.12, 1));
     for (i = 0; i < 5; i++) {
       var lamp = makeClayLamp(THREE);
-      lamp.position.set((i % 2 ? 7.2 : -7.2), 0, 8 + i * 18);
+      var lampSide = i % 2 ? 1 : -1;
+      lamp.position.set(lampSide * (ROAD_HALF + LAMP_FROM_EDGE), 0, 8 + i * 18);
+      lamp.rotation.y = Math.atan2(-lampSide, 0);
       decor.add(lamp);
     }
     for (i = 0; i < 8; i++) {
@@ -1766,8 +1795,83 @@
     return densifyEnu(pts, 10);
   }
 
-  function putEnv(root, live, key, obj, x, y, z, kind) {
+  function nearestOnPathPts(pts, x, z) {
+    var best = 1e9;
+    var cx = pts && pts[0] ? pts[0].x : 0;
+    var cz = pts && pts[0] ? pts[0].z : 0;
+    var hx = 0;
+    var hz = 1;
+    var nx = 1;
+    var nz = 0;
+    if (!pts || pts.length < 2) {
+      return { x: cx, z: cz, dist: Math.hypot(x - cx, z - cz), hx: hx, hz: hz, nx: nx, nz: nz };
+    }
+    var i;
+    for (i = 1; i < pts.length; i++) {
+      var ax = pts[i - 1].x;
+      var az = pts[i - 1].z;
+      var bx = pts[i].x;
+      var bz = pts[i].z;
+      var abx = bx - ax;
+      var abz = bz - az;
+      var ab2 = abx * abx + abz * abz || 1;
+      var t = ((x - ax) * abx + (z - az) * abz) / ab2;
+      if (t < 0) t = 0;
+      else if (t > 1) t = 1;
+      var qx = ax + abx * t;
+      var qz = az + abz * t;
+      var d = Math.hypot(x - qx, z - qz);
+      if (d < best) {
+        best = d;
+        cx = qx;
+        cz = qz;
+        var alen = Math.hypot(abx, abz) || 1;
+        hx = abx / alen;
+        hz = abz / alen;
+        nx = -abz / alen;
+        nz = abx / alen;
+      }
+    }
+    if ((x - cx) * nx + (z - cz) * nz < 0) {
+      nx = -nx;
+      nz = -nz;
+    }
+    return { x: cx, z: cz, dist: best, hx: hx, hz: hz, nx: nx, nz: nz };
+  }
+
+  function keepOffRoad(pts, x, z, minDist) {
+    var hit = nearestOnPathPts(pts, x, z);
+    if (hit.dist + 0.04 >= minDist) return { x: x, z: z, nx: hit.nx, nz: hit.nz, hx: hit.hx, hz: hit.hz, dist: hit.dist };
+    return {
+      x: hit.x + hit.nx * minDist,
+      z: hit.z + hit.nz * minDist,
+      nx: hit.nx,
+      nz: hit.nz,
+      hx: hit.hx,
+      hz: hit.hz,
+      dist: minDist
+    };
+  }
+
+  function placeOffRoad(pts, seedX, seedZ, side, dist) {
+    var hit = nearestOnPathPts(pts, seedX, seedZ);
+    var sx = -hit.hz * side;
+    var sz = hit.hx * side;
+    var placed = keepOffRoad(pts, hit.x + sx * dist, hit.z + sz * dist, dist);
+    return {
+      x: placed.x,
+      z: placed.z,
+      nx: sx,
+      nz: sz,
+      hx: hit.hx,
+      hz: hit.hz,
+      dist: placed.dist
+    };
+  }
+
+  function putEnv(root, live, key, obj, x, y, z, kind, rotY) {
     obj.position.set(x, y, z);
+    if (Number.isFinite(rotY)) obj.rotation.y = rotY;
     obj.userData.cullX = x;
     obj.userData.cullZ = z;
     obj.userData.envKey = key;
@@ -1812,7 +1916,9 @@
       var dz = (Number.isFinite(obj.userData.cullZ) ? obj.userData.cullZ : obj.position.z) - carZ;
       if (dx * dx + dz * dz > keep2) dropEnv(root, live, key);
     });
-    var pts = envRawPoints(coords, origin);
+    var pts = pathPoints(coords, origin);
+    if (!pts || pts.length < 2) pts = envRawPoints(coords, origin);
+    lastWorld.roadPts = pts;
     var acc = 0;
     var trees = 0;
     var lamps = 0;
@@ -1822,43 +1928,35 @@
     var i;
     var key;
     var near;
+    var lampDist = ROAD_HALF + LAMP_FROM_EDGE;
     for (i = 1; i < pts.length; i++) {
       var dx = pts[i].x - pts[i - 1].x;
       var dz = pts[i].z - pts[i - 1].z;
       var len = Math.hypot(dx, dz) || 1;
       acc += len;
-      var nx = -dz / len;
-      var nz = dx / len;
       var midX = (pts[i].x + pts[i - 1].x) * 0.5;
       var midZ = (pts[i].z + pts[i - 1].z) * 0.5;
       near = (midX - carX) * (midX - carX) + (midZ - carZ) * (midZ - carZ) <= spawn2;
       if (acc > lamps * 16 + 6) {
         key = "l:" + lamps;
         if (near && !live[key]) {
+          var lampSide = lamps % 2 ? 1 : -1;
+          var lampOff = ROAD_HALF + 0.5 + hash01(lamps * 5) * 0.5;
+          var lampAt = placeOffRoad(pts, midX, midZ, lampSide, lampOff);
+          lampAt = keepOffRoad(pts, lampAt.x, lampAt.z, lampDist);
           var lamp = makeClayLamp(THREE);
-          var side = lamps % 2 ? 1 : -1;
-          putEnv(root, live, key, lamp, midX + nx * 6.4 * side, 0, midZ + nz * 6.4 * side, "lamp");
+          putEnv(root, live, key, lamp, lampAt.x, 0, lampAt.z, "lamp", Math.atan2(-lampAt.nx, -lampAt.nz));
         }
         lamps += 1;
       }
-      if (acc > trees * 8 + 3) {
-        var tOff = 10 + hash01(trees * 3) * 8;
-        key = "tl:" + trees;
+      if (acc > trees * 10 + 4) {
+        key = "t:" + trees;
         if (near && !live[key]) {
-          putEnv(root, live, key, makeClayTree(THREE, trees * 13 + Math.round(acc)), midX - nx * tOff, 0, midZ - nz * tOff, "tree");
-        }
-        key = "tr:" + trees;
-        if (near && !live[key]) {
-          putEnv(
-            root,
-            live,
-            key,
-            makeClayTree(THREE, trees * 29 + Math.round(acc) + 5),
-            midX + nx * (tOff + 1.4),
-            0,
-            midZ + nz * (tOff + 1.4),
-            "tree"
-          );
+          var tSide = trees % 2 ? -1 : 1;
+          var tOff = ROAD_HALF + TREE_FROM_EDGE_MIN + hash01(trees * 3) * (TREE_FROM_EDGE_MAX - TREE_FROM_EDGE_MIN);
+          var treeAt = placeOffRoad(pts, midX, midZ, tSide, tOff);
+          treeAt = keepOffRoad(pts, treeAt.x, treeAt.z, Math.max(DECOR_CLEAR, tOff));
+          putEnv(root, live, key, makeClayTree(THREE, trees * 13 + Math.round(acc)), treeAt.x, 0, treeAt.z, "tree");
         }
         trees += 1;
       }
@@ -1866,17 +1964,21 @@
         key = "f:" + flowers;
         if (near && !live[key]) {
           var fSide = flowers % 2 ? 1 : -1;
-          var fOff = 8 + hash01(flowers) * 6;
-          putEnv(root, live, key, makeFlowerClump(THREE, flowers * 31), midX + nx * fOff * fSide, 0, midZ + nz * fOff * fSide, "flower");
+          var fOff = ROAD_HALF + TREE_FROM_EDGE_MIN + hash01(flowers) * 3;
+          var flowerAt = placeOffRoad(pts, midX, midZ, fSide, fOff);
+          flowerAt = keepOffRoad(pts, flowerAt.x, flowerAt.z, DECOR_CLEAR);
+          putEnv(root, live, key, makeFlowerClump(THREE, flowers * 31), flowerAt.x, 0, flowerAt.z, "flower");
         }
         flowers += 1;
       }
-      if (acc > bushes * 14 + 5) {
+      if (acc > bushes * 12 + 6) {
         key = "b:" + bushes;
         if (near && !live[key]) {
           var bSide = bushes % 2 ? -1 : 1;
-          var bOff = 7.2 + hash01(bushes * 2) * 4;
-          putEnv(root, live, key, makeBush(THREE, bushes * 11), midX + nx * bOff * bSide, 0, midZ + nz * bOff * bSide, "bush");
+          var bOff = ROAD_HALF + TREE_FROM_EDGE_MIN + hash01(bushes * 2) * (TREE_FROM_EDGE_MAX - TREE_FROM_EDGE_MIN);
+          var bushAt = placeOffRoad(pts, midX, midZ, bSide, bOff);
+          bushAt = keepOffRoad(pts, bushAt.x, bushAt.z, Math.max(DECOR_CLEAR, bOff));
+          putEnv(root, live, key, makeBush(THREE, bushes * 11), bushAt.x, 0, bushAt.z, "bush");
         }
         bushes += 1;
       }
@@ -1884,16 +1986,11 @@
         key = "s:" + streams;
         if (near && !live[key]) {
           var sSide = streams % 2 ? 1 : -1;
-          var stream = makeStream(
-            THREE,
-            streams * 17,
-            midX + nx * 18 * sSide,
-            midZ + nz * 18 * sSide,
-            dz / len,
-            -dx / len
-          );
-          stream.userData.cullX = midX;
-          stream.userData.cullZ = midZ;
+          var streamAt = placeOffRoad(pts, midX, midZ, sSide, 18);
+          streamAt = keepOffRoad(pts, streamAt.x, streamAt.z, DECOR_CLEAR + 8);
+          var stream = makeStream(THREE, streams * 17, streamAt.x, streamAt.z, streamAt.hx, streamAt.hz);
+          stream.userData.cullX = streamAt.x;
+          stream.userData.cullZ = streamAt.z;
           stream.userData.envKey = key;
           stream.userData.envKind = "stream";
           live[key] = stream;
@@ -1915,8 +2012,11 @@
         if (((gx + di + gz + dj) & 1) === 0) {
           key = "h:" + (gx + di) + ":" + (gz + dj);
           if (!live[key]) {
-            var hill = makeClayHill(THREE, (gx + di) * 21 + (gz + dj) * 9);
-            putEnv(root, live, key, hill, cx, hill.position.y, cz, "hill");
+            var hillHit = nearestOnPathPts(pts, cx, cz);
+            if (hillHit.dist >= ROAD_HALF + 16) {
+              var hill = makeClayHill(THREE, (gx + di) * 21 + (gz + dj) * 9);
+              putEnv(root, live, key, hill, cx, hill.position.y, cz, "hill");
+            }
           }
         }
         key = "c:" + (gx + di) + ":" + (gz + dj);
@@ -2119,7 +2219,7 @@
 
   function addClayRouteMeshes(THREE, root, coords, origin, host) {
     if (!root || !coords || coords.length < 2 || !origin) return;
-    var road = ribbonGeometry(THREE, coords, origin, 13.6, ROAD_Y);
+    var road = ribbonGeometry(THREE, coords, origin, ROAD_WIDTH, ROAD_Y);
     if (road) {
       var mat = clayRoadMat(THREE);
       rememberRoadMat(host, mat);
@@ -2298,7 +2398,7 @@
     }
     if (pts.length < 2) return null;
     var pos = [];
-    var off = 1.72 * side;
+    var off = (ROAD_HALF - 0.18) * side;
     for (i = 0; i < pts.length; i++) {
       var a = pts[Math.max(0, i - 1)];
       var b = pts[Math.min(pts.length - 1, i + 1)];
