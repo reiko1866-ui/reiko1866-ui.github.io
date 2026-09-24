@@ -134,7 +134,7 @@
         <li>A kereső házszámot is talál: írd be az utcát és a számot, pl. Kossuth utca 12, Budapest. A találatra koppintva a piros tű a házhoz megy — húzd a pontos bejárathoz, vagy koppints a térképen a házszámra, aztán Útvonal innét.</li>
         <li>A térképet húzhatod, nagyíthatod. Ekkor a követés kikapcsol; a térkép gomb visszateszi. A kereső címlistája: név felül, város/házszám alatta — koppints a találatra.</li>
         <li>Telepíthető a fejegységre, mint app (PWA). Az első betöltés letölti a térképet, a 3D autókat és a stílust — utána offline is nyílik.</li>
-        <li>Hangok: a menüben minden hangfájlnál megadhatod, merre szóljon (balra, jobbra, …). A Teszt onnan játssza. Amit nem állítasz, az néma marad.</li>
+        <li>Hangok: a fájlnevek (left, right, straight, keep, roundabout, u_turn) automatikusan kategóriába kerülnek. Egy kanyarnál a kategória összes klipje közül véletlenül szólal meg egy. A menüben a Hangok panelen ezt felülírhatod, a Teszt onnan játssza.</li>
         <li>ToonNavi 3D: mesebeli erdő az autó körül 300 méteren. A 2D térkép pasztell, a cél 3D tű. Az út zöld/sárga/piros a forgalomtól, NPC autók jönnek szembe és dugóban lassítanak. Az időjárás a 3D eget is állítja. Kamera: külső/belső.</li>
         <li>Az autó mindig az útvonal közepére tapad (snap-to-road), még ha a GPS 20–30 métert téved is. 5 km/h alatt az orr az út irányába néz. A Teszt 50 gomb szobában, 50 km/h-val viszi végig a megtervezett utat.</li>
         <li>Kaland mód: OSRM alternatives, a kanyargósabb út, arany neon, autópálya nélkül.</li>
@@ -213,7 +213,7 @@
       <p class="hint">A pipák megmaradnak. Ha van cél, az útvonal azonnal újraterveződik autópálya / fizető nélkül. A telefon vissza gombja a menüt zárja, nem az appot.</p>
       <label class="check"><input type="checkbox" id="dark" checked> Sötét térkép</label>
       <label class="check"><input type="checkbox" id="kalandCheck"> Kaland mód</label>
-      <p class="hint">Kaland: autópálya nélkül, a kanyargósabb OSRM-út, arany vonal. Hang csak akkor szól, ha a Hangok panelen a fájlhoz irányt adtál.</p>
+      <p class="hint">Kaland: autópálya nélkül, a kanyargósabb OSRM-út, arany vonal. A hangok a fájlnév alapján automatikusan kategóriába kerülnek, a Hangok panelen ezt felülírhatod.</p>
       <div class="row">
         <button type="button" id="mapperBtn">Hangok irányai</button>
       </div>
