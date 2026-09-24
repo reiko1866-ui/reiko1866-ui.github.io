@@ -3869,6 +3869,25 @@
     return null;
   };
 
+  api.sceneHealth = function () {
+    var origin = lastWorld.origin || overlay.worldOrigin;
+    var here = carLocal(origin);
+    var pts = lastWorld.roadPts || [];
+    var near = nearestOnPathPts(pts, here.x, here.z);
+    var wr = overlay.worldRoot;
+    return {
+      origin: origin,
+      pose: { lng: pose.lng, lat: pose.lat, heading: pose.heading },
+      shown: { lng: shown.lng, lat: shown.lat, heading: shown.heading },
+      carLocal: here,
+      roadOff: near && Number.isFinite(near.dist) ? Math.round(near.dist * 10) / 10 : null,
+      world: wr ? { x: Math.round(wr.position.x * 10) / 10, z: Math.round(wr.position.z * 10) / 10 } : null,
+      chunks: overlay.roadLive ? Object.keys(overlay.roadLive).length : 0,
+      ahead: ROAD_AHEAD,
+      behind: ROAD_BEHIND
+    };
+  };
+
   api.invalidateWorld = function () {
     lastWorld.origin = null;
     lastWorld.roadPts = null;
