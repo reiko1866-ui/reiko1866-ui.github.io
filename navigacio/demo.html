@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="hu">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#0F172A">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Nav demó">
+  <title>Navigáció demó</title>
+  <link rel="manifest" href="./manifest-demo.webmanifest">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <link rel="icon" href="./icons/icon-192.png" type="image/png">
+  <link rel="apple-touch-icon" href="./icons/apple-touch-icon.png">
+  <style>
+    html, body { margin: 0; background: #0f172a; color: #e2e8f0; font-family: system-ui, sans-serif; }
+    body {
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      box-sizing: border-box;
+      padding: 24px 20px 32px;
+    }
+    main { width: 100%; max-width: 28rem; margin: 0 auto; }
+    h1 { font-size: 1.85rem; line-height: 1.15; margin: 0 0 0.4rem; }
+    p { margin: 0 0 1.1rem; color: #cbd5e1; font-size: 1.05rem; line-height: 1.4; }
+    .btn {
+      display: block;
+      width: 100%;
+      box-sizing: border-box;
+      margin: 0 0 0.7rem;
+      padding: 1rem 1.1rem;
+      border: 0;
+      border-radius: 16px;
+      font: inherit;
+      font-size: 1.2rem;
+      font-weight: 700;
+      text-align: center;
+      text-decoration: none;
+      color: #0f172a;
+      background: #38bdf8;
+    }
+    .btn.secondary { background: #1e293b; color: #e2e8f0; box-shadow: inset 0 0 0 2px #334155; }
+    .hint { font-size: 0.95rem; color: #94a3b8; margin-top: 0.6rem; }
+    ol { margin: 0; padding-left: 1.2rem; color: #cbd5e1; }
+    li { margin: 0.35rem 0; }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Navigáció demó</h1>
+    <p>3D éjszakai vezetés, GPS nélkül. Telefonra és a K706 fejegységre is feltehető, mint app. Az első betöltés után offline is nyílik.</p>
+    <a class="btn" href="./index.html?demo=1">Indítsd a 3D demót</a>
+    <button type="button" class="btn secondary" id="installBtn">Telepítés a telefonra / fejegységre</button>
+    <p class="hint" id="installHint">Chrome menü: <strong>Telepítés</strong> vagy <strong>Hozzáadás a kezdőképernyőhöz</strong>. Utána a Nav demó ikonnal nyílik, mint egy letöltött alkalmazás.</p>
+    <ol>
+      <li>Nyisd Chrome-ból, ne a gyári böngészőből.</li>
+      <li>Telepítsd a fenti gombbal.</li>
+      <li>A K706-on az ikon a kezdőképernyőre kerül — nem kell APK.</li>
+    </ol>
+  </main>
+  <script src="./sw-register.js?v=113"></script>
+  <script>
+    var deferred = null;
+    var btn = document.getElementById("installBtn");
+    var hint = document.getElementById("installHint");
+    function standalone() {
+      return window.matchMedia("(display-mode: standalone)").matches || window.navigator.standalone === true;
+    }
+    window.addEventListener("beforeinstallprompt", function (ev) {
+      ev.preventDefault();
+      deferred = ev;
+      if (btn) btn.hidden = false;
+    });
+    if (btn) {
+      btn.addEventListener("click", function () {
+        if (deferred) {
+          deferred.prompt();
+          deferred.userChoice.finally(function () { deferred = null; });
+          return;
+        }
+        if (standalone()) {
+          location.href = "./index.html?demo=1";
+          return;
+        }
+        if (hint) hint.textContent = "Chrome jobb felső menü → Telepítés alkalmazásként, vagy Hozzáadás a kezdőképernyőhöz.";
+      });
+      if (standalone()) {
+        btn.textContent = "Nyisd a telepített demót";
+      }
+    }
+  </script>
+</body>
+</html>

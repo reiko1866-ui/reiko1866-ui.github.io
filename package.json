@@ -1,0 +1,7 @@
+{
+  "name": "divian2026",
+  "private": true,
+  "scripts": {
+    "build": "node -e \"console.log('static pages — no compile')\""
+  }
+}

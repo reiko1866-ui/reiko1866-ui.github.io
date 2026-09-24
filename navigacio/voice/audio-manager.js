@@ -1,402 +1,736 @@
-/**
- * Hangnavigáció — a feltöltött csomag. Kanyarnál az utasítás. Soha nem két hang egyszerre.
- */
 (function (global) {
   "use strict";
 
-  const BRANCH = "cursor/terkep-navigacio-925b";
-  const REPO = "reiko1866-ui/reiko1866-ui.github.io";
-  const ENC = encodeURIComponent(BRANCH);
-  const OGG_CDN = "https://cdn.jsdelivr.net/gh/" + REPO + "@" + ENC + "/hungary_jf/";
-  const APP_CDN = "https://cdn.jsdelivr.net/gh/" + REPO + "@" + ENC + "/navigacio/";
-
-  const PHRASES = {
-    start: { cat: "start" },
-    finish: { cat: "arrive" },
-    recomputing: { cat: "recompute" },
-    "left-100": { cat: "left" },
-    "right-500": { cat: "right" },
-    "now-left": { cat: "left" },
-    "now-right": { cat: "right" },
-    "right-100": { cat: "right" },
-    "left-500": { cat: "left" },
-    "exit-left-100": { cat: "motorwayOff" },
-    "exit-right-100": { cat: "motorwayOff" },
-    straight: { cat: "straight" },
-    uTurn: { cat: "uturn" },
-    "keep-left": { cat: "leftKeep" },
-    "keep-right": { cat: "rightKeep" },
-    "sharp-left": { cat: "leftSharp" },
-    "sharp-right": { cat: "rightSharp" },
-    roundabout: { cat: "roundabout" },
-    "motorway-on": { cat: "motorwayOn" },
-    "motorway-off": { cat: "motorwayOff" },
-    ferry: { cat: "ferryOn" },
-    gps: { cat: "gps" },
-    speed: { cat: "speed" }
+  var MAP_KEY = "nav2_audio_map";
+  var LIST_KEY = "nav2_audio_selected";
+  var DIR_KEY = "nav2_audio_dirs";
+  var MUTE_KEY = "nav2_voice_mute";
+  var FILES_URL = "./voice/files.json?v=152";
+  var PACK_URL = "./voice/pack.json?v=152";
+  var CATALOG_URL = "./voice/catalog.json?v=152";
+  var CAT_ALIAS = {
+    start: "straight",
+    gps: "straight",
+    speed: "speed-warning",
+    recompute: "recalculating",
+    arrive: "arrived"
+  };
+  var EVENTS = [
+    { id: "turn-left", label: "Balra", pan: -0.9 },
+    { id: "turn-right", label: "Jobbra", pan: 0.9 },
+    { id: "turn-left-sharp", label: "Élesen balra", pan: -1 },
+    { id: "turn-right-sharp", label: "Élesen jobbra", pan: 1 },
+    { id: "keep-left", label: "Tarts balra", pan: -0.55 },
+    { id: "keep-right", label: "Tarts jobbra", pan: 0.55 },
+    { id: "straight", label: "Egyenesen / Tartsuk az irányt", pan: 0 },
+    { id: "uturn", label: "Megfordulás", pan: -0.7 },
+    { id: "roundabout", label: "Körforgalom", pan: 0 },
+    { id: "motorway-on", label: "Autópályára", pan: 0 },
+    { id: "motorway-off", label: "Lehajtó", pan: 0 },
+    { id: "recalculating", label: "Újratervezés", pan: 0 },
+    { id: "speed-warning", label: "Gyorshajtás", pan: 0 },
+    { id: "arrived", label: "Megérkeztél", pan: 0 }
+  ];
+  var EVENT_BY_ID = {};
+  EVENTS.forEach(function (ev) {
+    EVENT_BY_ID[ev.id] = ev;
+  });
+  var CAT_EVENT = {
+    left: "turn-left",
+    right: "turn-right",
+    leftSharp: "turn-left-sharp",
+    rightSharp: "turn-right-sharp",
+    leftKeep: "keep-left",
+    rightKeep: "keep-right",
+    straight: "straight",
+    uturn: "uturn",
+    roundabout: "roundabout",
+    motorwayOn: "motorway-on",
+    motorwayOff: "motorway-off",
+    arrive: "arrived"
+  };
+  var EVENT_FALLBACK = {
+    "keep-left": "turn-left",
+    "turn-left-sharp": "turn-left",
+    "keep-right": "turn-right",
+    "turn-right-sharp": "turn-right"
   };
 
-  const FALLBACK = {
-    leftSharp: ["left"],
-    leftKeep: ["left"],
-    rightSharp: ["right"],
-    rightKeep: ["right"],
-    motorwayOff: ["right"],
-    motorwayOn: ["straight"],
-    ferryOn: ["motorwayOn", "straight"],
-    ferryOff: ["motorwayOff", "right"],
-    roundabout: ["straight"],
-    uturn: ["left"],
-    start: [],
-    speed: []
-  };
+  var files = [];
+  var autoDirs = {};
+  var lastCatalog = null;
+  var ready = null;
+  var audio = null;
+  var unlocked = false;
+  var muted = false;
+  var uiBound = false;
+  var audioCtx = null;
+  var mediaSrc = null;
+  var panner = null;
+  var filterTimer = 0;
+  var lastUrl = "";
+  var playing = false;
 
-  function unique(list) {
-    const out = [];
-    list.forEach((x) => {
-      if (x && out.indexOf(x) === -1) out.push(x);
+  function on(el, type, fn, opts) {
+    try {
+      if (typeof el === "string") el = document.getElementById(el);
+      if (!el || typeof el.addEventListener !== "function") return false;
+      el.addEventListener(type, fn, opts);
+      return true;
+    } catch (_e) {
+      return false;
+    }
+  }
+
+  function clipStem(path) {
+    return fileLabel(path).replace(/\.(mp3|ogg|wav|m4a)$/i, "");
+  }
+
+  function clipUrl(raw) {
+    var s = String(raw || "").trim();
+    if (!s) return "";
+    if (/^https?:/i.test(s)) return s;
+    if (/hungary_jf\//i.test(s)) {
+      return s.replace(/^\.\//, "");
+    }
+    var name = s.replace(/^.*\//, "").replace(/\.ogg$/i, ".mp3");
+    if (s.indexOf("voice/clips") >= 0) {
+      return "./voice/clips/" + name;
+    }
+    if (s.indexOf("/") === -1) s = "./voice/clips/" + name;
+    else if (s.indexOf("./") !== 0 && s.indexOf("/") !== 0) s = "./voice/clips/" + name;
+    else s = s.replace(/\.ogg$/i, ".mp3");
+    return s;
+  }
+
+  function clipFallbackUrl(path) {
+    var stem = clipStem(path);
+    if (!stem) return "";
+    return "../hungary_jf/" + stem + ".ogg";
+  }
+
+  function fileLabel(path) {
+    var s = clipUrl(path);
+    var i = s.lastIndexOf("/");
+    return i >= 0 ? s.slice(i + 1) : s;
+  }
+
+  function fileStem(path) {
+    return fileLabel(path)
+      .toLowerCase()
+      .replace(/\.(mp3|ogg|wav|m4a)$/i, "")
+      .replace(/[^a-z0-9]+/g, "_")
+      .replace(/^_+|_+$/g, "");
+  }
+
+  function isEventId(id) {
+    return !!(id && EVENT_BY_ID[id]);
+  }
+
+  function looksLikeFileKey(key) {
+    var s = String(key || "");
+    return /\.mp3($|\?)/i.test(s) || s.indexOf("voice/") >= 0 || s.indexOf("/") >= 0;
+  }
+
+  function hasToken(stem, tokens) {
+    var n = "_" + stem + "_";
+    for (var i = 0; i < tokens.length; i++) {
+      if (n.indexOf("_" + tokens[i] + "_") >= 0) return true;
+    }
+    return false;
+  }
+
+  function guessEvent(path) {
+    var n = fileStem(path);
+    if (!n) return "";
+    if (hasToken(n, ["u_turn", "uturn", "u_turn_left", "u_turn_right"])) return "uturn";
+    if (hasToken(n, ["roundabout", "round_about", "rotary"])) return "roundabout";
+    if (hasToken(n, ["recalculating", "recalculate", "reroute", "recompute", "new_route"])) return "recalculating";
+    if (hasToken(n, ["arrived", "arrive", "destination", "you_have_arrived"])) return "arrived";
+    if (hasToken(n, ["speed_warning", "speeding", "speed_camera", "speed"])) return "speed-warning";
+    if (hasToken(n, ["motorway_off", "off_ramp", "exit_motorway", "leave_motorway"])) return "motorway-off";
+    if (hasToken(n, ["motorway_on", "on_ramp", "enter_motorway"])) return "motorway-on";
+    var left = hasToken(n, ["left", "exit_left", "turn_left"]);
+    var right = hasToken(n, ["right", "exit_right", "turn_right"]);
+    var sharp = hasToken(n, ["sharp", "sharply"]);
+    var keep = hasToken(n, ["keep"]);
+    if (sharp && left && !right) return "turn-left-sharp";
+    if (sharp && right) return "turn-right-sharp";
+    if (keep && left && !right) return "keep-left";
+    if (keep && right) return "keep-right";
+    if (left && !right) return "turn-left";
+    if (right) return "turn-right";
+    if (hasToken(n, ["straight", "continue", "keep", "keep_going"])) return "straight";
+    return "";
+  }
+
+  function rebuildAuto() {
+    autoDirs = {};
+    files.forEach(function (url) {
+      var ev = guessEvent(url);
+      if (ev) autoDirs[url] = ev;
+    });
+    return autoDirs;
+  }
+
+  function refreshDirs() {
+    rebuildAuto();
+    applyCatalog(lastCatalog);
+    return autoDirs;
+  }
+
+  function applyCatalog(cat) {
+    if (cat) lastCatalog = cat;
+    var groups = (lastCatalog && lastCatalog.files) ? lastCatalog.files : {};
+    Object.keys(groups).forEach(function (catName) {
+      var ev = CAT_EVENT[catName] || CAT_ALIAS[catName] || "";
+      if (!isEventId(ev)) return;
+      (groups[catName] || []).forEach(function (name) {
+        var u = clipUrl(name);
+        if (u) autoDirs[u] = ev;
+      });
+    });
+    return autoDirs;
+  }
+
+  function applyAutoMap() {
+    refreshDirs();
+    var man = readDirs();
+    var merged = {};
+    Object.keys(autoDirs).forEach(function (url) {
+      merged[url] = autoDirs[url];
+    });
+    Object.keys(man).forEach(function (url) {
+      merged[url] = man[url];
+    });
+    return writeDirs(merged);
+  }
+
+  function readRaw(key) {
+    try {
+      var val = JSON.parse(localStorage.getItem(key) || "{}");
+      if (val && typeof val === "object" && !Array.isArray(val)) return val;
+    } catch (_e) {}
+    return {};
+  }
+
+  function migrateOldMap(old) {
+    var dirs = {};
+    Object.keys(old || {}).forEach(function (k) {
+      if (looksLikeFileKey(k) && isEventId(old[k])) {
+        dirs[clipUrl(k)] = old[k];
+        return;
+      }
+      if (isEventId(k)) {
+        var u = clipUrl(old[k]);
+        if (u) dirs[u] = k;
+      }
+    });
+    return dirs;
+  }
+
+  function readDirs() {
+    var dirs = migrateOldMap(readRaw(DIR_KEY));
+    if (Object.keys(dirs).length) return dirs;
+    return migrateOldMap(readRaw(MAP_KEY));
+  }
+
+  function resolvedDirs() {
+    var out = {};
+    Object.keys(autoDirs).forEach(function (url) {
+      out[url] = autoDirs[url];
+    });
+    var man = readDirs();
+    Object.keys(man).forEach(function (url) {
+      out[url] = man[url];
     });
     return out;
   }
 
-  function rel(path) {
-    try {
-      return new URL(path, document.baseURI).href;
-    } catch (_e) {
-      return path;
+  function filesForEvent(id, seen) {
+    if (!isEventId(id)) return [];
+    seen = seen || {};
+    if (seen[id]) return [];
+    seen[id] = true;
+    var dirs = resolvedDirs();
+    var out = [];
+    Object.keys(dirs).forEach(function (url) {
+      if (dirs[url] === id) out.push(url);
+    });
+    if (!out.length && EVENT_FALLBACK[id]) {
+      return filesForEvent(EVENT_FALLBACK[id], seen);
     }
+    out.sort(function (a, b) {
+      return fileLabel(a).localeCompare(fileLabel(b), "hu");
+    });
+    return out;
   }
 
-  function hushSpeech() {
+  function writeDirs(dirs) {
+    var clean = {};
+    var eventMap = {};
+    var urls = [];
+    Object.keys(dirs || {}).forEach(function (raw) {
+      var u = clipUrl(raw);
+      var ev = dirs[raw];
+      if (!u || !isEventId(ev)) return;
+      clean[u] = ev;
+      urls.push(u);
+      if (!eventMap[ev]) eventMap[ev] = u;
+    });
     try {
-      if (global.speechSynthesis) global.speechSynthesis.cancel();
+      localStorage.setItem(DIR_KEY, JSON.stringify(clean));
+      localStorage.setItem(MAP_KEY, JSON.stringify(eventMap));
+      localStorage.setItem(LIST_KEY, JSON.stringify(urls));
+    } catch (_e) {}
+    if (global.NavSw && typeof global.NavSw.cacheSounds === "function") {
+      global.NavSw.cacheSounds();
+    }
+    return clean;
+  }
+
+  function setFileDir(url, eventId) {
+    var dirs = readDirs();
+    url = clipUrl(url);
+    if (!url) return dirs;
+    var auto = autoDirs[url] || "";
+    if (isEventId(eventId)) {
+      if (eventId === auto) delete dirs[url];
+      else dirs[url] = eventId;
+    } else {
+      delete dirs[url];
+    }
+    return writeDirs(dirs);
+  }
+
+  function panFor(eventId) {
+    var ev = EVENT_BY_ID[eventId];
+    return ev ? ev.pan : 0;
+  }
+
+  function ensureAudio() {
+    if (audio) return audio;
+    audio = document.createElement("audio");
+    audio.setAttribute("playsinline", "");
+    audio.setAttribute("preload", "auto");
+    audio.style.display = "none";
+    document.body.appendChild(audio);
+    on(audio, "playing", function () {
+      playing = true;
+    });
+    on(audio, "ended", function () {
+      playing = false;
+    });
+    on(audio, "pause", function () {
+      if (!audio || audio.ended || audio.paused) playing = false;
+    });
+    on(audio, "error", function () {
+      var cur = audio.getAttribute("src") || "";
+      var alt = clipFallbackUrl(cur);
+      if (alt && cur && !/hungary_jf\//i.test(cur)) {
+        startElement(audio, alt, "");
+        return;
+      }
+      playing = false;
+    });
+    return audio;
+  }
+
+  function ensureGraph() {
+    var AC = global.AudioContext || global.webkitAudioContext;
+    if (!AC) return null;
+    if (!audioCtx) audioCtx = new AC();
+    var el = ensureAudio();
+    if (!mediaSrc) {
+      mediaSrc = audioCtx.createMediaElementSource(el);
+      if (audioCtx.createStereoPanner) {
+        panner = audioCtx.createStereoPanner();
+        mediaSrc.connect(panner);
+        panner.connect(audioCtx.destination);
+      } else {
+        mediaSrc.connect(audioCtx.destination);
+      }
+    }
+    return audioCtx;
+  }
+
+  function applyPan(eventId) {
+    if (!panner) return;
+    try {
+      panner.pan.value = panFor(eventId);
     } catch (_e) {}
   }
 
-  function isAbort(err) {
-    const name = err && err.name;
-    return name === "AbortError" || name === "NotAllowedError";
+  function isBusy() {
+    if (!audio) return false;
+    if (audio.ended) return false;
+    if (audio.paused) return false;
+    return !!(audio.src && !audio.paused && !audio.ended);
   }
 
-  class AudioManager {
-    /**
-     * @param {{ onLog?: (msg: string, err?: boolean) => void }} [opts]
-     */
-    constructor(opts) {
-      this.onLog = (opts && opts.onLog) || function () {};
-      this.started = false;
-      /** @type {Record<string, string[]>} */
-      this.catalog = {};
-      this.lastName = "";
-      this.playId = 0;
-      /** @type {Record<string, { name: string, href: string }>} */
-      this.warm = {};
-      this.player = document.getElementById("navVoiceEl") || new Audio();
-      this.player.setAttribute("playsinline", "true");
-      this.player.setAttribute("webkit-playsinline", "true");
-      this.player.preload = "auto";
-      this.player.muted = false;
-      this.player.volume = 1;
-      this.player.addEventListener("playing", () => {
-        this.player.muted = false;
-        this.player.volume = 1;
-        this.log("Szól: " + (this.player.src || "").split("/").pop());
-      });
-      this.player.addEventListener("ended", () => {
-        this.log("Kész.");
-        if (this.queueOn) this.playNextJoke();
-        else if (this.onJoke) this.onJoke("", 0, 0);
-      });
-      this.queue = [];
-      this.queueOn = false;
-      this.onJoke = null;
-      this.jokeTotal = 0;
-    }
-
-    log(msg, err) {
-      this.onLog(msg, !!err);
-      if (err) console.warn("[NavVoice]", msg);
-    }
-
-    setBase() {}
-
-    filesFor(cat) {
-      const list = this.catalog[cat];
-      return list && list.length ? list : [];
-    }
-
-    pickName(cat) {
-      const matches = this.filesFor(cat);
-      if (!matches.length) return "";
-      if (matches.length === 1) return matches[0];
-      let name = matches[Math.floor(Math.random() * matches.length)];
-      if (name === this.lastName && matches.length > 1) {
-        name = matches[(matches.indexOf(name) + 1) % matches.length];
-      }
-      this.lastName = name;
-      return name;
-    }
-
-    hrefsForName(oggName) {
-      if (!oggName) return [];
-      const mp3Name = oggName.replace(/\.ogg$/i, ".mp3");
-      return unique([
-        rel("./voice/clips/" + mp3Name),
-        "/navigacio/voice/clips/" + mp3Name,
-        APP_CDN + "voice/clips/" + mp3Name,
-        OGG_CDN + oggName,
-        rel("../hungary_jf/" + oggName),
-        "/hungary_jf/" + oggName
-      ]);
-    }
-
-    playNow(hrefs) {
-      hushSpeech();
-      const urls = (hrefs || []).filter(Boolean);
-      if (!urls.length) {
-        this.log("Nincs fájl ehhez a hanghoz.", true);
-        return false;
-      }
-      const id = ++this.playId;
-      const tryAt = (i) => {
-        if (id !== this.playId) return;
-        if (i >= urls.length) {
-          this.log("A feltöltött hang nem játszható.", true);
-          return;
-        }
-        const href = urls[i];
-        const onErr = (ev) => {
-          this.player.removeEventListener("error", onErr);
-          if (id !== this.playId) return;
-          const aborted = ev && ev.type === "abort";
-          if (aborted) return;
-          this.log("Próbálom a következő fájlt…");
-          tryAt(i + 1);
-        };
-        try {
-          this.player.muted = false;
-          this.player.volume = 1;
-          this.player.pause();
-          this.player.removeEventListener("error", onErr);
-          this.player.addEventListener("error", onErr, { once: true });
-          this.player.src = href;
-          const p = this.player.play();
-          this.log("Lejátszás: " + decodeURIComponent(href.split("/").pop() || href));
-          if (p && p.catch) {
-            p.catch((err) => {
-              if (id !== this.playId || isAbort(err)) return;
-              onErr();
-            });
-          }
-        } catch (_e) {
-          tryAt(i + 1);
-        }
-      };
-      tryAt(0);
-      return true;
-    }
-
-    warmCat(cat) {
-      if (!cat || this.warm[cat]) return;
-      const name = this.pickName(cat);
-      if (!name) return;
-      const href = this.hrefsForName(name)[0];
-      if (!href) return;
-      try {
-        const pre = new Audio();
-        pre.preload = "auto";
-        pre.src = href;
-      } catch (_e) {}
-      this.warm[cat] = { name, href };
-    }
-
-    playCat(cat) {
-      this.clearQueue();
-      hushSpeech();
-      if (!cat) return false;
-      const order = [cat].concat(FALLBACK[cat] || []);
-      for (let i = 0; i < order.length; i++) {
-        const key = order[i];
-        const held = this.warm[key];
-        const name = held && held.name ? held.name : this.pickName(key);
-        if (held) delete this.warm[key];
-        if (!name) continue;
-        return this.playNow(this.hrefsForName(name));
-      }
-      this.log("Nincs feltöltött hang: " + cat, true);
-      return false;
-    }
-
-    announce(cat) {
-      return this.playCat(cat);
-    }
-
-    unlock() {
-      hushSpeech();
-      const href = rel("./voice/clips/left.mp3");
-      const id = this.playId;
-      this.player.muted = true;
-      this.player.volume = 0;
-      try {
-        this.player.src = href;
-        const p = this.player.play();
-        const done = () => {
-          if (this.playId !== id) return;
-          try {
-            this.player.pause();
-            this.player.currentTime = 0;
-          } catch (_e) {}
-          this.player.muted = false;
-          this.player.volume = 1;
-        };
-        if (p && p.then) p.then(done).catch(done);
-        else done();
-      } catch (_e) {
-        this.player.muted = false;
-        this.player.volume = 1;
-      }
-    }
-
-    start() {
-      hushSpeech();
-      if (this.started) return true;
-      this.started = true;
-      this.unlock();
-      this.findSounds().then(() => {
-        this.log("Hang kész. Kanyarnál a csomag szól.");
-      });
-      return true;
-    }
-
-    playPhrase(key) {
-      const phrase = PHRASES[key];
-      if (!phrase) {
-        this.log("Nincs ilyen utasítás: " + key, true);
-        return;
-      }
-      if (!phrase.cat) {
-        this.start();
-        return;
-      }
-      this.started = true;
-      this.playCat(phrase.cat);
-    }
-
-    announceTurn(copy) {
-      return this.playCat(copy && copy.cat);
-    }
-
-    clearQueue() {
-      this.queueOn = false;
-      this.queue = [];
-    }
-
-    playJokes(names, startAt) {
-      const list = (names || []).slice();
-      if (!list.length) {
-        this.log("Nincs poén a csomagban.", true);
-        return false;
-      }
-      const i = Math.max(0, Math.min(list.length - 1, startAt || 0));
-      this.queue = list.slice(i);
-      this.queueOn = true;
-      this.jokeTotal = list.length;
-      this.started = true;
-      return this.playNextJoke();
-    }
-
-    playNextJoke() {
-      if (!this.queueOn) return false;
-      if (!this.queue.length) {
-        this.queueOn = false;
-        if (this.onJoke) this.onJoke("", 0, this.jokeTotal);
-        this.log("Poénok vége.");
-        return false;
-      }
-      const name = this.queue.shift();
-      const played = this.jokeTotal - this.queue.length;
-      if (this.onJoke) this.onJoke(name, played, this.jokeTotal);
-      return this.playNow(this.hrefsForName(name));
-    }
-
-    skipJoke() {
-      if (this.queueOn) return this.playNextJoke();
-      const extra = this.filesFor("start");
-      if (!extra.length) return false;
-      this.started = true;
-      const name = this.pickName("start");
-      if (this.onJoke) this.onJoke(name, 1, extra.length);
-      return this.playNow(this.hrefsForName(name));
-    }
-
-    stop() {
-      this.clearQueue();
-      this.playId += 1;
-      hushSpeech();
-      try {
-        this.player.pause();
-      } catch (_e) {}
-      if (this.onJoke) this.onJoke("", 0, 0);
-    }
-
-    hasPack() {
-      return this.filesFor("left").length > 0 || this.filesFor("right").length > 0;
-    }
-
-    isBusy() {
-      try {
-        if (this.player && !this.player.paused && !this.player.ended) return true;
-      } catch (_e) {}
-      try {
-        if (global.speechSynthesis && global.speechSynthesis.speaking) return true;
-      } catch (_e2) {}
-      return false;
-    }
-
-    async findSounds() {
-      this.log("Hangok betöltése…");
-      const urls = unique([rel("./voice/catalog.json"), APP_CDN + "voice/catalog.json"]);
-      for (let i = 0; i < urls.length; i++) {
-        try {
-          const res = await fetch(urls[i], { cache: "no-store" });
-          if (!res.ok) continue;
-          const data = await res.json();
-          const files = data && data.files ? data.files : data;
-          if (!files || !files.left) continue;
-          this.catalog = files;
-          const n =
-            (files.left || []).length +
-            (files.right || []).length +
-            (files.roundabout || []).length +
-            (files.straight || []).length +
-            (files.start || []).length;
-          this.log(
-            "Kész, " +
-              n +
-              "+ klip. Kanyarnál a csomag. Egyszerre egy hang."
-          );
-          return files;
-        } catch (_e) {}
-      }
-      this.log("A hanglista nem töltődött.", true);
+  function resumeContext() {
+    try {
+      var ctx = ensureGraph();
+      if (ctx && ctx.state === "suspended" && ctx.resume) ctx.resume();
+      return ctx;
+    } catch (_e) {
       return null;
     }
   }
 
-  const api = {
-    PHRASES,
-    AudioManager,
-    /** @type {AudioManager|null} */
-    instance: null,
-    init(opts) {
-      api.instance = new AudioManager(opts);
-      hushSpeech();
-      return api.instance.findSounds().then(() => api.instance);
-    },
-    playCat(cat) {
-      return api.instance ? api.instance.playCat(cat) : false;
+  function readMuted() {
+    try {
+      return localStorage.getItem(MUTE_KEY) === "1";
+    } catch (_e) {
+      return false;
     }
-  };
+  }
 
-  global.NavVoice = api;
-})(window);
+  function isMuted() {
+    return !!muted;
+  }
+
+  function stopPlayback() {
+    playing = false;
+    if (!audio) return;
+    try { audio.pause(); } catch (_e) {}
+    try { audio.removeAttribute("src"); audio.load(); } catch (_e2) {}
+  }
+
+  function syncMuteUi() {
+    var btn = document.getElementById("muteBtn");
+    if (btn) {
+      btn.classList.toggle("is-on", muted);
+      btn.setAttribute("aria-pressed", muted ? "true" : "false");
+      btn.title = muted ? "Hangok némítva — koppints a bekapcsoláshoz" : "Hangok be — koppints a némításhoz";
+      var label = btn.querySelector("span");
+      if (label) label.textContent = muted ? "Néma" : "Hang";
+    }
+    var box = document.getElementById("muteVoice");
+    if (box && box.checked !== muted) box.checked = muted;
+    try {
+      document.documentElement.classList.toggle("is-voice-muted", muted);
+    } catch (_e) {}
+  }
+
+  function setMuted(on) {
+    muted = !!on;
+    try {
+      localStorage.setItem(MUTE_KEY, muted ? "1" : "0");
+    } catch (_e) {}
+    if (muted) stopPlayback();
+    else resumeContext();
+    syncMuteUi();
+    return muted;
+  }
+
+  function toggleMuted() {
+    return setMuted(!muted);
+  }
+
+  function unlock() {
+    unlocked = true;
+    resumeContext();
+  }
+
+  function pickRandom(list) {
+    if (!list || !list.length) return "";
+    if (list.length === 1) return list[0];
+    var pick = list[Math.floor(Math.random() * list.length)];
+    if (pick === lastUrl) {
+      pick = list[Math.floor(Math.random() * list.length)];
+    }
+    return pick;
+  }
+
+  function startElement(el, url, eventId) {
+    applyPan(eventId || resolvedDirs()[url] || "");
+    el.src = url;
+    lastUrl = url;
+    playing = true;
+    try { el.currentTime = 0; } catch (_e2) {}
+    var p = el.play();
+    if (p && p.catch) {
+      p.catch(function () {
+        resumeContext();
+        var again = el.play();
+        if (again && again.catch) {
+          again.catch(function () {
+            playing = false;
+          });
+        }
+      });
+    }
+  }
+
+  function playFile(path, eventId, force) {
+    if (isMuted()) return false;
+    var url = clipUrl(path);
+    if (!url) return false;
+    var el = ensureAudio();
+    if (!force && isBusy()) return false;
+    resumeContext();
+    if (force) {
+      try { el.pause(); } catch (_e) {}
+    }
+    startElement(el, url, eventId);
+    return true;
+  }
+
+  function playEvent(id, force) {
+    if (isMuted()) return false;
+    if (!isEventId(id)) return false;
+    if (!files.length) {
+      loadFiles().then(function () {
+        if (isMuted()) return;
+        if (force || !isBusy()) playEvent(id, force);
+      });
+      return true;
+    }
+    var list = filesForEvent(id);
+    if (!list.length && EVENT_FALLBACK[id]) list = filesForEvent(EVENT_FALLBACK[id]);
+    if (!list.length && (id === "straight" || force)) list = filesForEvent("turn-left");
+    if (!list.length && force && files.length) list = files.slice();
+    if (!list.length) return false;
+    return playFile(pickRandom(list), id, !!force);
+  }
+
+  function playCat(cat, force) {
+    var id = CAT_EVENT[cat];
+    return id ? playEvent(id, force) : false;
+  }
+
+  function loadFiles() {
+    if (ready && files.length) return ready;
+    ready = fetch(FILES_URL)
+      .then(function (res) { return res.ok ? res.json() : Promise.reject(); })
+      .catch(function () {
+        return fetch(PACK_URL).then(function (res) { return res.ok ? res.json() : []; });
+      })
+      .then(function (list) {
+        var seen = {};
+        files = [];
+        (Array.isArray(list) ? list : []).forEach(function (item) {
+          var u = clipUrl(item);
+          if (!u || seen[u]) return;
+          seen[u] = true;
+          files.push(u);
+        });
+        files.sort(function (a, b) {
+          return fileLabel(a).localeCompare(fileLabel(b), "hu");
+        });
+        return fetch(CATALOG_URL)
+          .then(function (res) { return res.ok ? res.json() : null; })
+          .catch(function () { return null; })
+          .then(function (cat) {
+            lastCatalog = cat;
+            applyAutoMap();
+            return files;
+          });
+      })
+      .catch(function () {
+        files = [];
+        autoDirs = {};
+        return files;
+      });
+    return ready;
+  }
+
+  function fillDirSelect(sel, current) {
+    sel.innerHTML = "";
+    var empty = document.createElement("option");
+    empty.value = "";
+    empty.textContent = "— nincs irány";
+    sel.appendChild(empty);
+    EVENTS.forEach(function (ev) {
+      var opt = document.createElement("option");
+      opt.value = ev.id;
+      opt.textContent = ev.label;
+      sel.appendChild(opt);
+    });
+    sel.value = isEventId(current) ? current : "";
+  }
+
+  function filterFiles(q) {
+    q = String(q || "").trim().toLowerCase();
+    var dirs = resolvedDirs();
+    var assigned = [];
+    var rest = [];
+    files.forEach(function (url) {
+      if (q && fileLabel(url).toLowerCase().indexOf(q) < 0 && url.toLowerCase().indexOf(q) < 0) return;
+      if (dirs[url]) assigned.push(url);
+      else rest.push(url);
+    });
+    return assigned.concat(rest);
+  }
+
+  function countByEvent() {
+    var dirs = resolvedDirs();
+    var counts = {};
+    Object.keys(dirs).forEach(function (url) {
+      var id = dirs[url];
+      counts[id] = (counts[id] || 0) + 1;
+    });
+    return counts;
+  }
+
+  function paintCount() {
+    var el = document.getElementById("mapperCount");
+    if (!el) return;
+    var counts = countByEvent();
+    var n = 0;
+    var bits = [];
+    EVENTS.forEach(function (ev) {
+      var c = counts[ev.id] || 0;
+      if (!c) return;
+      n += c;
+      bits.push(ev.label + " " + c);
+    });
+    el.textContent = n
+      ? n + " hang automatikusan besorolva · " + bits.join(" · ")
+      : "Még nincs irány — a fájlnevek alapján automatikusan soroljuk be.";
+  }
+
+  function renderPanel() {
+    var list = document.getElementById("mapperList");
+    var search = document.getElementById("mapperSearch");
+    if (!list) return;
+    if (files.length) refreshDirs();
+    list.innerHTML = "";
+    var dirs = resolvedDirs();
+    var q = search ? search.value : "";
+    var shown = filterFiles(q);
+    var cap = q ? 120 : 80;
+    var extra = shown.length - cap;
+    shown.slice(0, cap).forEach(function (url) {
+      var row = document.createElement("div");
+      row.className = "mapper-row";
+      var lab = document.createElement("label");
+      lab.className = "mapper-file";
+      lab.setAttribute("for", "mapDir-" + fileLabel(url));
+      var ev = dirs[url] || guessEvent(url) || "";
+      lab.textContent = fileLabel(url);
+      lab.title = url + (ev && EVENT_BY_ID[ev] ? " → " + EVENT_BY_ID[ev].label : "");
+      var sel = document.createElement("select");
+      sel.id = "mapDir-" + fileLabel(url);
+      sel.setAttribute("data-file", url);
+      fillDirSelect(sel, ev);
+      on(sel, "change", function () {
+        setFileDir(url, sel.value);
+        paintCount();
+      });
+      var btn = document.createElement("button");
+      btn.type = "button";
+      btn.textContent = "Teszt";
+      on(btn, "click", function () {
+        unlock();
+        if (isMuted()) return;
+        playFile(url, sel.value, true);
+      });
+      row.appendChild(lab);
+      row.appendChild(sel);
+      row.appendChild(btn);
+      list.appendChild(row);
+    });
+    if (extra > 0) {
+      var more = document.createElement("p");
+      more.className = "hint mapper-more";
+      more.textContent = "Még " + extra + " hang. Írd be a fájl nevét a keresőbe.";
+      list.appendChild(more);
+    }
+    paintCount();
+  }
+
+  function scheduleRender() {
+    if (filterTimer) clearTimeout(filterTimer);
+    filterTimer = setTimeout(function () {
+      filterTimer = 0;
+      renderPanel();
+    }, 80);
+  }
+
+  function openMapper() {
+    var modal = document.getElementById("audioMapper");
+    var overlay = document.getElementById("mapperOverlay");
+    if (!modal) return;
+    loadFiles().then(function () {
+      renderPanel();
+      if (overlay) overlay.classList.add("open");
+      modal.classList.add("open");
+      var search = document.getElementById("mapperSearch");
+      if (search) {
+        try { search.focus(); } catch (_e) {}
+      }
+    });
+  }
+
+  function closeMapper() {
+    var modal = document.getElementById("audioMapper");
+    var overlay = document.getElementById("mapperOverlay");
+    if (overlay) overlay.classList.remove("open");
+    if (modal) modal.classList.remove("open");
+  }
+
+  function bindUi() {
+    if (uiBound) return;
+    uiBound = true;
+    on("mapperBtn", "click", openMapper);
+    on("mapperClose", "click", closeMapper);
+    on("mapperOverlay", "click", closeMapper);
+    on("mapperSearch", "input", scheduleRender);
+    on("muteBtn", "click", function () {
+      toggleMuted();
+    });
+    on("muteVoice", "change", function () {
+      var box = document.getElementById("muteVoice");
+      setMuted(!!(box && box.checked));
+    });
+    on(document, "pointerdown", unlock);
+    on("go", "click", unlock);
+    on("simDriveBtn", "click", unlock);
+    on("pinAdjustGo", "click", unlock);
+    on("searchForm", "submit", unlock);
+  }
+
+  function boot() {
+    muted = readMuted();
+    bindUi();
+    syncMuteUi();
+    loadFiles();
+  }
+
+  if (document.readyState === "loading") on(document, "DOMContentLoaded", boot);
+  else boot();
+
+  global.NavVoice = {
+    events: EVENTS,
+    files: function () { return files.slice(); },
+    init: loadFiles,
+    unlock: unlock,
+    setMuted: setMuted,
+    toggleMuted: toggleMuted,
+    isMuted: isMuted,
+    guessEvent: guessEvent,
+    playCat: playCat,
+    playFile: playFile,
+    playEvent: playEvent,
+    playFromCat: playCat,
+    eventFromCat: function (cat) {
+      return CAT_EVENT[cat] || "";
+    },
+    open: openMapper,
+    close: closeMapper,
+    map: function () {
+      var dirs = resolvedDirs();
+      var eventMap = {};
+      Object.keys(dirs).forEach(function (url) {
+        var ev = dirs[url];
+        if (!eventMap[ev]) eventMap[ev] = url;
+      });
+      return eventMap;
+    },
+    dirs: resolvedDirs,
+    autoDirs: function () { return Object.assign({}, autoDirs); },
+    busy: isBusy
+  };
+})(typeof window !== "undefined" ? window : this);
