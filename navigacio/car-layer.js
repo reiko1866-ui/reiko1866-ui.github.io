@@ -5,14 +5,19 @@
   var LAYER_ID = "ego-car-3d";
   var TARGET_METERS = 7.2;
   var CHIBI_SCALE = 1;
-  var CAM_FAR = 340;
+  var CAM_FAR = 720;
   var CAM_FAR_OVERVIEW = 1400;
   var CAM_OVERVIEW_Y = 175;
-  var BUILD_RANGE = 300;
-  var ENV_RANGE = 300;
-  var ENV_KEEP = 360;
-  var BEHIND_KEEP = 50;
-  var ENV_STEP = 42;
+  var BUILD_RANGE = 500;
+  var ENV_RANGE = 500;
+  var ENV_KEEP = 580;
+  var BEHIND_KEEP = 80;
+  var ENV_STEP = 36;
+  var ROAD_AHEAD = 500;
+  var ROAD_BEHIND = 140;
+  var ROAD_CHUNK = 80;
+  var CAM_POS_TAU = 0.11;
+  var CAM_LOOK_TAU = 0.14;
   var BUILD_ZOOM_MIN = 15;
   var FOG_COLOR = 0xf3c4b0;
   var FOG_DENSITY = 0.0026;
@@ -1257,13 +1262,117 @@
 
   function slicePtsByDist(pts, t0, t1) {
     var out = [];
+    if (!pts || pts.length < 2) return out;
     var acc = 0;
     var i;
-    for (i = 0; i < pts.length; i++) {
-      if (i > 0) acc += Math.hypot(pts[i].x - pts[i - 1].x, pts[i].z - pts[i - 1].z);
-      if (acc >= t0 - 0.8 && acc <= t1 + 0.8) out.push(pts[i]);
+    if (t0 <= 0) out.push({ x: pts[0].x, z: pts[0].z });
+    for (i = 1; i < pts.length; i++) {
+      var dx = pts[i].x - pts[i - 1].x;
+      var dz = pts[i].z - pts[i - 1].z;
+      var len = Math.hypot(dx, dz) || 1;
+      var a = acc;
+      var b = acc + len;
+      if (t0 > a && t0 <= b) {
+        var u = (t0 - a) / len;
+        out.push({ x: pts[i - 1].x + dx * u, z: pts[i - 1].z + dz * u });
+      }
+      if (b > t0 + 0.05 && b < t1 - 0.05) out.push({ x: pts[i].x, z: pts[i].z });
+      if (t1 >= a && t1 <= b) {
+        var v = (t1 - a) / len;
+        out.push({ x: pts[i - 1].x + dx * v, z: pts[i - 1].z + dz * v });
+      }
+      acc = b;
+    }
+    if (t1 >= acc && pts.length) {
+      var last = pts[pts.length - 1];
+      if (!out.length || Math.hypot(out[out.length - 1].x - last.x, out[out.length - 1].z - last.z) > 0.2) {
+        out.push({ x: last.x, z: last.z });
+      }
     }
     return out;
+  }
+
+  function ensureRoadPts(origin) {
+    origin = origin || lastWorld.origin || defaultOrigin();
+    if (lastWorld.roadPts && lastWorld.roadPts.length >= 2) return lastWorld.roadPts;
+    var coords = lastWorld.coords;
+    if (coords && coords.length >= 2) {
+      lastWorld.roadPts = pathPoints(coords, origin);
+      return lastWorld.roadPts;
+    }
+    return [];
+  }
+
+  function addRibbonMesh(THREE, root, pts, width, y, lateral, mat) {
+    var geo = ribbonFromPts(THREE, pts, width, y, lateral);
+    if (!geo) return null;
+    var mesh = new THREE.Mesh(geo, mat);
+    mesh.frustumCulled = false;
+    mesh.renderOrder = y > ROAD_Y + 0.001 ? 3 : 1;
+    root.add(mesh);
+    return mesh;
+  }
+
+  function dropRoadChunk(host, key) {
+    if (!host || !host.roadLive) return;
+    var g = host.roadLive[key];
+    if (!g) return;
+    if (g.parent) g.parent.remove(g);
+    clearGroup(g);
+    delete host.roadLive[key];
+  }
+
+  function clearRoadWindow(host) {
+    if (!host) return;
+    if (host.roadLive) {
+      Object.keys(host.roadLive).forEach(function (k) {
+        dropRoadChunk(host, k);
+      });
+    }
+    host.roadLive = {};
+  }
+
+  function updateRoadWindow(host) {
+    if (!host || !host.routeRoot || !api.THREE) return;
+    var THREE = api.THREE;
+    var origin = lastWorld.origin || host.worldOrigin || defaultOrigin();
+    var pts = ensureRoadPts(origin);
+    if (!host.roadLive) host.roadLive = {};
+    var live = host.roadLive;
+    if (!pts || pts.length < 2) {
+      clearRoadWindow(host);
+      syncClayPadRoad(host, false);
+      return;
+    }
+    syncClayPadRoad(host, true);
+    var here = carLocal(origin);
+    var carT = traveledOnPts(pts, here.x, here.z);
+    var t0 = Math.max(0, carT - ROAD_BEHIND);
+    var t1 = carT + ROAD_AHEAD;
+    var i0 = Math.floor(t0 / ROAD_CHUNK);
+    var i1 = Math.floor(t1 / ROAD_CHUNK);
+    var needed = {};
+    var i;
+    for (i = i0; i <= i1; i++) {
+      var key = "c:" + i;
+      needed[key] = true;
+      if (live[key]) continue;
+      var slice = slicePtsByDist(pts, i * ROAD_CHUNK, (i + 1) * ROAD_CHUNK + 6);
+      if (!slice || slice.length < 2) continue;
+      var g = new THREE.Group();
+      g.frustumCulled = false;
+      g.userData.roadChunk = true;
+      var roadMat = clayRoadMat(THREE);
+      rememberRoadMat(host, roadMat);
+      addRibbonMesh(THREE, g, slice, ROAD_WIDTH, ROAD_Y, 0, roadMat);
+      addRibbonMesh(THREE, g, slice, ROUTE_WIDTH, ROUTE_Y, 0, clayRouteMat(THREE, trafficTone(trafficAt(i * ROAD_CHUNK + 40))));
+      addRibbonMesh(THREE, g, slice, LANE_MARK, LANE_MARK_Y, LANE_MARK_LATERAL, laneMarkMat(THREE));
+      host.routeRoot.add(g);
+      live[key] = g;
+    }
+    Object.keys(live).forEach(function (k) {
+      if (!needed[k]) dropRoadChunk(host, k);
+    });
   }
 
   function poseOnPts(pts, traveled) {
@@ -1734,7 +1843,7 @@
     var pad = new THREE.Group();
     pad.name = "clayPad";
     var ground = new THREE.Mesh(
-      new THREE.PlaneGeometry(1800, 1800, 1, 1),
+      new THREE.PlaneGeometry(4000, 4000, 1, 1),
       toonMaterial(THREE, { color: CLAY_GROUND, fog: true, side: THREE.DoubleSide })
     );
     ground.rotation.x = -Math.PI / 2;
@@ -2398,14 +2507,21 @@
     if (road) {
       var mat = clayRoadMat(THREE);
       rememberRoadMat(host, mat);
-      root.add(new THREE.Mesh(road, mat));
+      var roadMesh = new THREE.Mesh(road, mat);
+      roadMesh.frustumCulled = false;
+      root.add(roadMesh);
     }
     var pts = pathPoints(coords, origin);
     lastWorld.roadPts = pts;
     var traffic = lastWorld.traffic || [];
     if (!traffic.length) {
       var paint = ribbonFromPts(THREE, pts, ROUTE_WIDTH, ROUTE_Y, 0);
-      if (paint) root.add(new THREE.Mesh(paint, clayRouteMat(THREE)));
+      if (paint) {
+        var paintMesh = new THREE.Mesh(paint, clayRouteMat(THREE));
+        paintMesh.frustumCulled = false;
+        paintMesh.renderOrder = 3;
+        root.add(paintMesh);
+      }
     } else {
       var acc = 0;
       var i;
@@ -2427,7 +2543,10 @@
     }
     var center = ribbonFromPts(THREE, pts, LANE_MARK, LANE_MARK_Y, LANE_MARK_LATERAL);
     if (center) {
-      root.add(new THREE.Mesh(center, laneMarkMat(THREE)));
+      var centerMesh = new THREE.Mesh(center, laneMarkMat(THREE));
+      centerMesh.frustumCulled = false;
+      centerMesh.renderOrder = 4;
+      root.add(centerMesh);
     }
     var yel = edgeLine(THREE, coords, origin, -1, 0xf3efe4);
     var wht = edgeLine(THREE, coords, origin, 1, 0xf3efe4);
@@ -2959,7 +3078,11 @@
     },
     lastT: 0,
     headingLive: false,
-    tmp: null
+    tmp: null,
+    routeKey: "",
+    decorKey: "",
+    roadLive: {},
+    camSoft: { live: false }
   };
 
   function overlayTmp() {
@@ -3185,44 +3308,36 @@
     var origin = lastWorld.origin || defaultOrigin();
     lastWorld.origin = origin;
     var list = lastWorld.coords || [];
-    var key =
+    var routeKey =
       list.length +
       ":" +
-      (list[0] ? list[0][0].toFixed(3) + "," + list[0][1].toFixed(3) : "x") +
+      (list[0] ? list[0][0].toFixed(4) + "," + list[0][1].toFixed(4) : "x") +
       ":" +
-      (list[list.length - 1] ? list[list.length - 1][0].toFixed(3) + "," + list[list.length - 1][1].toFixed(3) : "y") +
-      ":" +
+      (list[list.length - 1] ? list[list.length - 1][0].toFixed(4) + "," + list[list.length - 1][1].toFixed(4) : "y");
+    var decorKey =
       (lastWorld.marks || []).length +
       ":" +
       (lastWorld.buildings || []).length +
       ":" +
       (lastWorld.roads || []).length;
-    if (key === overlayWorldKey && overlay.routeRoot && overlay.routeRoot.children.length) {
-      overlay.worldOrigin = origin;
-      maybeStreamEnv(overlay);
-      return;
-    }
-    overlayWorldKey = key;
-    var THREE = api.THREE;
     overlay.worldOrigin = origin;
-    overlay.asphaltMats = overlay.stripMat ? [overlay.stripMat] : [];
-    clearGroup(overlay.routeRoot);
+    if (routeKey !== overlay.routeKey) {
+      overlay.routeKey = routeKey;
+      lastWorld.roadPts = null;
+      clearRoadWindow(overlay);
+      if (overlay.npcRoot) {
+        overlay.npcAnchorX = null;
+        rebuildNpcs(overlay);
+      }
+    }
+    updateRoadWindow(overlay);
+    maybeStreamEnv(overlay);
+    if (decorKey === overlay.decorKey) return;
+    overlay.decorKey = decorKey;
+    overlayWorldKey = routeKey + ":" + decorKey;
+    var THREE = api.THREE;
     clearGroup(overlay.markRoot);
     clearGroup(overlay.buildRoot);
-    clearGroup(overlay.roadRoot);
-    clearGroup(overlay.envRoot);
-    overlay.envRoot.userData.live = {};
-    overlay.envAnchorX = null;
-    overlay.envAnchorZ = null;
-    if (list.length >= 2) {
-      addClayRouteMeshes(THREE, overlay.routeRoot, list, origin, overlay);
-    }
-    maybeStreamEnv(overlay);
-    if (overlay.npcRoot) {
-      overlay.npcAnchorX = null;
-      rebuildNpcs(overlay);
-    }
-    syncClayPadRoad(overlay, list.length >= 2);
     (lastWorld.marks || []).forEach(function (mark) {
       var g = makeMarker(THREE, mark);
       var p = enuOffset(origin, mark.lng, mark.lat);
@@ -3389,10 +3504,12 @@
     lockEgoToLane(overlay.carRoot, overlay.worldOrigin || lastWorld.origin, overlay.carSlot);
     if (overlay.carRoot && overlay.carRoot.userData.justSnapped) {
       overlay.camYaw = headingRad;
+      overlay.camSoft.live = false;
       overlay.carRoot.userData.justSnapped = false;
     }
     if (overlay.carSlot) overlay.carSlot.rotation.z = lerpNum(overlay.carSlot.rotation.z, leanRad, expK(dt, TURN_TAU));
     maybeStreamEnv(overlay);
+    updateRoadWindow(overlay);
     var face = headingEnu(vis.heading);
     var here = carLocal(overlay.worldOrigin || lastWorld.origin);
     cullBehind(overlay.envRoot, here.x, here.z, face.x, face.z);
@@ -3443,19 +3560,7 @@
     var tmp = overlayTmp();
     var camPos = tmp.camPos;
     var camLook = tmp.camLook;
-    var ck = expK(dt, CAM_TAU);
-    if (overlay.camYaw == null || !Number.isFinite(overlay.camYaw)) {
-      overlay.camYaw = overlay.carRoot.rotation.y;
-    } else {
-      overlay.camYaw = lerpRad(overlay.camYaw, overlay.carRoot.rotation.y, ck);
-    }
-    if (lift > 0.04) {
-      overlay.carRoot.getWorldPosition(tmp.carPos);
-      tmp.chasePos.set(tmp.carPos.x, lerpNum(CAM_HEIGHT, CAM_OVERVIEW_Y, lift), tmp.carPos.z);
-      tmp.chaseLook.set(tmp.carPos.x + face.x * lerpNum(18, 70, lift), 0.2, tmp.carPos.z + face.z * lerpNum(18, 70, lift));
-      camPos.copy(tmp.chasePos);
-      camLook.copy(tmp.chaseLook);
-    } else if (overlay.look.enabled && kmh < 1 && overlay.camBlend < 0.35) {
+    if (overlay.look.enabled && kmh < 1 && overlay.camBlend < 0.35 && lift < 0.5) {
       var yaw = overlay.look.yaw;
       var pitch = overlay.look.pitch;
       var dist = overlay.look.dist;
@@ -3468,16 +3573,36 @@
       );
       camPos.copy(tmp.camLocal);
       overlay.carRoot.localToWorld(camLook.set(0, 1.05, 0));
+      overlay.camSoft.live = false;
+    } else if (lift > 0.5) {
+      overlay.carRoot.getWorldPosition(tmp.carPos);
+      camPos.set(tmp.carPos.x, lerpNum(CAM_HEIGHT, CAM_OVERVIEW_Y, lift), tmp.carPos.z);
+      camLook.set(tmp.carPos.x + face.x * lerpNum(18, 70, lift), 0.2, tmp.carPos.z + face.z * lerpNum(18, 70, lift));
+      overlay.camSoft.live = false;
     } else {
       overlay.carRoot.localToWorld(tmp.chasePos.set(0, CAM_HEIGHT, -CAM_BACK));
-      overlay.carRoot.localToWorld(tmp.chaseLook.set(0, 0.55, CAM_LOOK));
+      overlay.carRoot.localToWorld(tmp.chaseLook.set(0, 0.7, CAM_LOOK));
       overlay.carRoot.localToWorld(tmp.dashPos.set(0, CAM_DASH_HEIGHT, CAM_DASH_FWD));
       overlay.carRoot.localToWorld(tmp.dashLook.set(0, 0.62, CAM_DASH_LOOK));
-      camPos.lerpVectors(tmp.chasePos, tmp.dashPos, overlay.camBlend);
-      camLook.lerpVectors(tmp.chaseLook, tmp.dashLook, overlay.camBlend);
+      tmp.chasePos.lerp(tmp.dashPos, overlay.camBlend);
+      tmp.chaseLook.lerp(tmp.dashLook, overlay.camBlend);
+      if (!overlay.camSoft.pos) {
+        overlay.camSoft.pos = tmp.camPos.clone();
+        overlay.camSoft.look = tmp.camLook.clone();
+      }
+      if (!overlay.camSoft.live) {
+        overlay.camSoft.pos.copy(tmp.chasePos);
+        overlay.camSoft.look.copy(tmp.chaseLook);
+        overlay.camSoft.live = true;
+      } else {
+        overlay.camSoft.pos.lerp(tmp.chasePos, expK(dt, CAM_POS_TAU));
+        overlay.camSoft.look.lerp(tmp.chaseLook, expK(dt, CAM_LOOK_TAU));
+      }
+      camPos.copy(overlay.camSoft.pos);
+      camLook.copy(overlay.camSoft.look);
     }
     if (overlay.clayPad) {
-      overlay.clayPad.position.x = 0;
+      overlay.clayPad.position.x = overlay.carRoot.position.x;
       overlay.clayPad.position.z = overlay.carRoot.position.z;
     }
     setExteriorVisible(overlay, overlay.camBlend < 0.55);
@@ -3522,6 +3647,10 @@
     overlay.clayPad = null;
     overlay.smoothCam = null;
     overlay.camYaw = null;
+    overlay.routeKey = "";
+    overlay.decorKey = "";
+    overlay.roadLive = {};
+    overlay.camSoft = { live: false };
     overlay.camBlend = overlay.cabin ? 1 : 0;
     overlay.lift = 0;
     overlay.overview = false;
