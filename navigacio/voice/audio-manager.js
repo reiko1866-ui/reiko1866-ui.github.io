@@ -195,15 +195,7 @@
 
   function applyAutoMap() {
     refreshDirs();
-    var man = readDirs();
-    var merged = {};
-    Object.keys(autoDirs).forEach(function (url) {
-      merged[url] = autoDirs[url];
-    });
-    Object.keys(man).forEach(function (url) {
-      merged[url] = man[url];
-    });
-    return writeDirs(merged);
+    return resolvedDirs();
   }
 
   function readRaw(key) {
@@ -489,8 +481,7 @@
     }
     var list = filesForEvent(id);
     if (!list.length && EVENT_FALLBACK[id]) list = filesForEvent(EVENT_FALLBACK[id]);
-    if (!list.length && (id === "straight" || force)) list = filesForEvent("turn-left");
-    if (!list.length && force && files.length) list = files.slice();
+    if (!list.length && id === "straight") list = filesForEvent("turn-left");
     if (!list.length) return false;
     return playFile(pickRandom(list), id, !!force);
   }
@@ -501,7 +492,7 @@
   }
 
   function loadFiles() {
-    if (ready && files.length) return ready;
+    if (ready) return ready;
     ready = fetch(FILES_URL)
       .then(function (res) { return res.ok ? res.json() : Promise.reject(); })
       .catch(function () {
