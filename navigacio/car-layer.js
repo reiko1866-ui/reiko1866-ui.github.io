@@ -34,18 +34,21 @@
   var CAM_DASH_HEIGHT = 1.18;
   var CAM_DASH_LOOK = 28;
   var ROAD_Y = 0.05;
-  var PAINT_Y = 0.1;
+  var ROUTE_Y = ROAD_Y + 0.05;
+  var PAINT_Y = ROUTE_Y;
   var ROAD_TEX_GAIN = 0.1;
   var ROAD_WIDTH = 7.2;
   var ROAD_HALF = ROAD_WIDTH * 0.5;
+  var ROUTE_WIDTH = Math.min(1.4, ROAD_WIDTH * 0.3);
   var DECOR_CLEAR = ROAD_HALF + 2.5;
   var LAMP_FROM_EDGE = 0.75;
   var TREE_FROM_EDGE_MIN = 3;
   var TREE_FROM_EDGE_MAX = 6;
   var LANE_SAME = 1.8;
   var LANE_ONCOMING = -1.8;
-  var LANE_MARK = 0.28;
-  var LANE_MARK_Y = 0.13;
+  var LANE_MARK = 0.22;
+  var LANE_MARK_Y = ROUTE_Y + 0.03;
+  var LANE_MARK_LATERAL = 0;
   var NPC_SPAWN_CLEAR = 20;
   var NPC_FOLLOW_GAP = 15;
   var THREE_LOCAL = "./vendor/three.min.js";
@@ -1176,7 +1179,7 @@
     return chaikinOnce(chaikinOnce(densifyEnu(pts, 3.2)));
   }
 
-  function ribbonFromPts(THREE, pts, width, y) {
+  function ribbonFromPts(THREE, pts, width, y, lateral) {
     var i;
     var elev = y == null ? 0.08 : y;
     if (!pts || pts.length < 2) return null;
@@ -1184,6 +1187,7 @@
     var uvs = [];
     var acc = 0;
     var hw = width / 2;
+    var lat = Number.isFinite(lateral) ? lateral : 0;
     for (i = 0; i < pts.length; i++) {
       var a = pts[Math.max(0, i - 1)];
       var b = pts[Math.min(pts.length - 1, i + 1)];
@@ -1191,11 +1195,11 @@
       var dz = b.z - a.z;
       var len = Math.hypot(dx, dz) || 1;
       if (i > 0) acc += Math.hypot(pts[i].x - pts[i - 1].x, pts[i].z - pts[i - 1].z);
-      var nx = (-dz / len) * hw;
-      var nz = (dx / len) * hw;
-      pos.push(pts[i].x + nx, elev, pts[i].z + nz);
-      pos.push(pts[i].x - nx, elev, pts[i].z - nz);
-      uvs.push(0, acc / 14, 1, acc / 14);
+      var rx = -dz / len;
+      var rz = dx / len;
+      pos.push(pts[i].x + rx * (lat + hw), elev, pts[i].z + rz * (lat + hw));
+      pos.push(pts[i].x + rx * (lat - hw), elev, pts[i].z + rz * (lat - hw));
+      uvs.push(0, acc / 4, 1, acc / 4);
     }
     var idx = [];
     for (i = 0; i < pts.length - 1; i++) {
@@ -1210,8 +1214,8 @@
     return geo;
   }
 
-  function ribbonGeometry(THREE, coords, origin, width, y) {
-    return ribbonFromPts(THREE, pathPoints(coords, origin), width, y);
+  function ribbonGeometry(THREE, coords, origin, width, y, lateral) {
+    return ribbonFromPts(THREE, pathPoints(coords, origin), width, y, lateral);
   }
 
   function trafficTone(level) {
@@ -1436,11 +1440,40 @@
     return mat;
   }
 
-  function clayRouteMat(THREE) {
-    return toonMaterial(THREE, {
-      color: CLAY_ROUTE,
+  function clayRouteMat(THREE, color) {
+    var mat = toonMaterial(THREE, {
+      color: color == null ? CLAY_ROUTE : color,
       fog: true,
       side: THREE.DoubleSide
+    });
+    mat.polygonOffset = true;
+    mat.polygonOffsetFactor = -2;
+    mat.polygonOffsetUnits = -2;
+    mat.depthWrite = false;
+    return mat;
+  }
+
+  function laneMarkMat(THREE) {
+    var c = document.createElement("canvas");
+    c.width = 8;
+    c.height = 64;
+    var g = c.getContext("2d");
+    g.fillStyle = "#f7f4ee";
+    g.fillRect(0, 0, 8, 28);
+    g.fillStyle = "#1a1d24";
+    g.fillRect(0, 28, 8, 36);
+    var tex = new THREE.CanvasTexture(c);
+    tex.wrapS = THREE.RepeatWrapping;
+    tex.wrapT = THREE.RepeatWrapping;
+    tex.repeat.set(1, 1);
+    tex.needsUpdate = true;
+    return new THREE.MeshBasicMaterial({
+      map: tex,
+      side: THREE.DoubleSide,
+      polygonOffset: true,
+      polygonOffsetFactor: -4,
+      polygonOffsetUnits: -4,
+      depthWrite: false
     });
   }
 
@@ -1711,10 +1744,10 @@
     pad.add(road);
     var paint = new THREE.Mesh(
       new THREE.PlaneGeometry(LANE_MARK, 120, 1, 1),
-      new THREE.MeshBasicMaterial({ color: 0x1a1d24 })
+      laneMarkMat(THREE)
     );
     paint.rotation.x = -Math.PI / 2;
-    paint.position.set(0, LANE_MARK_Y, 32);
+    paint.position.set(LANE_MARK_LATERAL, LANE_MARK_Y, 32);
     paint.frustumCulled = false;
     pad.add(paint);
     pad.userData.fallbackRoad = road;
@@ -2139,6 +2172,17 @@
 
   function lockEgoToLane(carRoot) {
     if (!carRoot) return;
+    var pts = lastWorld.roadPts;
+    var origin = lastWorld.origin || defaultOrigin();
+    if (pts && pts.length >= 2 && origin) {
+      var here = carLocal(origin);
+      var pose = poseOnPts(pts, traveledOnPts(pts, here.x, here.z));
+      if (pose && Number.isFinite(pose.nx) && Number.isFinite(pose.nz)) {
+        carRoot.position.x = pose.nx * LANE_SAME;
+        carRoot.position.z = pose.nz * LANE_SAME;
+        return;
+      }
+    }
     var lane = egoLaneWorld(carRoot.rotation.y);
     carRoot.position.x = lane.x;
     carRoot.position.z = lane.z;
@@ -2364,9 +2408,10 @@
       root.add(new THREE.Mesh(road, mat));
     }
     var pts = pathPoints(coords, origin);
+    lastWorld.roadPts = pts;
     var traffic = lastWorld.traffic || [];
     if (!traffic.length) {
-      var paint = ribbonFromPts(THREE, pts, ROAD_WIDTH, PAINT_Y);
+      var paint = ribbonFromPts(THREE, pts, ROUTE_WIDTH, ROUTE_Y, 0);
       if (paint) root.add(new THREE.Mesh(paint, clayRouteMat(THREE)));
     } else {
       var acc = 0;
@@ -2378,23 +2423,18 @@
         var nextTone = i < pts.length ? trafficTone(trafficAt(acc)) : -1;
         if (nextTone !== tone || i === pts.length) {
           var slice = pts.slice(Math.max(0, start - 1), i);
-          var geo = ribbonFromPts(THREE, slice, ROAD_WIDTH, PAINT_Y);
+          var geo = ribbonFromPts(THREE, slice, ROUTE_WIDTH, ROUTE_Y, 0);
           if (geo) {
-            root.add(
-              new THREE.Mesh(
-                geo,
-                toonMaterial(THREE, { color: tone, fog: true, side: THREE.DoubleSide })
-              )
-            );
+            root.add(new THREE.Mesh(geo, clayRouteMat(THREE, tone)));
           }
           start = i - 1;
           tone = nextTone;
         }
       }
     }
-    var center = ribbonFromPts(THREE, pts, LANE_MARK, LANE_MARK_Y);
+    var center = ribbonFromPts(THREE, pts, LANE_MARK, LANE_MARK_Y, LANE_MARK_LATERAL);
     if (center) {
-      root.add(new THREE.Mesh(center, new THREE.MeshBasicMaterial({ color: 0x1a1d24 })));
+      root.add(new THREE.Mesh(center, laneMarkMat(THREE)));
     }
     var yel = edgeLine(THREE, coords, origin, -1, 0xf3efe4);
     var wht = edgeLine(THREE, coords, origin, 1, 0xf3efe4);
@@ -3443,7 +3483,7 @@
       camLook.lerpVectors(tmp.chaseLook, tmp.dashLook, overlay.camBlend);
     }
     if (overlay.clayPad) {
-      overlay.clayPad.position.x = overlay.carRoot.position.x;
+      overlay.clayPad.position.x = 0;
       overlay.clayPad.position.z = overlay.carRoot.position.z;
     }
     setExteriorVisible(overlay, overlay.camBlend < 0.55);
