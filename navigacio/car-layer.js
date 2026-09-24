@@ -928,7 +928,7 @@
       carRoot.position.x = 0;
       carRoot.position.z = 0;
     }
-    if (carSlot) carSlot.position.x = -LANE_SAME;
+    if (carSlot) carSlot.position.x = LANE_SAME;
   }
 
   function smoothCarPose(root, worldRoot, origin, vis, headingRad, dt) {
