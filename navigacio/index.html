@@ -25,7 +25,7 @@
   <link rel="icon" href="./icons/icon-192.png" type="image/png">
   <link rel="apple-touch-icon" href="./icons/apple-touch-icon.png">
   <link rel="stylesheet" href="./vendor/maplibre-gl.css">
-  <link rel="stylesheet" href="./style.css?v=135">
+  <link rel="stylesheet" href="./style.css?v=136">
 </head>
 <body>
   <div id="app">
@@ -229,8 +229,8 @@
         <strong id="mapperTitle">Hangok</strong>
         <button type="button" id="mapperClose">Bezár</button>
       </header>
-      <p class="hint">Minden hangfájlnál add meg, merre szólhat: balra, jobbra, élesen, tarts, körforgalom… A Teszt onnan játssza (bal/jobb hangszóró). A beállítás a telefonon marad.</p>
-      <p class="hint" id="mapperCount">Még nincs irány beállítva</p>
+      <p class="hint">A fájlnevek alapján a hangok automatikusan kategóriába kerülnek (left / exit_left → Balra, right → Jobbra, straight / keep → Egyenesen, roundabout, u_turn). Egy manővernél a kategória összes klipje közül véletlenül szólal meg egy, és a futó hangot nem vágjuk el. A Teszt onnan játssza (bal/jobb hangszóró).</p>
+      <p class="hint" id="mapperCount">Még nincs irány — a fájlnevek alapján automatikusan soroljuk be.</p>
       <input id="mapperSearch" type="search" placeholder="Keresés a hangok között, pl. left" enterkeyhint="search" spellcheck="false" autocomplete="off">
       <div id="mapperList"></div>
     </div>
@@ -241,9 +241,9 @@
   <script src="./vendor/pmtiles.js"></script>
   <script src="./vendor/three.min.js"></script>
   <script src="./vendor/GLTFLoader.js"></script>
-  <script src="./sw-register.js?v=135"></script>
-  <script src="./car-layer.js?v=135"></script>
-  <script src="./voice/audio-manager.js?v=135"></script>
-  <script src="./app.js?v=135"></script>
+  <script src="./sw-register.js?v=136"></script>
+  <script src="./car-layer.js?v=136"></script>
+  <script src="./voice/audio-manager.js?v=136"></script>
+  <script src="./app.js?v=136"></script>
 </body>
 </html>
