@@ -5,8 +5,16 @@
   var LIST_KEY = "nav2_audio_selected";
   var DIR_KEY = "nav2_audio_dirs";
   var MUTE_KEY = "nav2_voice_mute";
-  var FILES_URL = "./voice/files.json?v=138";
-  var PACK_URL = "./voice/pack.json?v=138";
+  var FILES_URL = "./voice/files.json?v=152";
+  var PACK_URL = "./voice/pack.json?v=152";
+  var CATALOG_URL = "./voice/catalog.json?v=152";
+  var CAT_ALIAS = {
+    start: "straight",
+    gps: "straight",
+    speed: "speed-warning",
+    recompute: "recalculating",
+    arrive: "arrived"
+  };
   var EVENTS = [
     { id: "turn-left", label: "Balra", pan: -0.9 },
     { id: "turn-right", label: "Jobbra", pan: 0.9 },
@@ -50,6 +58,7 @@
 
   var files = [];
   var autoDirs = {};
+  var lastCatalog = null;
   var ready = null;
   var audio = null;
   var unlocked = false;
@@ -73,14 +82,31 @@
     }
   }
 
+  function clipStem(path) {
+    return fileLabel(path).replace(/\.(mp3|ogg|wav|m4a)$/i, "");
+  }
+
   function clipUrl(raw) {
     var s = String(raw || "").trim();
     if (!s) return "";
     if (/^https?:/i.test(s)) return s;
-    s = s.replace(/\.ogg$/i, ".mp3");
-    if (s.indexOf("/") === -1) s = "./voice/clips/" + s;
-    if (s.indexOf("./") !== 0 && s.indexOf("/") !== 0) s = "./voice/clips/" + s.replace(/^.*\//, "");
+    if (/hungary_jf\//i.test(s)) {
+      return s.replace(/^\.\//, "");
+    }
+    var name = s.replace(/^.*\//, "").replace(/\.ogg$/i, ".mp3");
+    if (s.indexOf("voice/clips") >= 0) {
+      return "./voice/clips/" + name;
+    }
+    if (s.indexOf("/") === -1) s = "./voice/clips/" + name;
+    else if (s.indexOf("./") !== 0 && s.indexOf("/") !== 0) s = "./voice/clips/" + name;
+    else s = s.replace(/\.ogg$/i, ".mp3");
     return s;
+  }
+
+  function clipFallbackUrl(path) {
+    var stem = clipStem(path);
+    if (!stem) return "";
+    return "../hungary_jf/" + stem + ".ogg";
   }
 
   function fileLabel(path) {
@@ -147,8 +173,28 @@
     return autoDirs;
   }
 
-  function applyAutoMap() {
+  function refreshDirs() {
     rebuildAuto();
+    applyCatalog(lastCatalog);
+    return autoDirs;
+  }
+
+  function applyCatalog(cat) {
+    if (cat) lastCatalog = cat;
+    var groups = (lastCatalog && lastCatalog.files) ? lastCatalog.files : {};
+    Object.keys(groups).forEach(function (catName) {
+      var ev = CAT_EVENT[catName] || CAT_ALIAS[catName] || "";
+      if (!isEventId(ev)) return;
+      (groups[catName] || []).forEach(function (name) {
+        var u = clipUrl(name);
+        if (u) autoDirs[u] = ev;
+      });
+    });
+    return autoDirs;
+  }
+
+  function applyAutoMap() {
+    refreshDirs();
     var man = readDirs();
     var merged = {};
     Object.keys(autoDirs).forEach(function (url) {
@@ -279,6 +325,12 @@
       if (!audio || audio.ended || audio.paused) playing = false;
     });
     on(audio, "error", function () {
+      var cur = audio.getAttribute("src") || "";
+      var alt = clipFallbackUrl(cur);
+      if (alt && cur && !/hungary_jf\//i.test(cur)) {
+        startElement(audio, alt, "");
+        return;
+      }
       playing = false;
     });
     return audio;
@@ -367,6 +419,7 @@
       localStorage.setItem(MUTE_KEY, muted ? "1" : "0");
     } catch (_e) {}
     if (muted) stopPlayback();
+    else resumeContext();
     syncMuteUi();
     return muted;
   }
@@ -377,7 +430,7 @@
 
   function unlock() {
     unlocked = true;
-    if (!muted) resumeContext();
+    resumeContext();
   }
 
   function pickRandom(list) {
@@ -390,17 +443,8 @@
     return pick;
   }
 
-  function playFile(path, eventId, force) {
-    if (isMuted()) return false;
-    var url = clipUrl(path);
-    if (!url) return false;
-    var el = ensureAudio();
-    if (!force && isBusy()) return false;
-    resumeContext();
+  function startElement(el, url, eventId) {
     applyPan(eventId || resolvedDirs()[url] || "");
-    if (force) {
-      try { el.pause(); } catch (_e) {}
-    }
     el.src = url;
     lastUrl = url;
     playing = true;
@@ -408,9 +452,28 @@
     var p = el.play();
     if (p && p.catch) {
       p.catch(function () {
-        playing = false;
+        resumeContext();
+        var again = el.play();
+        if (again && again.catch) {
+          again.catch(function () {
+            playing = false;
+          });
+        }
       });
     }
+  }
+
+  function playFile(path, eventId, force) {
+    if (isMuted()) return false;
+    var url = clipUrl(path);
+    if (!url) return false;
+    var el = ensureAudio();
+    if (!force && isBusy()) return false;
+    resumeContext();
+    if (force) {
+      try { el.pause(); } catch (_e) {}
+    }
+    startElement(el, url, eventId);
     return true;
   }
 
@@ -453,8 +516,14 @@
         files.sort(function (a, b) {
           return fileLabel(a).localeCompare(fileLabel(b), "hu");
         });
-        applyAutoMap();
-        return files;
+        return fetch(CATALOG_URL)
+          .then(function (res) { return res.ok ? res.json() : null; })
+          .catch(function () { return null; })
+          .then(function (cat) {
+            lastCatalog = cat;
+            applyAutoMap();
+            return files;
+          });
       })
       .catch(function () {
         files = [];
@@ -523,7 +592,7 @@
     var list = document.getElementById("mapperList");
     var search = document.getElementById("mapperSearch");
     if (!list) return;
-    if (files.length) rebuildAuto();
+    if (files.length) refreshDirs();
     list.innerHTML = "";
     var dirs = resolvedDirs();
     var q = search ? search.value : "";
