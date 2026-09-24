@@ -4422,6 +4422,8 @@
         return {
           type: "vector",
           tiles: [tiles],
+          minzoom: 0,
+          maxzoom: 7,
           attribution: "© OpenStreetMap"
         };
       }
@@ -4430,6 +4432,8 @@
         return {
           type: "vector",
           url: url,
+          minzoom: 0,
+          maxzoom: 7,
           attribution: "© OpenStreetMap © Protomaps"
         };
       }
@@ -4437,6 +4441,8 @@
     return {
       type: "vector",
       url: "pmtiles://" + europePmtilesUrl(),
+      minzoom: 0,
+      maxzoom: 7,
       attribution: "© OpenStreetMap © Protomaps"
     };
   }
