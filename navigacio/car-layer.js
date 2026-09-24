@@ -947,13 +947,14 @@
     };
   }
 
-  function applyEgoLane(carRoot, carSlot, origin) {
-    var face = headingEnu(pose.heading);
+  function applyEgoLane(carRoot, carSlot, origin, vis) {
+    vis = vis && Number.isFinite(vis.lng) ? vis : shown.seeded ? shown : pose;
+    var face = headingEnu(vis.heading);
     var hx = face.x;
     var hz = face.z;
     var pts = lastWorld.roadPts;
     if (pts && pts.length >= 2) {
-      var here = carLocal(origin || lastWorld.origin);
+      var here = enuOffset(origin || lastWorld.origin, vis.lng, vis.lat);
       var hit = nearestOnPathPts(pts, here.x, here.z);
       if (hit && Math.hypot(hit.hx, hit.hz) > 1e-4) {
         hx = hit.hx;
@@ -2375,8 +2376,8 @@
     };
   }
 
-  function lockEgoToLane(carRoot, origin, carSlot) {
-    applyEgoLane(carRoot, carSlot || (carRoot && carRoot.children && carRoot.children[0]), origin);
+  function lockEgoToLane(carRoot, origin, carSlot, vis) {
+    applyEgoLane(carRoot, carSlot || (carRoot && carRoot.children && carRoot.children[0]), origin, vis);
   }
 
   function npcCruise(traveled, dir) {
@@ -2949,7 +2950,7 @@
         var headingRad = ((180 - (Number(vis.heading) || 0)) * Math.PI) / 180;
         var leanRad = ((Number(vis.lean) || 0) * Math.PI) / 180;
         smoothCarPose(this.carRoot, this.worldRoot, this.worldOrigin, vis, headingRad, dt);
-        lockEgoToLane(this.carRoot, this.worldOrigin || lastWorld.origin, this.carSlot);
+        lockEgoToLane(this.carRoot, this.worldOrigin || lastWorld.origin, this.carSlot, vis);
         if (this.carSlot) this.carSlot.rotation.z = lerpNum(this.carSlot.rotation.z, leanRad, expK(dt, TURN_TAU));
         stepRoadTextures(this.asphaltMats, dt);
         faceMarkers(this.markRoot);
@@ -3030,6 +3031,10 @@
     }
     pose.lng = lng;
     pose.lat = lat;
+    if (lastWorld.origin && metersBetween(lastWorld.origin, next) > ORIGIN_REBASE_M) {
+      applyWorldOrigin(next, true);
+      if (api.arcade) syncOverlayWorld();
+    }
     if (Number.isFinite(speed) && speed >= 0) pose.speed = speed;
     var kmh = (Number(pose.speed) || 0) * 3.6;
     if (Number.isFinite(heading)) {
@@ -3615,7 +3620,7 @@
     var headingRad = ((180 - (Number(vis.heading) || 0)) * Math.PI) / 180;
     var leanRad = ((Number(vis.lean) || 0) * Math.PI) / 180;
     smoothCarPose(overlay.carRoot, overlay.worldRoot, overlay.worldOrigin, vis, headingRad, dt);
-    lockEgoToLane(overlay.carRoot, overlay.worldOrigin || lastWorld.origin, overlay.carSlot);
+    lockEgoToLane(overlay.carRoot, overlay.worldOrigin || lastWorld.origin, overlay.carSlot, vis);
     if (overlay.carRoot && overlay.carRoot.userData.justSnapped) {
       overlay.camYaw = headingRad;
       overlay.camSoft.live = false;
