@@ -4,8 +4,8 @@
   var MAP_KEY = "nav2_audio_map";
   var LIST_KEY = "nav2_audio_selected";
   var DIR_KEY = "nav2_audio_dirs";
-  var FILES_URL = "./voice/files.json";
-  var PACK_URL = "./voice/pack.json";
+  var FILES_URL = "./voice/files.json?v=138";
+  var PACK_URL = "./voice/pack.json?v=138";
   var EVENTS = [
     { id: "turn-left", label: "Balra", pan: -0.9 },
     { id: "turn-right", label: "Jobbra", pan: 0.9 },
@@ -143,6 +143,19 @@
       if (ev) autoDirs[url] = ev;
     });
     return autoDirs;
+  }
+
+  function applyAutoMap() {
+    rebuildAuto();
+    var man = readDirs();
+    var merged = {};
+    Object.keys(autoDirs).forEach(function (url) {
+      merged[url] = autoDirs[url];
+    });
+    Object.keys(man).forEach(function (url) {
+      merged[url] = man[url];
+    });
+    return writeDirs(merged);
   }
 
   function readRaw(key) {
@@ -368,7 +381,7 @@
   }
 
   function loadFiles() {
-    if (ready) return ready;
+    if (ready && files.length) return ready;
     ready = fetch(FILES_URL)
       .then(function (res) { return res.ok ? res.json() : Promise.reject(); })
       .catch(function () {
@@ -386,7 +399,7 @@
         files.sort(function (a, b) {
           return fileLabel(a).localeCompare(fileLabel(b), "hu");
         });
-        rebuildAuto();
+        applyAutoMap();
         return files;
       })
       .catch(function () {
@@ -456,6 +469,7 @@
     var list = document.getElementById("mapperList");
     var search = document.getElementById("mapperSearch");
     if (!list) return;
+    if (files.length) rebuildAuto();
     list.innerHTML = "";
     var dirs = resolvedDirs();
     var q = search ? search.value : "";
@@ -468,12 +482,13 @@
       var lab = document.createElement("label");
       lab.className = "mapper-file";
       lab.setAttribute("for", "mapDir-" + fileLabel(url));
+      var ev = dirs[url] || guessEvent(url) || "";
       lab.textContent = fileLabel(url);
-      lab.title = url;
+      lab.title = url + (ev && EVENT_BY_ID[ev] ? " → " + EVENT_BY_ID[ev].label : "");
       var sel = document.createElement("select");
       sel.id = "mapDir-" + fileLabel(url);
       sel.setAttribute("data-file", url);
-      fillDirSelect(sel, dirs[url] || "");
+      fillDirSelect(sel, ev);
       on(sel, "change", function () {
         setFileDir(url, sel.value);
         paintCount();

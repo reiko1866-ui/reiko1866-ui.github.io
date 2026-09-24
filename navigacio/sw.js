@@ -1,4 +1,4 @@
-const CACHE = "nav-v136";
+const CACHE = "nav-v138";
 const CORE = [
   "./",
   "./index.html",
@@ -99,9 +99,17 @@ async function handleRange(req) {
   });
 }
 
+function ignoreSearchFor(req) {
+  try {
+    const path = new URL(req.url).pathname;
+    if (/\.(?:js|css|html)$/i.test(path)) return false;
+  } catch (_e) {}
+  return true;
+}
+
 async function cacheFirst(req) {
   const cache = await caches.open(CACHE);
-  const hit = await cache.match(req, { ignoreSearch: true });
+  const hit = await cache.match(req, { ignoreSearch: ignoreSearchFor(req) });
   if (hit) return hit;
   try {
     const res = await fetch(req);
