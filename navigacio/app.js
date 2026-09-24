@@ -1908,11 +1908,17 @@
   }
 
   function windowCoords() {
+    return sliceRouteCoords(90, 720, false);
+  }
+
+  function arcadeCoords() {
+    return sliceRouteCoords(180, 720, false);
+  }
+
+  function sliceRouteCoords(behind, ahead, snapToCar) {
     const coords = state.coords || [];
     if (coords.length < 2) return [];
     const here = state.traveled || 0;
-    const behind = 90;
-    const ahead = 720;
     const out = [];
     let acc = 0;
     for (let i = 1; i < coords.length; i++) {
@@ -1926,11 +1932,13 @@
       }
       acc += seg;
     }
-    const cur = AppState.currentPos;
-    if (out.length >= 2 && Number.isFinite(cur.lng) && Number.isFinite(cur.lat)) {
-      const first = { lng: out[0][0], lat: out[0][1] };
-      if (haversine(first, { lng: cur.lng, lat: cur.lat }) < 80) {
-        out[0] = [cur.lng, cur.lat];
+    if (snapToCar) {
+      const cur = AppState.currentPos;
+      if (out.length >= 2 && Number.isFinite(cur.lng) && Number.isFinite(cur.lat)) {
+        const first = { lng: out[0][0], lat: out[0][1] };
+        if (haversine(first, { lng: cur.lng, lat: cur.lat }) < 80) {
+          out[0] = [cur.lng, cur.lat];
+        }
       }
     }
     return out;
@@ -2184,10 +2192,10 @@
       window.NavCar3D.routeReady && !window.NavCar3D.routeReady();
     if (
       window.NavCar3D.setRoute &&
-      (routeMissing || state._3dRouteAt == null || Math.abs(here - state._3dRouteAt) > 70)
+      (routeMissing || state._3dRouteAt == null || Math.abs(here - state._3dRouteAt) > 140)
     ) {
       state._3dRouteAt = here;
-      window.NavCar3D.setRoute(windowCoords(), origin);
+      window.NavCar3D.setRoute(arcadeCoords(), origin);
     }
     if (window.NavCar3D.setMarkers && state.navigating) {
       const marks = [];
@@ -3574,6 +3582,9 @@
       state.origin = { lng: along.lng, lat: along.lat };
       state.heading = br;
       state.camHeading = br;
+      if (window.NavCar3D && typeof window.NavCar3D.setPose === "function") {
+        window.NavCar3D.setPose(along.lng, along.lat, br, 0, SIM_MS);
+      }
     }
     state.follow = true;
     if ($("follow")) {

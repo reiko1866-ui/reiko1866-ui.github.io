@@ -13,11 +13,13 @@
   var ENV_KEEP = 580;
   var BEHIND_KEEP = 80;
   var ENV_STEP = 36;
-  var ROAD_AHEAD = 500;
-  var ROAD_BEHIND = 140;
+  var ROAD_AHEAD = 520;
+  var ROAD_BEHIND = 160;
   var ROAD_CHUNK = 80;
-  var CAM_POS_TAU = 0.11;
-  var CAM_LOOK_TAU = 0.14;
+  var ORIGIN_REBASE_M = 420;
+  var POSE_SNAP_M = 8;
+  var CAM_POS_TAU = 0.09;
+  var CAM_LOOK_TAU = 0.11;
   var BUILD_ZOOM_MIN = 15;
   var FOG_COLOR = 0xf3c4b0;
   var FOG_DENSITY = 0.0026;
@@ -167,13 +169,25 @@
     return (Number(pose.speed) || 0) * 3.6 >= DEADBAND_KMH;
   }
 
+  function metersBetween(a, b) {
+    if (!a || !b || !Number.isFinite(a.lng) || !Number.isFinite(b.lng)) return 0;
+    var x = (b.lng - a.lng) * 111320 * Math.cos((a.lat * Math.PI) / 180);
+    var z = (b.lat - a.lat) * 111320;
+    return Math.hypot(x, z);
+  }
+
+  function snapShownToPose() {
+    shown.lng = pose.lng;
+    shown.lat = pose.lat;
+    shown.heading = pose.heading;
+    shown.lean = pose.lean;
+    shown.seeded = true;
+  }
+
   function lerpPose(now) {
-    if (!shown.seeded) {
-      shown.lng = pose.lng;
-      shown.lat = pose.lat;
-      shown.heading = pose.heading;
-      shown.lean = pose.lean;
-      shown.seeded = true;
+    var jump = metersBetween(shown, pose);
+    if (!shown.seeded || jump > POSE_SNAP_M) {
+      snapShownToPose();
       lastPoseT = now;
       return shown;
     }
@@ -951,15 +965,17 @@
       root.position.z = lerpNum(root.position.z, 0, k);
     }
     if (worldRoot && origin) {
-      var w = enuOffset({ lng: vis.lng, lat: vis.lat }, origin.lng, origin.lat);
-      var jump = Math.hypot(worldRoot.position.x - w.x, worldRoot.position.z - w.z);
-      if (!worldRoot.userData.poseLive || jump > 8) {
-        worldRoot.position.set(w.x, 0, w.z);
+      var carEnu = enuOffset(origin, vis.lng, vis.lat);
+      var wx = -carEnu.x;
+      var wz = -carEnu.z;
+      var jump = Math.hypot(worldRoot.position.x - wx, worldRoot.position.z - wz);
+      if (!worldRoot.userData.poseLive || jump > POSE_SNAP_M) {
+        worldRoot.position.set(wx, 0, wz);
         worldRoot.userData.poseLive = true;
       } else {
         var wk = expK(dt || 0.016, TURN_TAU);
-        worldRoot.position.x = lerpNum(worldRoot.position.x, w.x, wk);
-        worldRoot.position.z = lerpNum(worldRoot.position.z, w.z, wk);
+        worldRoot.position.x = lerpNum(worldRoot.position.x, wx, wk);
+        worldRoot.position.z = lerpNum(worldRoot.position.z, wz, wk);
       }
     }
   }
@@ -1293,12 +1309,73 @@
     return out;
   }
 
+  function originEquals(a, b) {
+    return !!(
+      a &&
+      b &&
+      Math.abs(a.lng - b.lng) < 1e-8 &&
+      Math.abs(a.lat - b.lat) < 1e-8
+    );
+  }
+
+  function keepWorldOrigin(suggested, force) {
+    var cur = lastWorld.origin;
+    var car =
+      Number.isFinite(pose.lng) && Number.isFinite(pose.lat)
+        ? { lng: pose.lng, lat: pose.lat }
+        : null;
+    if (
+      force ||
+      !cur ||
+      !Number.isFinite(cur.lng) ||
+      !Number.isFinite(cur.lat)
+    ) {
+      if (suggested && Number.isFinite(suggested.lng) && Number.isFinite(suggested.lat)) {
+        return { lng: suggested.lng, lat: suggested.lat };
+      }
+      if (car) return car;
+      return cur || defaultOrigin();
+    }
+    if (car && metersBetween(cur, car) > ORIGIN_REBASE_M) {
+      return { lng: car.lng, lat: car.lat };
+    }
+    return cur;
+  }
+
+  function applyWorldOrigin(suggested, force) {
+    var next = keepWorldOrigin(suggested, force);
+    var prev = lastWorld.origin;
+    var changed = !originEquals(prev, next);
+    lastWorld.origin = next;
+    overlay.worldOrigin = next;
+    if (layer) layer.worldOrigin = next;
+    if (changed) {
+      lastWorld.roadPts = null;
+      lastWorld.roadOrigin = null;
+      overlay.routeKey = "";
+      if (overlay.camSoft) overlay.camSoft.live = false;
+      if (overlay.worldRoot) overlay.worldRoot.userData.poseLive = false;
+      if (overlay.carRoot) overlay.carRoot.userData.poseLive = false;
+      if (layer && layer.worldRoot) layer.worldRoot.userData.poseLive = false;
+      if (layer && layer.carRoot) layer.carRoot.userData.poseLive = false;
+    }
+    adoptOrigin(next);
+    return next;
+  }
+
   function ensureRoadPts(origin) {
     origin = origin || lastWorld.origin || defaultOrigin();
-    if (lastWorld.roadPts && lastWorld.roadPts.length >= 2) return lastWorld.roadPts;
+    if (
+      lastWorld.roadPts &&
+      lastWorld.roadPts.length >= 2 &&
+      originEquals(lastWorld.roadOrigin, origin)
+    ) {
+      return lastWorld.roadPts;
+    }
     var coords = lastWorld.coords;
     if (coords && coords.length >= 2) {
       lastWorld.roadPts = pathPoints(coords, origin);
+      lastWorld.roadOrigin = { lng: origin.lng, lat: origin.lat };
       return lastWorld.roadPts;
     }
     return [];
@@ -2514,6 +2591,7 @@
     }
     var pts = pathPoints(coords, origin);
     lastWorld.roadPts = pts;
+    lastWorld.roadOrigin = origin ? { lng: origin.lng, lat: origin.lat } : lastWorld.roadOrigin;
     var traffic = lastWorld.traffic || [];
     if (!traffic.length) {
       var paint = ribbonFromPts(THREE, pts, ROUTE_WIDTH, ROUTE_Y, 0);
@@ -2924,6 +3002,16 @@
 
   api.setPose = function (lng, lat, heading, lean, speed) {
     if (!Number.isFinite(lng) || !Number.isFinite(lat)) return;
+    var next = { lng: lng, lat: lat };
+    if (!shown.seeded || metersBetween(shown, next) > POSE_SNAP_M) {
+      pose.lng = lng;
+      pose.lat = lat;
+      snapShownToPose();
+      if (overlay.worldRoot) overlay.worldRoot.userData.poseLive = false;
+      if (overlay.carRoot) overlay.carRoot.userData.poseLive = false;
+      if (overlay.camSoft) overlay.camSoft.live = false;
+      if (layer && layer.worldRoot) layer.worldRoot.userData.poseLive = false;
+    }
     pose.lng = lng;
     pose.lat = lat;
     if (Number.isFinite(speed) && speed >= 0) pose.speed = speed;
@@ -2943,16 +3031,18 @@
   };
 
   function adoptOrigin(origin) {
-    if (!layer || !origin || !Number.isFinite(origin.lat) || !Number.isFinite(origin.lng)) return;
-    layer.worldOrigin = { lng: origin.lng, lat: origin.lat };
-    if (layer.worldRoot) layer.worldRoot.userData.poseLive = false;
+    if (!origin || !Number.isFinite(origin.lat) || !Number.isFinite(origin.lng)) return;
+    var kept = { lng: origin.lng, lat: origin.lat };
+    if (layer) layer.worldOrigin = kept;
+    overlay.worldOrigin = kept;
+    if (layer && layer.worldRoot) layer.worldRoot.userData.poseLive = false;
     if (overlay.worldRoot) overlay.worldRoot.userData.poseLive = false;
   }
 
   api.setRoute = function (coords, origin) {
     var list = coords || [];
     lastWorld.coords = list;
-    if (origin) lastWorld.origin = origin;
+    var here = applyWorldOrigin(origin || defaultOrigin(), false);
     if (api.arcade) syncOverlayWorld();
     if (!layer || !layer.routeRoot || !api.THREE) return;
     var key =
@@ -2960,14 +3050,15 @@
       ":" +
       (list[0] ? list[0][0].toFixed(5) + list[0][1].toFixed(5) : "x") +
       ":" +
-      (list[list.length - 1] ? list[list.length - 1][0].toFixed(5) : "y");
+      (list[list.length - 1] ? list[list.length - 1][0].toFixed(5) : "y") +
+      ":" +
+      here.lng.toFixed(5) +
+      "," +
+      here.lat.toFixed(5);
     if (key === routeCache) return;
     routeCache = key;
     layer.asphaltMats = layer.stripMat ? [layer.stripMat] : [];
     clearGroup(layer.routeRoot);
-    var here = origin || defaultOrigin();
-    lastWorld.origin = here;
-    adoptOrigin(here);
     if (list.length >= 2) {
       addClayRouteMeshes(api.THREE, layer.routeRoot, list, here, layer);
     }
@@ -2989,7 +3080,8 @@
   api.setMarkers = function (marks, origin) {
     var list = marks || [];
     lastWorld.marks = list;
-    if (origin) lastWorld.origin = origin;
+    if (!lastWorld.origin && origin) applyWorldOrigin(origin, false);
+    var here = lastWorld.origin || origin;
     if (api.arcade) syncOverlayWorld();
     if (!layer || !layer.markRoot || !api.THREE) return;
     var key = list
@@ -3000,12 +3092,11 @@
     if (key === markCache) return;
     markCache = key;
     clearGroup(layer.markRoot);
-    if (!origin) return;
-    adoptOrigin(origin);
+    if (!here) return;
     var THREE = api.THREE;
     list.forEach(function (mark) {
       var g = makeMarker(THREE, mark);
-      var p = enuOffset(origin, mark.lng, mark.lat);
+      var p = enuOffset(here, mark.lng, mark.lat);
       g.position.set(p.x, 0, p.z);
       layer.markRoot.add(g);
     });
@@ -3015,29 +3106,29 @@
   api.setBuildings = function (buildings, origin) {
     var list = buildings || [];
     lastWorld.buildings = list;
-    if (origin) lastWorld.origin = origin;
+    if (!lastWorld.origin && origin) applyWorldOrigin(origin, false);
+    var here = lastWorld.origin || origin;
     if (api.arcade) syncOverlayWorld();
     if (!layer || !layer.buildRoot || !api.THREE) return;
     var key =
       list.length +
       ":" +
-      (origin ? origin.lat.toFixed(4) + origin.lng.toFixed(4) : "0") +
+      (here ? here.lat.toFixed(4) + here.lng.toFixed(4) : "0") +
       ":" +
       (list[0] && list[0].ring && list[0].ring[0] ? list[0].ring[0][0].toFixed(4) : "x");
     if (key === buildCache) return;
     buildCache = key;
     clearGroup(layer.buildRoot);
-    if (!origin) return;
-    adoptOrigin(origin);
+    if (!here) return;
     var THREE = api.THREE;
     list.forEach(function (b) {
-      var g = buildingGroup(THREE, b, origin);
+      var g = buildingGroup(THREE, b, here);
       if (g) layer.buildRoot.add(g);
     });
     if (mapRef) mapRef.triggerRepaint();
   };
 
-  var lastWorld = { coords: [], origin: null, marks: [], buildings: [], roads: [] };
+  var lastWorld = { coords: [], origin: null, roadPts: null, roadOrigin: null, marks: [], buildings: [], roads: [] };
   var overlayWorldKey = "";
   var overlay = {
     canvas: null,
@@ -3306,15 +3397,20 @@
 
   function syncOverlayWorld() {
     if (!overlay.scene || !api.THREE) return;
-    var origin = lastWorld.origin || defaultOrigin();
-    lastWorld.origin = origin;
+    var origin = lastWorld.origin || overlay.worldOrigin || defaultOrigin();
+    if (!lastWorld.origin) lastWorld.origin = origin;
+    overlay.worldOrigin = origin;
     var list = lastWorld.coords || [];
     var routeKey =
       list.length +
       ":" +
       (list[0] ? list[0][0].toFixed(4) + "," + list[0][1].toFixed(4) : "x") +
       ":" +
-      (list[list.length - 1] ? list[list.length - 1][0].toFixed(4) + "," + list[list.length - 1][1].toFixed(4) : "y");
+      (list[list.length - 1] ? list[list.length - 1][0].toFixed(4) + "," + list[list.length - 1][1].toFixed(4) : "y") +
+      ":" +
+      origin.lng.toFixed(5) +
+      "," +
+      origin.lat.toFixed(5);
     var decorKey =
       (lastWorld.marks || []).length +
       ":" +
@@ -3325,6 +3421,7 @@
     if (routeKey !== overlay.routeKey) {
       overlay.routeKey = routeKey;
       lastWorld.roadPts = null;
+      lastWorld.roadOrigin = null;
       clearRoadWindow(overlay);
       if (overlay.npcRoot) {
         overlay.npcAnchorX = null;
@@ -3686,7 +3783,7 @@
 
   api.setRoads = function (roads, origin) {
     lastWorld.roads = roads || [];
-    if (origin) lastWorld.origin = origin;
+    if (!lastWorld.origin && origin) applyWorldOrigin(origin, false);
     if (api.arcade) syncOverlayWorld();
   };
 
@@ -3759,19 +3856,36 @@
   };
 
   api.routeReady = function () {
+    if (lastWorld.coords && lastWorld.coords.length >= 2 && lastWorld.roadPts && lastWorld.roadPts.length >= 2) {
+      return true;
+    }
     return !!(overlay.routeRoot && overlay.routeRoot.children && overlay.routeRoot.children.length);
   };
 
+  api.getWorldOrigin = function () {
+    if (lastWorld.origin && Number.isFinite(lastWorld.origin.lng) && Number.isFinite(lastWorld.origin.lat)) {
+      return { lng: lastWorld.origin.lng, lat: lastWorld.origin.lat };
+    }
+    return null;
+  };
+
   api.invalidateWorld = function () {
+    lastWorld.origin = null;
+    lastWorld.roadPts = null;
+    lastWorld.roadOrigin = null;
+    overlay.worldOrigin = null;
     overlayWorldKey = "";
+    overlay.routeKey = "";
+    overlay.decorKey = "";
     routeCache = "";
     overlay.camYaw = null;
+    if (overlay.camSoft) overlay.camSoft.live = false;
+    shown.seeded = false;
     if (overlay.carRoot) overlay.carRoot.userData.poseLive = false;
     if (overlay.worldRoot) overlay.worldRoot.userData.poseLive = false;
     if (layer && layer.worldRoot) layer.worldRoot.userData.poseLive = false;
     if (layer && layer.carRoot) layer.carRoot.userData.poseLive = false;
-    adoptOrigin(lastWorld.origin || defaultOrigin());
-    if (api.arcade) syncOverlayWorld();
+    if (overlay.routeRoot) clearRoadWindow(overlay);
     return true;
   };
 
