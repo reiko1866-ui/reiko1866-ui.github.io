@@ -2076,8 +2076,8 @@
 
   function npcLanePos(pose, lane) {
     return {
-      x: pose.x - pose.nx * lane,
-      z: pose.z - pose.nz * lane
+      x: pose.x + pose.nx * lane,
+      z: pose.z + pose.nz * lane
     };
   }
 
@@ -2087,8 +2087,8 @@
     if (!path || path.length < 2) return;
     var car = carLocal(origin);
     var pose = poseOnPts(path, traveledOnPts(path, car.x, car.z));
-    carRoot.position.x = -pose.nx * LANE_SAME;
-    carRoot.position.z = -pose.nz * LANE_SAME;
+    carRoot.position.x = pose.nx * LANE_SAME;
+    carRoot.position.z = pose.nz * LANE_SAME;
   }
 
   function npcCruise(traveled, dir) {
