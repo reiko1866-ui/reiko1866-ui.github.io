@@ -4,6 +4,7 @@
   var MAP_KEY = "nav2_audio_map";
   var LIST_KEY = "nav2_audio_selected";
   var DIR_KEY = "nav2_audio_dirs";
+  var MUTE_KEY = "nav2_voice_mute";
   var FILES_URL = "./voice/files.json?v=138";
   var PACK_URL = "./voice/pack.json?v=138";
   var EVENTS = [
@@ -52,6 +53,7 @@
   var ready = null;
   var audio = null;
   var unlocked = false;
+  var muted = false;
   var uiBound = false;
   var audioCtx = null;
   var mediaSrc = null;
@@ -324,9 +326,58 @@
     }
   }
 
+  function readMuted() {
+    try {
+      return localStorage.getItem(MUTE_KEY) === "1";
+    } catch (_e) {
+      return false;
+    }
+  }
+
+  function isMuted() {
+    return !!muted;
+  }
+
+  function stopPlayback() {
+    playing = false;
+    if (!audio) return;
+    try { audio.pause(); } catch (_e) {}
+    try { audio.removeAttribute("src"); audio.load(); } catch (_e2) {}
+  }
+
+  function syncMuteUi() {
+    var btn = document.getElementById("muteBtn");
+    if (btn) {
+      btn.classList.toggle("is-on", muted);
+      btn.setAttribute("aria-pressed", muted ? "true" : "false");
+      btn.title = muted ? "Hangok némítva — koppints a bekapcsoláshoz" : "Hangok be — koppints a némításhoz";
+      var label = btn.querySelector("span");
+      if (label) label.textContent = muted ? "Néma" : "Hang";
+    }
+    var box = document.getElementById("muteVoice");
+    if (box && box.checked !== muted) box.checked = muted;
+    try {
+      document.documentElement.classList.toggle("is-voice-muted", muted);
+    } catch (_e) {}
+  }
+
+  function setMuted(on) {
+    muted = !!on;
+    try {
+      localStorage.setItem(MUTE_KEY, muted ? "1" : "0");
+    } catch (_e) {}
+    if (muted) stopPlayback();
+    syncMuteUi();
+    return muted;
+  }
+
+  function toggleMuted() {
+    return setMuted(!muted);
+  }
+
   function unlock() {
     unlocked = true;
-    resumeContext();
+    if (!muted) resumeContext();
   }
 
   function pickRandom(list) {
@@ -340,6 +391,7 @@
   }
 
   function playFile(path, eventId, force) {
+    if (isMuted()) return false;
     var url = clipUrl(path);
     if (!url) return false;
     var el = ensureAudio();
@@ -363,9 +415,11 @@
   }
 
   function playEvent(id, force) {
+    if (isMuted()) return false;
     if (!isEventId(id)) return false;
     if (!files.length) {
       loadFiles().then(function () {
+        if (isMuted()) return;
         if (force || !isBusy()) playEvent(id, force);
       });
       return true;
@@ -498,6 +552,7 @@
       btn.textContent = "Teszt";
       on(btn, "click", function () {
         unlock();
+        if (isMuted()) return;
         playFile(url, sel.value, true);
       });
       row.appendChild(lab);
@@ -551,6 +606,13 @@
     on("mapperClose", "click", closeMapper);
     on("mapperOverlay", "click", closeMapper);
     on("mapperSearch", "input", scheduleRender);
+    on("muteBtn", "click", function () {
+      toggleMuted();
+    });
+    on("muteVoice", "change", function () {
+      var box = document.getElementById("muteVoice");
+      setMuted(!!(box && box.checked));
+    });
     on(document, "pointerdown", unlock);
     on("go", "click", unlock);
     on("simDriveBtn", "click", unlock);
@@ -559,7 +621,9 @@
   }
 
   function boot() {
+    muted = readMuted();
     bindUi();
+    syncMuteUi();
     loadFiles();
   }
 
@@ -571,6 +635,9 @@
     files: function () { return files.slice(); },
     init: loadFiles,
     unlock: unlock,
+    setMuted: setMuted,
+    toggleMuted: toggleMuted,
+    isMuted: isMuted,
     guessEvent: guessEvent,
     playCat: playCat,
     playFile: playFile,
