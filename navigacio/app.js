@@ -962,12 +962,19 @@
     return !!snappedPosition();
   }
 
+  function unlockNavVoice() {
+    if (window.NavVoice && typeof window.NavVoice.unlock === "function") {
+      window.NavVoice.unlock();
+    }
+  }
+
   function playNavCue(eventId, key) {
     if (!eventId || !window.NavVoice || typeof window.NavVoice.playEvent !== "function") return;
     if (key) {
       if (state.audioCue[key] === eventId) return;
       state.audioCue[key] = eventId;
     }
+    unlockNavVoice();
     window.NavVoice.playEvent(eventId);
   }
 
@@ -3574,6 +3581,7 @@
       $("follow").setAttribute("aria-pressed", "true");
     }
     if (!state.navigating) startNav();
+    unlockNavVoice();
     if (window.NavCar3D && typeof window.NavCar3D.setOverview === "function") {
       window.NavCar3D.setOverview(false);
     }
@@ -3655,6 +3663,7 @@
       state.camHeading = state.heading;
     }
     startTrafficPoll();
+    unlockNavVoice();
     setStatus(state.kaland ? "Kaland mód" : "Navigáció");
     showPinAdjust();
     if (window.NavVoice && window.NavVoice.close) window.NavVoice.close();
@@ -4956,6 +4965,7 @@
     on("q", "input", onQueryInput);
     on("stop", "click", stopNav);
     on("simDriveBtn", "click", function () {
+      unlockNavVoice();
       if (state.simulating) stopSimDrive();
       else startSimDrive();
     });
