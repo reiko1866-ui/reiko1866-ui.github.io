@@ -976,7 +976,7 @@
       state.audioCue[key] = eventId;
     }
     unlockNavVoice();
-    window.NavVoice.playEvent(eventId);
+    window.NavVoice.playEvent(eventId, true);
   }
 
   function plausibleJump(prev, next, acc) {
@@ -3545,8 +3545,25 @@
     };
     state.coords = coords;
     state.routeLen = state.route.distance;
-    state.steps = [];
+    function demoStep(distance, type, modifier) {
+      return {
+        distance: distance,
+        name: "",
+        maneuver: { type: type, modifier: modifier || "" }
+      };
+    }
+    state.steps = [
+      demoStep(16 * 22, "continue", "straight"),
+      demoStep(12 * 22, "turn", "right"),
+      demoStep(12 * 22, "turn", "right"),
+      demoStep(14 * 22, "turn", "left"),
+      demoStep(14 * 22, "turn", "right"),
+      demoStep(12 * 22, "turn", "left"),
+      demoStep(12 * 22, "turn", "left"),
+      demoStep(180, "arrive", "")
+    ];
     state.traveled = 8;
+    state.audioCue = {};
     state.limits = [
       { start: 0, end: 90, limit: 50, urban: true, cls: "residential" },
       { start: 90, end: 420, limit: 70, urban: false, cls: "primary" },
@@ -3692,6 +3709,7 @@
     }
     startTrafficPoll();
     unlockNavVoice();
+    playNavCue("straight", "nav-start");
     setStatus(state.kaland ? "Kaland mód" : "Navigáció");
     showPinAdjust();
     if (window.NavVoice && window.NavVoice.close) window.NavVoice.close();
