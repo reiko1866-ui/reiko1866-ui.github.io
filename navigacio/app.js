@@ -1312,12 +1312,20 @@
         if (state.map.getLayer(id)) state.map.setPaintProperty(id, prop, val);
       } catch (_e) {}
     }
-    setPaint("background", "background-color", "#d8f0a8");
-    setPaint("water", "fill-color", "#8fd4f0");
+    setPaint("bg", "background-color", "#f3c4b0");
+    setPaint("background", "background-color", "#f3c4b0");
+    setPaint("earth", "fill-color", "#5fbf62");
+    setPaint("landcover", "fill-color", "#6fc862");
+    setPaint("water", "fill-color", "#7ec8e8");
     setPaint("waterway", "line-color", "#7ac8e8");
-    setPaint("landuse_residential", "fill-color", "#f4e7b0");
-    setPaint("landuse_park", "fill-color", "#9ee07a");
-    setPaint("landcover_wood", "fill-color", "#7ecf6a");
+    setPaint("landuse", "fill-color", "#8ee06e");
+    setPaint("landuse_residential", "fill-color", "#f4c9a0");
+    setPaint("landuse_park", "fill-color", "#8ee06e");
+    setPaint("landcover_wood", "fill-color", "#4eae55");
+    setPaint("roads-major", "line-color", "#5c616a");
+    setPaint("roads-highway", "line-color", "#f2b84b");
+    setPaint("roads-minor", "line-color", "#7a8090");
+    setPaint("buildings", "fill-color", "#f3b3c8");
     const asphalt = "#fff1b0";
     const asphaltHi = "#ffe27a";
     const casing = "#e8c96a";
@@ -1331,24 +1339,25 @@
     setPaint("highway_motorway_subtle", "line-color", "#f0cf7a");
     setPaint("building", "fill-opacity", 0.18);
     setPaint("building", "fill-color", "#f3d7a8");
-    setPaint("earth", "fill-color", "#d8f0a8");
-    setPaint("landcover", "fill-color", "#b6e57a");
-    setPaint("place_label_city", "text-color", "#3b4a1f");
-    setPaint("places", "text-color", "#3b4a1f");
+    setPaint("earth", "fill-color", "#5fbf62");
+    setPaint("landcover", "fill-color", "#6fc862");
+    setPaint("place_label_city", "text-color", "#3b2a14");
+    setPaint("places", "text-color", "#3b2a14");
     const layers = (state.map.getStyle() && state.map.getStyle().layers) || [];
     layers.forEach(function (ly) {
       if (!ly) return;
       const sl = ly["source-layer"] || "";
       if (ly.type === "line" && (sl === "transportation" || sl === "roads")) {
         if (/casing|case/i.test(ly.id)) setPaint(ly.id, "line-color", casing);
-        else if (/motorway|trunk/i.test(ly.id)) setPaint(ly.id, "line-color", "#ffd36a");
-        else if (!/rail|dash/i.test(ly.id)) setPaint(ly.id, "line-color", asphalt);
+        else if (/highway|motorway|trunk/i.test(ly.id)) setPaint(ly.id, "line-color", "#f2b84b");
+        else if (!/rail|dash|path/i.test(ly.id)) setPaint(ly.id, "line-color", "#5c616a");
       }
-      if (ly.type === "background") setPaint(ly.id, "background-color", "#d8f0a8");
+      if (ly.type === "background") setPaint(ly.id, "background-color", "#f3c4b0");
       if (ly.type === "fill" && (sl === "earth" || sl === "landcover" || sl === "landuse" || ly.id === "bg" || ly.id === "earth")) {
-        if (/water/i.test(ly.id)) setPaint(ly.id, "fill-color", "#8fd4f0");
-        else if (/park|wood|forest|grass/i.test(ly.id)) setPaint(ly.id, "fill-color", "#9ee07a");
-        else setPaint(ly.id, "fill-color", "#d8f0a8");
+        if (/water/i.test(ly.id)) setPaint(ly.id, "fill-color", "#7ec8e8");
+        else if (/park|wood|forest|grass/i.test(ly.id)) setPaint(ly.id, "fill-color", "#7ed47a");
+        else if (ly.id === "bg") setPaint(ly.id, "fill-color", "#f3c4b0");
+        else setPaint(ly.id, "fill-color", "#5fbf62");
       }
     });
     addArcadeExtras();
@@ -4344,16 +4353,17 @@
     }
   }
 
-  function pastelFallbackStyle(dark) {
+  function pastelFallbackStyle(_dark) {
     return {
       version: 8,
-      name: "toonnavi-pastel",
+      name: "toonnavi-clay",
+      glyphs: "./map/fonts/{fontstack}/{range}.pbf",
       sources: {},
       layers: [
         {
           id: "bg",
           type: "background",
-          paint: { "background-color": "#d8f0a8" }
+          paint: { "background-color": "#f3c4b0" }
         }
       ]
     };
@@ -4385,7 +4395,7 @@
   async function resolveMapStyle(dark) {
     if (await probePmtiles()) {
       try {
-        const local = await loadEuropeStyle(false);
+        const local = await loadEuropeStyle(dark);
         if (local) {
           state.mapOffline = true;
           return local;
@@ -4393,13 +4403,15 @@
       } catch (_e) {}
     }
     try {
-      const remote = await fetchRemoteStyle(false);
-      state.mapOffline = false;
-      return remote;
-    } catch (_e2) {
-      state.mapOffline = false;
-      return pastelFallbackStyle(dark);
-    }
+      const q = new URLSearchParams(location.search);
+      if (q.get("online") === "1") {
+        const remote = await fetchRemoteStyle(false);
+        state.mapOffline = false;
+        return remote;
+      }
+    } catch (_e2) {}
+    state.mapOffline = true;
+    return pastelFallbackStyle(dark);
   }
 
   function localVectorSource() {
@@ -4438,77 +4450,52 @@
 
   async function loadEuropeStyle(dark) {
     registerPmtiles();
-    const flavor = dark ? "dark" : "light";
     let base = null;
     try {
       const res = await fetch(LOCAL_STYLE, { cache: "no-store" });
       if (res.ok) base = await res.json();
     } catch (_e) {}
-    let layers = base && Array.isArray(base.layers) ? base.layers : null;
-    if (!layers) {
-      try {
-        const mod = await import("https://esm.sh/@protomaps/basemaps@5.4.0");
-        layers = mod.layers("protomaps", mod.namedFlavor(flavor), { lang: "hu" });
-      } catch (_e) {
-        layers = [
-          { id: "bg", type: "background", paint: { "background-color": dark ? "#0F172A" : "#f2efe9" } },
-          {
-            id: "earth",
-            type: "fill",
-            source: "protomaps",
-            "source-layer": "earth",
-            paint: { "fill-color": dark ? "#1E293B" : "#e8e0d0" }
-          },
-          {
-            id: "water",
-            type: "fill",
-            source: "protomaps",
-            "source-layer": "water",
-            paint: { "fill-color": dark ? "#0c4a6e" : "#80b8d8" }
-          },
-          {
-            id: "roads",
-            type: "line",
-            source: "protomaps",
-            "source-layer": "roads",
-            paint: { "line-color": dark ? "#94a3b8" : "#666", "line-width": 1.15 }
-          },
-          {
-            id: "places",
-            type: "symbol",
-            source: "protomaps",
-            "source-layer": "places",
-            layout: {
-              "text-field": ["coalesce", ["get", "name:hu"], ["get", "name"], ["get", "name:en"]],
-              "text-size": 13
-            },
-            paint: {
-              "text-color": dark ? "#E2E8F0" : "#111",
-              "text-halo-color": dark ? "#0F172A" : "#fff",
-              "text-halo-width": 1.4
-            }
-          }
-        ];
+    const layers = base && Array.isArray(base.layers) ? base.layers : [
+      { id: "bg", type: "background", paint: { "background-color": "#f3c4b0" } },
+      {
+        id: "earth",
+        type: "fill",
+        source: "protomaps",
+        "source-layer": "earth",
+        paint: { "fill-color": "#5fbf62" }
+      },
+      {
+        id: "water",
+        type: "fill",
+        source: "protomaps",
+        "source-layer": "water",
+        paint: { "fill-color": "#7ec8e8" }
+      },
+      {
+        id: "roads-major",
+        type: "line",
+        source: "protomaps",
+        "source-layer": "roads",
+        layout: { "line-cap": "round", "line-join": "round" },
+        paint: { "line-color": "#5c616a", "line-width": 3.2 }
       }
-    }
-    const source = localVectorSource();
-    if (layers && !dark) {
-      layers = layers.map(function (layer) {
-        if (!layer || layer.id !== "bg") return layer;
-        return Object.assign({}, layer, {
-          paint: Object.assign({}, layer.paint, { "background-color": "#d8f0a8" })
-        });
-      });
-    }
+    ];
+    const dusk = !!dark;
+    const painted = layers.map(function (layer) {
+      if (!layer || !layer.paint) return layer;
+      const paint = Object.assign({}, layer.paint);
+      if (layer.id === "bg") paint["background-color"] = dusk ? "#c48a78" : "#f3c4b0";
+      if (layer.id === "earth") paint["fill-color"] = dusk ? "#3f8f4a" : "#5fbf62";
+      return Object.assign({}, layer, { paint: paint });
+    });
     return {
       version: 8,
-      name: (base && base.name) || "Navigáció offline",
-      glyphs: (base && base.glyphs) || "https://protomaps.github.io/basemaps-assets/fonts/{fontstack}/{range}.pbf",
-      sprite: (base && base.sprite) || "https://protomaps.github.io/basemaps-assets/sprites/v4/" + flavor,
+      name: (base && base.name) || "ToonNavi clay",
+      glyphs: "./map/fonts/{fontstack}/{range}.pbf",
       sources: {
-        protomaps: source
+        protomaps: localVectorSource()
       },
-      layers: layers
+      layers: painted
     };
   }
 
@@ -4821,10 +4808,7 @@
     window.setTimeout(function () {
       if (ready) return;
       if (state.mapOffline) {
-        state.mapOffline = false;
-        state.map.setStyle(dark ? STYLES.dark : STYLES.light);
-        state.map.once("style.load", addLayers);
-        setStatus("Online utcaszintű térkép");
+        setStatus("Offline rajzfilmes térkép");
       }
     }, 8000);
     state.map.on("error", function (e) {

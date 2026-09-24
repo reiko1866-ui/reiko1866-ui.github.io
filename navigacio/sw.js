@@ -1,4 +1,4 @@
-const CACHE = "nav-v146";
+const CACHE = "nav-v147";
 const CORE = [
   "./",
   "./index.html",
@@ -14,6 +14,8 @@ const CORE = [
   "./vendor/maplibre-gl.css",
   "./vendor/pmtiles.js",
   "./map/style.json",
+  "./map/fonts/Noto Sans Regular/0-255.pbf",
+  "./map/fonts/Noto Sans Regular/256-511.pbf",
   "./manifest.json",
   "./manifest.webmanifest",
   "./manifest-demo.webmanifest",
