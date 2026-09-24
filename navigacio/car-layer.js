@@ -2970,12 +2970,17 @@
           .scale(this._scaleVec.set(scale, -scale, scale))
           .multiply(this._matRotX);
         this.camera.projectionMatrix = m.multiply(l);
-        maybeStreamEnv(this);
+        if (this.sky) this.sky.visible = false;
+        if (this.envRoot) this.envRoot.visible = false;
+        if (this.npcRoot) this.npcRoot.visible = false;
+        if (this.scene) this.scene.fog = null;
         var faceL = headingEnu(vis.heading);
         var hereL = carLocal(this.worldOrigin || lastWorld.origin);
         cullBehind(this.envRoot, hereL.x, hereL.z, faceL.x, faceL.z);
-        tickNpcs(this, dt);
         applyWorldLod(this.scene, this.worldRoot, this.buildRoot, this.markRoot, this.sky, this.envRoot);
+        if (this.sky) this.sky.visible = false;
+        if (this.envRoot) this.envRoot.visible = false;
+        if (this.npcRoot) this.npcRoot.visible = false;
         this.renderer.resetState();
         this.renderer.render(this.scene, this.camera);
         this.renderer.resetState();
