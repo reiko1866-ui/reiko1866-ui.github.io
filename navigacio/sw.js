@@ -1,4 +1,4 @@
-const CACHE = "nav-v149";
+const CACHE = "nav-v150";
 const CORE = [
   "./",
   "./index.html",
@@ -150,7 +150,6 @@ self.addEventListener("install", (event) => {
     caches.open(CACHE).then(async (cache) => {
       await addSafe(cache, CORE);
       await addSafe(cache, MODELS);
-      await addSafe(cache, MAP_FILES);
       await self.skipWaiting();
     })
   );
