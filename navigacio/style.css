@@ -2114,8 +2114,19 @@ noscript {
   justify-content: space-between;
 }
 
+html.is-arcade3d #infoCard,
+html.is-arcade3d #placeChip,
+html.is-arcade3d #lookAroundBtn,
+html.is-arcade3d #arHint,
+html.is-arcade3d .peek,
 #app.is-nav #banner,
 #app.is-nav .peek,
+#app.is-nav #infoCard,
+#app.is-nav #placeChip,
+#app.is-nav #lookAroundBtn,
+#app.is-nav #arHint,
+#app.is-nav #pinAdjust,
+#pinAdjust,
 #app.is-nav .maplibregl-ctrl-bottom-right,
 #app.is-nav .maplibregl-ctrl-bottom-left {
   display: none !important;
