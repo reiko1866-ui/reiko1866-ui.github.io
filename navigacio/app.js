@@ -4372,10 +4372,14 @@
   async function probePmtiles() {
     const url = europePmtilesUrl();
     try {
+      const ctrl = typeof AbortController !== "undefined" ? new AbortController() : null;
+      const timer = ctrl ? window.setTimeout(function () { ctrl.abort(); }, 2500) : 0;
       const res = await fetch(url, {
         headers: { Range: "bytes=0-15" },
-        cache: "no-store"
+        cache: "no-store",
+        signal: ctrl ? ctrl.signal : undefined
       });
+      if (timer) window.clearTimeout(timer);
       if (!res.ok) return false;
       const buf = await res.arrayBuffer();
       const u8 = new Uint8Array(buf);
@@ -4830,6 +4834,7 @@
     state.map.on("load", function () {
       addLayers();
       maybeArcadePreview();
+      if (state.mapOffline) setStatus("Offline rajzfilmes térkép");
     });
     state.map.on("style.load", function () {
       addLayers();
