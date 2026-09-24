@@ -923,20 +923,27 @@
     };
   }
 
+  function applyEgoLane(carRoot, carSlot) {
+    if (carRoot) {
+      carRoot.position.x = 0;
+      carRoot.position.z = 0;
+    }
+    if (carSlot) carSlot.position.x = -LANE_SAME;
+  }
+
   function smoothCarPose(root, worldRoot, origin, vis, headingRad, dt) {
     if (!root) return;
     var k = expK(dt || 0.016, TURN_TAU);
-    var lane = egoLaneWorld(headingRad);
     if (!root.userData.poseLive) {
       root.rotation.y = headingRad;
-      root.position.x = lane.x;
-      root.position.z = lane.z;
+      root.position.x = 0;
+      root.position.z = 0;
       root.userData.poseLive = true;
       root.userData.justSnapped = true;
     } else {
       root.rotation.y = lerpRad(root.rotation.y, headingRad, k);
-      root.position.x = lerpNum(root.position.x, lane.x, k);
-      root.position.z = lerpNum(root.position.z, lane.z, k);
+      root.position.x = lerpNum(root.position.x, 0, k);
+      root.position.z = lerpNum(root.position.z, 0, k);
     }
     if (worldRoot && origin) {
       var w = enuOffset({ lng: vis.lng, lat: vis.lat }, origin.lng, origin.lat);
@@ -2170,22 +2177,8 @@
     };
   }
 
-  function lockEgoToLane(carRoot) {
-    if (!carRoot) return;
-    var pts = lastWorld.roadPts;
-    var origin = lastWorld.origin || defaultOrigin();
-    if (pts && pts.length >= 2 && origin) {
-      var here = carLocal(origin);
-      var pose = poseOnPts(pts, traveledOnPts(pts, here.x, here.z));
-      if (pose && Number.isFinite(pose.nx) && Number.isFinite(pose.nz)) {
-        carRoot.position.x = pose.nx * LANE_SAME;
-        carRoot.position.z = pose.nz * LANE_SAME;
-        return;
-      }
-    }
-    var lane = egoLaneWorld(carRoot.rotation.y);
-    carRoot.position.x = lane.x;
-    carRoot.position.z = lane.z;
+  function lockEgoToLane(carRoot, origin, carSlot) {
+    applyEgoLane(carRoot, carSlot || (carRoot && carRoot.children && carRoot.children[0]));
   }
 
   function npcCruise(traveled, dir) {
@@ -2747,7 +2740,7 @@
         var headingRad = ((180 - (Number(vis.heading) || 0)) * Math.PI) / 180;
         var leanRad = ((Number(vis.lean) || 0) * Math.PI) / 180;
         smoothCarPose(this.carRoot, this.worldRoot, this.worldOrigin, vis, headingRad, dt);
-        lockEgoToLane(this.carRoot, this.worldOrigin || lastWorld.origin);
+        lockEgoToLane(this.carRoot, this.worldOrigin || lastWorld.origin, this.carSlot);
         if (this.carSlot) this.carSlot.rotation.z = lerpNum(this.carSlot.rotation.z, leanRad, expK(dt, TURN_TAU));
         stepRoadTextures(this.asphaltMats, dt);
         faceMarkers(this.markRoot);
@@ -3330,7 +3323,8 @@
         recenterOnFloor(mesh);
         overlay.carSlot.add(mesh);
         attachHeadlights(api.THREE, overlay.carSlot, mesh);
-        installContactShadow(api.THREE, overlay.carRoot, mesh);
+        installContactShadow(api.THREE, overlay.carSlot, mesh);
+        applyEgoLane(overlay.carRoot, overlay.carSlot);
       })
       .catch(function () {});
   }
@@ -3392,7 +3386,7 @@
     var headingRad = ((180 - (Number(vis.heading) || 0)) * Math.PI) / 180;
     var leanRad = ((Number(vis.lean) || 0) * Math.PI) / 180;
     smoothCarPose(overlay.carRoot, overlay.worldRoot, overlay.worldOrigin, vis, headingRad, dt);
-    lockEgoToLane(overlay.carRoot, overlay.worldOrigin || lastWorld.origin);
+    lockEgoToLane(overlay.carRoot, overlay.worldOrigin || lastWorld.origin, overlay.carSlot);
     if (overlay.carRoot && overlay.carRoot.userData.justSnapped) {
       overlay.camYaw = headingRad;
       overlay.carRoot.userData.justSnapped = false;
