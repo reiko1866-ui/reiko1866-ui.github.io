@@ -1186,6 +1186,7 @@ html.dark #results button.is-shortcut .result-title {
   bottom: calc(1.25rem + var(--safe-bottom));
 }
 
+#muteBtn,
 #simDriveBtn {
   position: absolute;
   right: calc(var(--pad) + 0.1rem);
@@ -1205,6 +1206,7 @@ html.dark #results button.is-shortcut .result-title {
   pointer-events: auto;
 }
 
+#muteBtn strong,
 #simDriveBtn strong {
   display: grid;
   place-items: center;
@@ -1217,10 +1219,24 @@ html.dark #results button.is-shortcut .result-title {
   font-size: 0.72rem;
 }
 
+#muteBtn {
+  bottom: calc(10.4rem + var(--safe-bottom));
+}
+
+#muteBtn.is-on strong {
+  background: #94a3b8;
+  color: #0f172a;
+}
+
+#muteBtn.is-on,
 #simDriveBtn.is-on {
   background: #fff;
   color: #111;
   box-shadow: 0 0 0 3px rgba(242, 184, 75, 0.45), 0 8px 18px rgba(15, 23, 42, 0.24);
+}
+
+#app.is-nav #muteBtn {
+  bottom: calc(9.6rem + var(--safe-bottom));
 }
 
 #app.is-nav #simDriveBtn {

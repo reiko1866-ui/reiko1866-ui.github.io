@@ -970,6 +970,7 @@
 
   function playNavCue(eventId, key) {
     if (!eventId || !window.NavVoice || typeof window.NavVoice.playEvent !== "function") return;
+    if (window.NavVoice.isMuted && window.NavVoice.isMuted()) return;
     if (key) {
       if (state.audioCue[key] === eventId) return;
       state.audioCue[key] = eventId;

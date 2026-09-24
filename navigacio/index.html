@@ -25,7 +25,7 @@
   <link rel="icon" href="./icons/icon-192.png" type="image/png">
   <link rel="apple-touch-icon" href="./icons/apple-touch-icon.png">
   <link rel="stylesheet" href="./vendor/maplibre-gl.css">
-  <link rel="stylesheet" href="./style.css?v=145">
+  <link rel="stylesheet" href="./style.css?v=146">
 </head>
 <body>
   <div id="app">
@@ -118,6 +118,10 @@
       <button type="button" id="lookAroundBtn" hidden aria-pressed="false" title="360° Street View">
         <strong>360°</strong>
         <span>Körbenézés</span>
+      </button>
+      <button type="button" id="muteBtn" aria-pressed="false" title="Hangok be — koppints a némításhoz">
+        <strong>♪</strong>
+        <span>Hang</span>
       </button>
       <button type="button" id="simDriveBtn" aria-pressed="false" title="Tesztvezetés 50 km/h">
         <strong>50</strong>
@@ -213,6 +217,8 @@
       <p class="hint">A pipák megmaradnak. Ha van cél, az útvonal azonnal újraterveződik autópálya / fizető nélkül. A telefon vissza gombja a menüt zárja, nem az appot.</p>
       <label class="check"><input type="checkbox" id="dark" checked> Sötét térkép</label>
       <label class="check"><input type="checkbox" id="kalandCheck"> Kaland mód</label>
+      <label class="check"><input type="checkbox" id="muteVoice"> Hangok némítva</label>
+      <p class="hint">A némítás megmarad: Teszt 50, újratervezés és újraindítás sem kapcsolja vissza. A Hangok panel Teszt gombja némítva nem szólal meg.</p>
       <p class="hint">Kaland: autópálya nélkül, a kanyargósabb OSRM-út, arany vonal. A hangok a fájlnév alapján automatikusan kategóriába kerülnek, a Hangok panelen ezt felülírhatod.</p>
       <div class="row">
         <button type="button" id="mapperBtn">Hangok irányai</button>
@@ -241,9 +247,9 @@
   <script src="./vendor/pmtiles.js"></script>
   <script src="./vendor/three.min.js"></script>
   <script src="./vendor/GLTFLoader.js"></script>
-  <script src="./sw-register.js?v=145"></script>
-  <script src="./car-layer.js?v=145"></script>
-  <script src="./voice/audio-manager.js?v=145"></script>
-  <script src="./app.js?v=145"></script>
+  <script src="./sw-register.js?v=146"></script>
+  <script src="./car-layer.js?v=146"></script>
+  <script src="./voice/audio-manager.js?v=146"></script>
+  <script src="./app.js?v=146"></script>
 </body>
 </html>
