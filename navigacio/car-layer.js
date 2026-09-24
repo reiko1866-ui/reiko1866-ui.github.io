@@ -6,9 +6,12 @@
   var TARGET_METERS = 7.2;
   var CHIBI_SCALE = 1;
   var CAM_FAR = 340;
+  var CAM_FAR_OVERVIEW = 1400;
+  var CAM_OVERVIEW_Y = 175;
   var BUILD_RANGE = 300;
   var ENV_RANGE = 300;
   var ENV_KEEP = 360;
+  var BEHIND_KEEP = 50;
   var ENV_STEP = 42;
   var BUILD_ZOOM_MIN = 15;
   var FOG_COLOR = 0xf3c4b0;
@@ -1057,28 +1060,30 @@
 
   function envClose() {
     if (api.arcade) return true;
-    return !!(mapRef && typeof mapRef.getZoom === "function" && mapRef.getZoom() >= BUILD_ZOOM_MIN);
+    return true;
   }
 
   function applyWorldLod(scene, worldRoot, buildRoot, markRoot, sky, extraHeavy) {
+    var lift = overlay.lift || 0;
     var close = envClose();
     if (scene && api.THREE) {
-      if (close) {
+      if (close && lift < 0.35) {
         if (!scene.fog) scene.fog = new api.THREE.FogExp2(FOG_COLOR, FOG_DENSITY);
       } else {
         scene.fog = null;
       }
     }
-    if (buildRoot) buildRoot.visible = close;
-    if (markRoot) markRoot.visible = close;
-    if (sky) sky.visible = close;
-    if (extraHeavy) extraHeavy.visible = close;
-    if (close && worldRoot) {
+    if (buildRoot) buildRoot.visible = true;
+    if (markRoot) markRoot.visible = true;
+    if (sky) sky.visible = true;
+    if (extraHeavy) extraHeavy.visible = true;
+    if (worldRoot) {
       var ox = -worldRoot.position.x;
       var oz = -worldRoot.position.z;
-      setRangeVisible(buildRoot, ox, oz, BUILD_RANGE);
-      setRangeVisible(markRoot, ox, oz, BUILD_RANGE);
-      setRangeVisible(extraHeavy, ox, oz, BUILD_RANGE);
+      var range = lift > 0.35 ? 900 : BUILD_RANGE;
+      setRangeVisible(buildRoot, ox, oz, range);
+      setRangeVisible(markRoot, ox, oz, range);
+      setRangeVisible(extraHeavy, ox, oz, lift > 0.35 ? 900 : ENV_RANGE);
     }
   }
 
@@ -1689,7 +1694,7 @@
     var pad = new THREE.Group();
     pad.name = "clayPad";
     var ground = new THREE.Mesh(
-      new THREE.PlaneGeometry(560, 560, 1, 1),
+      new THREE.PlaneGeometry(1800, 1800, 1, 1),
       toonMaterial(THREE, { color: CLAY_GROUND, fog: true, side: THREE.DoubleSide })
     );
     ground.rotation.x = -Math.PI / 2;
@@ -1895,16 +1900,48 @@
     root.add(obj);
   }
 
+  function disposeNode(n) {
+    if (!n) return;
+    if (n.geometry) n.geometry.dispose();
+    if (n.material) {
+      var mats = Array.isArray(n.material) ? n.material : [n.material];
+      mats.forEach(function (m) {
+        if (!m) return;
+        if (m.map) m.map.dispose();
+        try { m.dispose(); } catch (_d) {}
+      });
+    }
+  }
+
+  function headingEnu(deg) {
+    var yaw = ((180 - (Number(deg) || 0)) * Math.PI) / 180;
+    return { x: Math.sin(yaw), z: Math.cos(yaw) };
+  }
+
   function dropEnv(root, live, key) {
     var obj = live[key];
     if (!obj) return;
     root.remove(obj);
     try {
-      obj.traverse(function (n) {
-        if (n.geometry) n.geometry.dispose();
-      });
+      obj.traverse(disposeNode);
     } catch (_e) {}
     delete live[key];
+  }
+
+  function cullBehind(root, carX, carZ, fx, fz) {
+    if (!root || !root.userData || !root.userData.live) return;
+    var live = root.userData.live;
+    Object.keys(live).forEach(function (key) {
+      var obj = live[key];
+      if (!obj) {
+        delete live[key];
+        return;
+      }
+      var x = Number.isFinite(obj.userData.cullX) ? obj.userData.cullX : obj.position.x;
+      var z = Number.isFinite(obj.userData.cullZ) ? obj.userData.cullZ : obj.position.z;
+      var along = (x - carX) * fx + (z - carZ) * fz;
+      if (along < -BEHIND_KEEP) dropEnv(root, live, key);
+    });
   }
 
   function buildClayEnvironment(THREE, root, coords, origin, carX, carZ) {
@@ -1920,15 +1957,21 @@
     }
     var spawn2 = ENV_RANGE * ENV_RANGE;
     var keep2 = ENV_KEEP * ENV_KEEP;
+    var face = headingEnu(pose.heading);
+    var fx = face.x;
+    var fz = face.z;
     Object.keys(live).forEach(function (key) {
       var obj = live[key];
       if (!obj) {
         delete live[key];
         return;
       }
-      var dx = (Number.isFinite(obj.userData.cullX) ? obj.userData.cullX : obj.position.x) - carX;
-      var dz = (Number.isFinite(obj.userData.cullZ) ? obj.userData.cullZ : obj.position.z) - carZ;
-      if (dx * dx + dz * dz > keep2) dropEnv(root, live, key);
+      var ox = Number.isFinite(obj.userData.cullX) ? obj.userData.cullX : obj.position.x;
+      var oz = Number.isFinite(obj.userData.cullZ) ? obj.userData.cullZ : obj.position.z;
+      var dx = ox - carX;
+      var dz = oz - carZ;
+      var along = dx * fx + dz * fz;
+      if (along < -BEHIND_KEEP || dx * dx + dz * dz > keep2) dropEnv(root, live, key);
     });
     var pts = pathPoints(coords, origin);
     if (!pts || pts.length < 2) pts = envRawPoints(coords, origin);
@@ -1950,7 +1993,9 @@
       acc += len;
       var midX = (pts[i].x + pts[i - 1].x) * 0.5;
       var midZ = (pts[i].z + pts[i - 1].z) * 0.5;
-      near = (midX - carX) * (midX - carX) + (midZ - carZ) * (midZ - carZ) <= spawn2;
+      near =
+        (midX - carX) * (midX - carX) + (midZ - carZ) * (midZ - carZ) <= spawn2 &&
+        (midX - carX) * fx + (midZ - carZ) * fz > -BEHIND_KEEP;
       if (acc > lamps * 16 + 6) {
         key = "l:" + lamps;
         if (near && !live[key]) {
@@ -2023,6 +2068,7 @@
         var cx = (gx + di) * 90 + (hash01(gx + di + 3) - 0.5) * 24;
         var cz = (gz + dj) * 90 + (hash01(gz + dj + 8) - 0.5) * 24;
         if ((cx - carX) * (cx - carX) + (cz - carZ) * (cz - carZ) > spawn2) continue;
+        if ((cx - carX) * fx + (cz - carZ) * fz < -BEHIND_KEEP) continue;
         if (((gx + di + gz + dj) & 1) === 0) {
           key = "h:" + (gx + di) + ":" + (gz + dj);
           if (!live[key]) {
@@ -2248,7 +2294,15 @@
       npc.mesh.rotation.y = Math.atan2(pose.hx * npc.dir, pose.hz * npc.dir);
       var dx = at.x - car.x;
       var dz = at.z - car.z;
-      npc.mesh.visible = dx * dx + dz * dz <= ENV_RANGE * ENV_RANGE;
+      var along = npc.traveled - carT;
+      if (along < -BEHIND_KEEP || dx * dx + dz * dz > ENV_RANGE * ENV_RANGE) {
+        host.npcRoot.remove(npc.mesh);
+        try { npc.mesh.traverse(disposeNode); } catch (_n) {}
+        host.npcs.splice(i, 1);
+        i -= 1;
+        continue;
+      }
+      npc.mesh.visible = true;
     }
     if (host.npcAnchorX == null || Math.hypot(car.x - host.npcAnchorX, car.z - host.npcAnchorZ) > 70) {
       host.npcAnchorX = car.x;
@@ -2675,6 +2729,9 @@
           .multiply(this._matRotX);
         this.camera.projectionMatrix = m.multiply(l);
         maybeStreamEnv(this);
+        var faceL = headingEnu(vis.heading);
+        var hereL = carLocal(this.worldOrigin || lastWorld.origin);
+        cullBehind(this.envRoot, hereL.x, hereL.z, faceL.x, faceL.z);
         tickNpcs(this, dt);
         applyWorldLod(this.scene, this.worldRoot, this.buildRoot, this.markRoot, this.sky, this.envRoot);
         this.renderer.resetState();
@@ -2856,6 +2913,8 @@
     camBound: false,
     cabin: false,
     camBlend: 0,
+    lift: 0,
+    overview: false,
     look: {
       enabled: false,
       yaw: 0,
@@ -3048,6 +3107,14 @@
     on(canvas, "pointermove", onLookMove);
     on(canvas, "pointerup", onLookUp);
     on(canvas, "pointercancel", onLookUp);
+    on(window, "wheel", function (ev) {
+      if (!api.arcade || overlay.cabin) return;
+      if (!canvas || canvas.hidden) return;
+      ev.preventDefault();
+      var next = (overlay.lift || 0) + (ev.deltaY > 0 ? 0.1 : -0.1);
+      overlay.lift = Math.max(0, Math.min(1, next));
+      overlay.overview = overlay.lift > 0.58;
+    }, { passive: false });
   }
 
   function setExteriorVisible(host, show) {
@@ -3292,6 +3359,9 @@
     }
     if (overlay.carSlot) overlay.carSlot.rotation.z = lerpNum(overlay.carSlot.rotation.z, leanRad, expK(dt, TURN_TAU));
     maybeStreamEnv(overlay);
+    var face = headingEnu(vis.heading);
+    var here = carLocal(overlay.worldOrigin || lastWorld.origin);
+    cullBehind(overlay.envRoot, here.x, here.z, face.x, face.z);
     tickNpcs(overlay, dt);
     applyWorldLod(overlay.scene, overlay.worldRoot, overlay.buildRoot, overlay.markRoot, overlay.sky, overlay.envRoot);
     if (overlay.sky) overlay.sky.position.copy(overlay.camera.position);
@@ -3310,18 +3380,23 @@
     } else {
       overlay.camBlend = lerpNum(overlay.camBlend, overlay.cabin ? 1 : 0, expK(dt, CAM_BLEND_TAU));
     }
-    var fov = lerpNum(CAM_FOV_CHASE, CAM_FOV_DASH, overlay.camBlend);
+    if (overlay.overview && (overlay.lift || 0) < 0.12) {
+      overlay.lift = lerpNum(overlay.lift || 0, 1, expK(dt, CAM_BLEND_TAU));
+    }
+    var lift = overlay.lift || 0;
+    var far = lerpNum(CAM_FAR, CAM_FAR_OVERVIEW, lift);
+    var fov = lerpNum(lerpNum(CAM_FOV_CHASE, 58, lift), CAM_FOV_DASH, overlay.camBlend);
     var aspect = cw / Math.max(1, ch);
     if (
       overlay.camera.aspect !== aspect ||
       overlay.camera.fov !== fov ||
-      overlay.camera.far !== CAM_FAR ||
-      overlay.camera.near !== 0.2
+      overlay.camera.far !== far ||
+      overlay.camera.near !== (lift > 0.4 ? 2 : 0.2)
     ) {
       overlay.camera.aspect = aspect;
       overlay.camera.fov = fov;
-      overlay.camera.near = 0.2;
-      overlay.camera.far = CAM_FAR;
+      overlay.camera.near = lift > 0.4 ? 2 : 0.2;
+      overlay.camera.far = far;
       overlay.camera.updateProjectionMatrix();
     }
     if (canvas.width !== cw || canvas.height !== ch) {
@@ -3340,7 +3415,13 @@
     } else {
       overlay.camYaw = lerpRad(overlay.camYaw, overlay.carRoot.rotation.y, ck);
     }
-    if (overlay.look.enabled && kmh < 1 && overlay.camBlend < 0.35) {
+    if (lift > 0.04) {
+      overlay.carRoot.getWorldPosition(tmp.carPos);
+      tmp.chasePos.set(tmp.carPos.x, lerpNum(CAM_HEIGHT, CAM_OVERVIEW_Y, lift), tmp.carPos.z);
+      tmp.chaseLook.set(tmp.carPos.x + face.x * lerpNum(18, 70, lift), 0.2, tmp.carPos.z + face.z * lerpNum(18, 70, lift));
+      camPos.copy(tmp.chasePos);
+      camLook.copy(tmp.chaseLook);
+    } else if (overlay.look.enabled && kmh < 1 && overlay.camBlend < 0.35) {
       var yaw = overlay.look.yaw;
       var pitch = overlay.look.pitch;
       var dist = overlay.look.dist;
@@ -3408,6 +3489,8 @@
     overlay.smoothCam = null;
     overlay.camYaw = null;
     overlay.camBlend = overlay.cabin ? 1 : 0;
+    overlay.lift = 0;
+    overlay.overview = false;
     overlay.sky = null;
     overlay.stripMat = null;
     overlay.asphaltMats = [];
@@ -3545,13 +3628,20 @@
   api.trafficPace = function () {
     var hit = nearestNpcAhead();
     var pace = 1;
-    if (hit && hit.level >= 0.38) pace = hit.level >= 0.65 ? 0.22 : 0.55;
-    if (hit && hit.npc && hit.gap < 28) {
-      if (hit.gap < NPC_FOLLOW_GAP) pace = Math.min(pace, 0.08);
-      else if (hit.gap < 22) pace = Math.min(pace, 0.32);
-      else pace = Math.min(pace, 0.62);
+    if (hit && hit.level >= 0.38) pace = hit.level >= 0.65 ? 0.55 : 0.72;
+    if (hit && hit.npc && hit.gap < 22) pace = Math.min(pace, 0.62);
+    return Math.max(0.55, pace);
+  };
+
+  api.setOverview = function (on) {
+    overlay.overview = !!on;
+    if (on) {
+      overlay.cabin = false;
+      overlay.look.enabled = false;
     }
-    return pace;
+    if (!on) overlay.lift = Math.min(overlay.lift || 0, 0.2);
+    syncCamUi();
+    return overlay.overview;
   };
 
   api.setWeather = function (code, temp) {
