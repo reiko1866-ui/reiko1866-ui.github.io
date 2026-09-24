@@ -2081,6 +2081,16 @@
     };
   }
 
+  function lockEgoToLane(carRoot, origin) {
+    if (!carRoot || !origin) return;
+    var path = lastWorld.coords && lastWorld.coords.length >= 2 ? pathPoints(lastWorld.coords, origin) : null;
+    if (!path || path.length < 2) return;
+    var car = carLocal(origin);
+    var pose = poseOnPts(path, traveledOnPts(path, car.x, car.z));
+    carRoot.position.x = -pose.nx * LANE_SAME;
+    carRoot.position.z = -pose.nz * LANE_SAME;
+  }
+
   function npcCruise(traveled, dir) {
     var level = trafficAt(traveled);
     if (dir < 0) return level >= 0.65 ? 3.2 : 13;
@@ -2612,6 +2622,7 @@
         var headingRad = ((180 - (Number(vis.heading) || 0)) * Math.PI) / 180;
         var leanRad = ((Number(vis.lean) || 0) * Math.PI) / 180;
         smoothCarPose(this.carRoot, this.worldRoot, this.worldOrigin, vis, headingRad, dt);
+        lockEgoToLane(this.carRoot, this.worldOrigin || lastWorld.origin);
         if (this.carSlot) this.carSlot.rotation.z = lerpNum(this.carSlot.rotation.z, leanRad, expK(dt, TURN_TAU));
         stepRoadTextures(this.asphaltMats, dt);
         faceMarkers(this.markRoot);
@@ -3243,6 +3254,7 @@
     var headingRad = ((180 - (Number(vis.heading) || 0)) * Math.PI) / 180;
     var leanRad = ((Number(vis.lean) || 0) * Math.PI) / 180;
     smoothCarPose(overlay.carRoot, overlay.worldRoot, overlay.worldOrigin, vis, headingRad, dt);
+    lockEgoToLane(overlay.carRoot, overlay.worldOrigin || lastWorld.origin);
     if (overlay.carRoot && overlay.carRoot.userData.justSnapped) {
       overlay.camYaw = headingRad;
       overlay.carRoot.userData.justSnapped = false;
