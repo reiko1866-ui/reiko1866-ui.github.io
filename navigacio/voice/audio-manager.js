@@ -488,6 +488,9 @@
       return true;
     }
     var list = filesForEvent(id);
+    if (!list.length && EVENT_FALLBACK[id]) list = filesForEvent(EVENT_FALLBACK[id]);
+    if (!list.length && (id === "straight" || force)) list = filesForEvent("turn-left");
+    if (!list.length && force && files.length) list = files.slice();
     if (!list.length) return false;
     return playFile(pickRandom(list), id, !!force);
   }
