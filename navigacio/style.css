@@ -46,6 +46,8 @@ body {
   overflow-y: auto;
 }
 
+html.is-nav,
+html.is-nav body,
 html:has(#app.is-nav),
 body:has(#app.is-nav) {
   overflow: hidden;
@@ -65,11 +67,13 @@ body {
 
 #app {
   position: relative;
+  min-height: 100vh;
   min-height: 100dvh;
 }
 
 button,
-input {
+input,
+select {
   font: inherit;
   color: inherit;
 }
@@ -98,7 +102,9 @@ button {
 /* Térkép */
 #kezdolap {
   position: relative;
+  height: 100vh;
   height: 100dvh;
+  min-height: 100vh;
   min-height: 100dvh;
   overflow: hidden;
   user-select: none;
@@ -107,19 +113,57 @@ button {
 
 #map {
   position: absolute;
-  inset: 0;
-  background: #0F172A;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  background: #5fbf62;
+}
+
+#arcade3d {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 3;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  background: #f3c4b0;
+}
+
+#arcade3d[hidden] {
+  display: none !important;
+}
+
+html.is-arcade3d #app.is-nav #map .maplibregl-canvas,
+html.is-arcade3d #app.is-nav .maplibregl-canvas-container canvas.maplibregl-canvas {
+  opacity: 0 !important;
+}
+
+#app.is-nav #map {
+  background: #d8f0a8;
+}
+
+html.is-arcade3d,
+html.is-arcade3d body,
+html.is-arcade3d #kezdolap {
+  background: #f3c4b0;
 }
 
 .maplibregl-canvas-container,
 .maplibregl-canvas {
-  background: #0F172A;
+  background: #5fbf62;
 }
 
 #arStage {
   display: none;
   position: absolute;
-  inset: 0;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
   z-index: 2;
   overflow: hidden;
   background: #000;
@@ -132,7 +176,10 @@ button {
 
 #arCam {
   position: absolute;
-  inset: 0;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
   width: 100%;
   height: 100%;
   object-fit: cover;
@@ -504,13 +551,72 @@ body:has(#app.is-ar),
 }
 
 .pin {
-  width: 18px;
-  height: 18px;
-  margin-left: -9px;
-  margin-top: -18px;
+  width: 22px;
+  height: 22px;
+  margin-left: -11px;
+  margin-top: -22px;
   border-radius: 50% 50% 50% 0;
   background: var(--red);
   transform: rotate(-45deg);
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.45);
+  cursor: grab;
+  touch-action: none;
+}
+
+.pin.pin-3d {
+  width: 36px;
+  height: 52px;
+  margin-left: -18px;
+  margin-top: -52px;
+  border-radius: 0;
+  background: transparent;
+  transform: none;
+  box-shadow: none;
+  position: relative;
+}
+
+.pin-3d .pin-head {
+  position: absolute;
+  left: 50%;
+  top: 0;
+  width: 26px;
+  height: 26px;
+  margin-left: -13px;
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at 32% 28%, #fff4f2 0 18%, transparent 42%),
+    radial-gradient(circle at 50% 46%, #ff5a6a 0 62%, #c81e32 100%);
+  box-shadow:
+    0 4px 0 #9f1324,
+    0 8px 14px rgba(15, 23, 42, 0.28);
+}
+
+.pin-3d .pin-stick {
+  position: absolute;
+  left: 50%;
+  top: 24px;
+  width: 7px;
+  height: 22px;
+  margin-left: -3.5px;
+  background: linear-gradient(90deg, #f4d27a, #e2b34a 45%, #c8962c);
+  border-radius: 0 0 3px 3px;
+  box-shadow: 1px 2px 0 #9a7420;
+}
+
+.pin-3d .pin-shadow {
+  position: absolute;
+  left: 50%;
+  bottom: 0;
+  width: 22px;
+  height: 7px;
+  margin-left: -11px;
+  border-radius: 50%;
+  background: rgba(15, 23, 42, 0.28);
+  filter: blur(1px);
+}
+
+.pin:active {
+  cursor: grabbing;
 }
 
 .car-pin {
@@ -677,6 +783,41 @@ body:has(#app.is-ar),
   overflow-x: hidden;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
+}
+
+#pinAdjust {
+  position: absolute;
+  left: calc(var(--pad) + 5.6rem);
+  right: auto;
+  bottom: calc(var(--pad) + var(--safe-bottom));
+  z-index: 21;
+  width: min(26rem, calc(100% - 8.4rem));
+  padding: 0.75rem 0.85rem;
+  border-radius: 14px;
+  background: rgba(15, 23, 42, 0.9);
+  color: #e2e8f0;
+  box-shadow: var(--shadow);
+}
+
+#pinAdjust p {
+  margin: 0 0 0.55rem;
+  font-size: 0.88rem;
+  font-weight: 650;
+  line-height: 1.35;
+}
+
+#pinAdjustGo {
+  width: 100%;
+  height: 2.6rem;
+  border: 0;
+  border-radius: 12px;
+  background: var(--blue);
+  color: #fff;
+  font-weight: 800;
+}
+
+#app.is-nav #pinAdjust {
+  display: none;
 }
 
 #results button {
@@ -852,8 +993,10 @@ html.dark #results button.is-shortcut .result-title {
   max-width: min(16rem, calc(100% - 96px));
 }
 
-#app.is-nav #infoCard:not(:has(#status.is-err)) {
-  display: none;
+#app.is-nav #infoCard,
+#app.is-nav #infoCard:not(:has(#status.is-err)),
+#app.is-nav #weather {
+  display: none !important;
 }
 
 #app.is-nav:has(#thenRow:not([hidden])) #infoCard {
@@ -996,6 +1139,110 @@ html.dark #results button.is-shortcut .result-title {
   max-width: min(22rem, calc(100% - 96px));
 }
 
+#lookAroundBtn {
+  position: absolute;
+  left: 50%;
+  bottom: calc(1.15rem + var(--safe-bottom));
+  transform: translateX(-50%);
+  z-index: 22;
+  display: none;
+  align-items: center;
+  gap: 0.45rem;
+  margin: 0;
+  padding: 0.55rem 0.95rem;
+  border: 0;
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.82);
+  color: #e2e8f0;
+  font: 700 0.92rem/1.1 system-ui, sans-serif;
+  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.28);
+  pointer-events: auto;
+}
+
+#lookAroundBtn:not([hidden]) {
+  display: inline-flex;
+}
+
+#lookAroundBtn strong {
+  display: grid;
+  place-items: center;
+  min-width: 2.2rem;
+  height: 1.55rem;
+  padding: 0 0.28rem;
+  border-radius: 999px;
+  background: #22c55e;
+  color: #052e16;
+  font-size: 0.72rem;
+  letter-spacing: 0.02em;
+}
+
+#lookAroundBtn.is-on {
+  background: #fff;
+  color: #111;
+  box-shadow: 0 0 0 3px rgba(0, 255, 102, 0.35), 0 8px 18px rgba(15, 23, 42, 0.24);
+}
+
+#app.is-nav #lookAroundBtn:not([hidden]) {
+  bottom: calc(1.25rem + var(--safe-bottom));
+}
+
+#muteBtn,
+#simDriveBtn {
+  position: absolute;
+  right: calc(var(--pad) + 0.1rem);
+  bottom: calc(7.2rem + var(--safe-bottom));
+  z-index: 22;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin: 0;
+  padding: 0.5rem 0.8rem;
+  border: 0;
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.82);
+  color: #e2e8f0;
+  font: 700 0.88rem/1.1 system-ui, sans-serif;
+  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.28);
+  pointer-events: auto;
+}
+
+#muteBtn strong,
+#simDriveBtn strong {
+  display: grid;
+  place-items: center;
+  min-width: 1.85rem;
+  height: 1.5rem;
+  padding: 0 0.2rem;
+  border-radius: 999px;
+  background: #f2b84b;
+  color: #3b2a08;
+  font-size: 0.72rem;
+}
+
+#muteBtn {
+  bottom: calc(10.4rem + var(--safe-bottom));
+}
+
+#muteBtn.is-on strong {
+  background: #94a3b8;
+  color: #0f172a;
+}
+
+#muteBtn.is-on,
+#simDriveBtn.is-on {
+  background: #fff;
+  color: #111;
+  box-shadow: 0 0 0 3px rgba(242, 184, 75, 0.45), 0 8px 18px rgba(15, 23, 42, 0.24);
+}
+
+#app.is-nav #muteBtn {
+  bottom: calc(9.6rem + var(--safe-bottom));
+}
+
+#app.is-nav #simDriveBtn {
+  bottom: calc(6.4rem + var(--safe-bottom));
+}
+
 #roadThen,
 #hazardThen {
   display: flex;
@@ -1102,6 +1349,11 @@ html.dark #results button.is-shortcut .result-title {
   -webkit-backdrop-filter: none;
 }
 
+body.is-scrolled #fabBar,
+body.is-scrolled .peek {
+  display: none;
+}
+
 #app.is-nav #fabBar {
   top: 50%;
   bottom: auto;
@@ -1132,6 +1384,12 @@ html.dark #results button.is-shortcut .result-title {
   box-shadow: 0 0 0 3px rgba(0, 255, 102, 0.35), 0 8px 18px rgba(15, 23, 42, 0.24);
 }
 
+#camViewBtn.is-on {
+  background: #f2b84b;
+  color: #3b2a08;
+  box-shadow: 0 0 0 3px rgba(242, 184, 75, 0.42), 0 8px 18px rgba(15, 23, 42, 0.24);
+}
+
 /* Fiók */
 #drawerOverlay {
   position: fixed;
@@ -1156,12 +1414,10 @@ html.dark #results button.is-shortcut .result-title {
   z-index: 25;
   display: flex;
   flex-direction: column;
-  gap: 0.7rem;
+  gap: 0;
   max-height: min(92dvh, 100%);
-  overflow-x: hidden;
-  overflow-y: auto;
-  -webkit-overflow-scrolling: touch;
-  padding: 1rem 1rem calc(1.1rem + var(--safe-bottom));
+  overflow: hidden;
+  padding: 0;
   border-radius: 18px 18px 0 0;
   background: var(--bg);
   box-shadow: 0 -10px 30px rgba(0, 0, 0, 0.25);
@@ -1178,25 +1434,47 @@ html.dark #results button.is-shortcut .result-title {
 }
 
 #mobileDrawer header {
-  position: sticky;
-  top: 0;
-  z-index: 1;
-  margin: -1rem -1rem 0;
-  padding: 1rem 1rem 0.4rem;
+  position: relative;
+  z-index: 2;
+  flex: 0 0 auto;
+  margin: 0;
+  padding: 1rem 1rem 0.55rem;
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 0.75rem;
   background: var(--bg);
+}
+
+.drawer-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+  padding: 0 1rem calc(1.1rem + var(--safe-bottom));
 }
 
 #closeBtn,
 #mobileDrawer .row button {
-  height: 2.4rem;
+  height: 2.6rem;
+  min-width: 5.4rem;
+  padding: 0 1rem;
   border: 0;
   border-radius: 10px;
   background: var(--chip);
   color: var(--text);
   font-weight: 700;
+  touch-action: manipulation;
+}
+
+#closeBtn {
+  position: relative;
+  z-index: 3;
+  pointer-events: auto;
 }
 
 .mobile-link.active,
@@ -1343,115 +1621,135 @@ html.dark #results button.is-shortcut .result-title {
   line-height: 1.25;
 }
 
-#voiceTest {
-  display: flex;
+#mapperOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 28;
+  background: rgba(6, 16, 31, 0.72);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease;
+}
+
+#mapperOverlay.open {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+#audioMapper {
+  position: fixed;
+  z-index: 29;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: min(36rem, calc(100vw - 1.4rem));
+  max-height: min(88dvh, 92%);
+  display: none;
   flex-direction: column;
-  gap: 0.45rem;
-  padding-top: 0.35rem;
-  border-top: 1px solid var(--line);
+  overflow: hidden;
+  border-radius: 16px;
+  background: var(--bg);
+  color: var(--text);
+  box-shadow: var(--shadow);
 }
 
-#voiceTest .row button {
-  font-size: 0.85rem;
+#audioMapper.open {
+  display: flex;
 }
 
-#voiceStart {
-  height: 2.6rem;
-  border: 0;
-  border-radius: 10px;
-  background: var(--blue);
-  color: #fff;
-  font-weight: 800;
+#audioMapper header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+  padding: 0.85rem 1rem 0.4rem;
 }
 
-#voiceFind {
+#audioMapper header p,
+#audioMapper .hint {
+  margin: 0;
+  padding: 0 1rem 0.6rem;
+}
+
+#mapperClose {
   height: 2.4rem;
   border: 0;
   border-radius: 10px;
   background: var(--chip);
   color: var(--text);
   font-weight: 700;
+  padding: 0 0.8rem;
 }
 
-#voiceBase {
-  width: 100%;
-  height: 2.4rem;
+#mapperSearch {
+  display: block;
+  width: calc(100% - 2rem);
+  margin: 0 1rem 0.55rem;
+  height: 2.6rem;
+  box-sizing: border-box;
   border: 1px solid var(--line);
   border-radius: 10px;
   padding: 0 0.7rem;
-  background: var(--bg);
-  color: var(--text);
-}
-
-#voiceLog {
-  margin: 0;
-  min-height: 2.4em;
-  color: var(--muted);
-  font-size: 0.78rem;
-  line-height: 1.35;
-}
-
-#voiceLog.is-err {
-  color: #ff8a80;
-}
-
-.poen-bar {
-  display: flex;
-  gap: 0.45rem;
-  margin: 0.8rem 0 0.6rem;
-}
-
-.poen-bar button {
-  flex: 1;
-  min-height: 2.8rem;
-  border: 0;
-  border-radius: 12px;
   background: var(--chip);
   color: var(--text);
+  font: inherit;
+}
+
+#mapperCount {
+  padding-bottom: 0.25rem;
+}
+
+#mapperList {
+  overflow: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: 0 1rem calc(1rem + var(--safe-bottom));
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+}
+
+.mapper-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 4.6rem;
+  grid-template-rows: auto auto;
+  gap: 0.28rem 0.4rem;
+  align-items: center;
+}
+
+.mapper-row label,
+.mapper-file {
+  grid-column: 1 / -1;
+  font-weight: 700;
+  font-size: 0.78rem;
+  line-height: 1.25;
+  word-break: break-all;
+}
+
+.mapper-row select {
+  width: 100%;
+  height: 2.5rem;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 0 0.55rem;
+  background: var(--chip);
+  color: var(--text);
+}
+
+.mapper-row button {
+  height: 2.5rem;
+  border: 0;
+  border-radius: 10px;
+  background: var(--blue);
+  color: #fff;
   font-weight: 800;
 }
 
-#poenPlay {
-  background: var(--blue);
-  color: #fff;
+.mapper-more {
+  padding: 0.2rem 0 0.4rem;
 }
 
-#poenStop {
-  background: var(--red);
-  color: #fff;
-}
-
-#poenNow,
-#poenCount {
-  margin: 0.35rem 0 0;
-  font-weight: 700;
-}
-
-#poenList {
-  list-style: none;
-  margin: 0.9rem 0 0;
-  padding: 0;
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 0.4rem;
-}
-
-#poenList button {
+#mapperBtn {
   width: 100%;
-  min-height: 2.6rem;
-  border: 0;
-  border-radius: 10px;
-  background: var(--chip);
-  color: var(--text);
-  font-weight: 700;
-}
-
-@media (min-width: 720px) {
-  .poen-bar button,
-  #poenList button {
-    min-height: 3.3rem;
-    font-size: 1.15rem;
-  }
 }
 
 .peek {
@@ -1471,7 +1769,6 @@ html.dark #results button.is-shortcut .result-title {
 }
 
 #app.is-nav .peek,
-#app.is-nav #poen,
 #app.is-nav #funkciok,
 #app.is-nav #Ajanlatok,
 #app.is-nav #kapcsolat {
@@ -1829,11 +2126,23 @@ noscript {
 
 #app.is-nav #hudLeft {
   top: calc(0.7rem + var(--safe-top));
-  bottom: auto;
+  bottom: calc(0.7rem + var(--safe-bottom));
+  justify-content: space-between;
 }
 
+html.is-arcade3d #infoCard,
+html.is-arcade3d #placeChip,
+html.is-arcade3d #lookAroundBtn,
+html.is-arcade3d #arHint,
+html.is-arcade3d .peek,
 #app.is-nav #banner,
 #app.is-nav .peek,
+#app.is-nav #infoCard,
+#app.is-nav #placeChip,
+#app.is-nav #lookAroundBtn,
+#app.is-nav #arHint,
+#app.is-nav #pinAdjust,
+#pinAdjust,
 #app.is-nav .maplibregl-ctrl-bottom-right,
 #app.is-nav .maplibregl-ctrl-bottom-left {
   display: none !important;
@@ -1914,10 +2223,13 @@ noscript {
 
 #trip {
   min-width: 7.8rem;
+  background: rgba(255, 255, 255, 0.92);
+  color: #111;
 }
 
 #trip strong {
   font-size: 1.7rem;
+  color: #111;
 }
 
 #app.is-nav #fabBar {
@@ -2010,4 +2322,45 @@ noscript {
   #hudLeft {
     gap: 0.45rem;
   }
+}
+
+#app.is-nav #trip {
+  min-width: 8.6rem;
+  background: rgba(255, 255, 255, 0.92) !important;
+  color: #111 !important;
+  border-radius: 1.05rem;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.28);
+}
+
+#app.is-nav #trip strong,
+#app.is-nav #tripMeta,
+#app.is-nav #tripMeta em {
+  color: #111 !important;
+  white-space: nowrap;
+}
+
+#app.is-nav #compassN {
+  background:
+    radial-gradient(circle at 32% 28%, #fff 0 38%, #e8edf4 62%, #c5ccd6 100%);
+  box-shadow:
+    inset 0 2px 4px rgba(255, 255, 255, 0.9),
+    inset 0 -3px 6px rgba(15, 23, 42, 0.18),
+    0 10px 22px rgba(0, 0, 0, 0.3);
+}
+
+#app.is-nav #limitSign {
+  background: #fff !important;
+  color: #111 !important;
+  border: 3px solid #111 !important;
+}
+
+#app.is-nav #fabBar {
+  top: 42%;
+  bottom: auto;
+  transform: translateY(-50%);
+}
+
+#app.is-nav .fab {
+  background: #fff;
+  color: #111;
 }
