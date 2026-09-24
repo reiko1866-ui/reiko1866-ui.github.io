@@ -6,6 +6,8 @@
     "protomaps": {
       "type": "vector",
       "url": "pmtiles://./map/europe.pmtiles",
+      "minzoom": 0,
+      "maxzoom": 7,
       "attribution": "© OpenStreetMap © Protomaps"
     }
   },
