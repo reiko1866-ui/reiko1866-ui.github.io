@@ -12,14 +12,14 @@
   var ENV_RANGE = 500;
   var ENV_KEEP = 580;
   var BEHIND_KEEP = 80;
-  var ENV_STEP = 36;
-  var ROAD_AHEAD = 520;
-  var ROAD_BEHIND = 160;
+  var ENV_STEP = 72;
+  var ROAD_AHEAD = 560;
+  var ROAD_BEHIND = 180;
   var ROAD_CHUNK = 80;
-  var ORIGIN_REBASE_M = 420;
+  var ORIGIN_REBASE_M = 900;
   var POSE_SNAP_M = 8;
-  var CAM_POS_TAU = 0.09;
-  var CAM_LOOK_TAU = 0.11;
+  var CAM_POS_TAU = 0.05;
+  var CAM_LOOK_TAU = 0.06;
   var BUILD_ZOOM_MIN = 15;
   var FOG_COLOR = 0xf3c4b0;
   var FOG_DENSITY = 0.0026;
@@ -30,8 +30,8 @@
   var CLAY_ROAD = 0x5c616a;
   var CLAY_ROUTE = 0xf2b84b;
   var DEADBAND_KMH = 3;
-  var SMOOTH_LERP = 0.1;
-  var TURN_TAU = 0.22;
+  var SMOOTH_LERP = 0.45;
+  var TURN_TAU = 0.1;
   var CAM_TAU = 0.14;
   var CAM_BACK = 13.5;
   var CAM_HEIGHT = 5.2;
@@ -186,7 +186,7 @@
 
   function lerpPose(now) {
     var jump = metersBetween(shown, pose);
-    if (!shown.seeded || jump > POSE_SNAP_M) {
+    if (!shown.seeded || jump > POSE_SNAP_M || movingEnough()) {
       snapShownToPose();
       lastPoseT = now;
       return shown;
@@ -935,6 +935,11 @@
     }
   }
 
+  function pathRight(hx, hz) {
+    var len = Math.hypot(hx, hz) || 1;
+    return { x: -hz / len, z: hx / len };
+  }
+
   function egoLaneWorld(yaw) {
     return {
       x: -Math.cos(yaw) * LANE_SAME,
@@ -942,41 +947,46 @@
     };
   }
 
-  function applyEgoLane(carRoot, carSlot) {
-    if (carRoot) {
-      carRoot.position.x = 0;
-      carRoot.position.z = 0;
+  function applyEgoLane(carRoot, carSlot, origin) {
+    var face = headingEnu(pose.heading);
+    var hx = face.x;
+    var hz = face.z;
+    var pts = lastWorld.roadPts;
+    if (pts && pts.length >= 2) {
+      var here = carLocal(origin || lastWorld.origin);
+      var hit = nearestOnPathPts(pts, here.x, here.z);
+      if (hit && Math.hypot(hit.hx, hit.hz) > 1e-4) {
+        hx = hit.hx;
+        hz = hit.hz;
+      }
     }
-    if (carSlot) carSlot.position.x = LANE_SAME;
+    var r = pathRight(hx, hz);
+    if (carRoot) {
+      carRoot.position.x = r.x * LANE_SAME;
+      carRoot.position.z = r.z * LANE_SAME;
+    }
+    if (carSlot) {
+      carSlot.position.x = 0;
+      carSlot.position.z = 0;
+    }
   }
 
   function smoothCarPose(root, worldRoot, origin, vis, headingRad, dt) {
     if (!root) return;
-    var k = expK(dt || 0.016, TURN_TAU);
-    if (!root.userData.poseLive) {
+    var k = expK(dt || 0.016, movingEnough() ? 0.07 : TURN_TAU);
+    if (!root.userData.poseLive || movingEnough()) {
       root.rotation.y = headingRad;
-      root.position.x = 0;
-      root.position.z = 0;
-      root.userData.poseLive = true;
-      root.userData.justSnapped = true;
+      if (!root.userData.poseLive) {
+        root.userData.poseLive = true;
+        root.userData.justSnapped = true;
+      }
     } else {
       root.rotation.y = lerpRad(root.rotation.y, headingRad, k);
-      root.position.x = lerpNum(root.position.x, 0, k);
-      root.position.z = lerpNum(root.position.z, 0, k);
     }
     if (worldRoot && origin) {
       var carEnu = enuOffset(origin, vis.lng, vis.lat);
-      var wx = -carEnu.x;
-      var wz = -carEnu.z;
-      var jump = Math.hypot(worldRoot.position.x - wx, worldRoot.position.z - wz);
-      if (!worldRoot.userData.poseLive || jump > POSE_SNAP_M) {
-        worldRoot.position.set(wx, 0, wz);
-        worldRoot.userData.poseLive = true;
-      } else {
-        var wk = expK(dt || 0.016, TURN_TAU);
-        worldRoot.position.x = lerpNum(worldRoot.position.x, wx, wk);
-        worldRoot.position.z = lerpNum(worldRoot.position.z, wz, wk);
-      }
+      worldRoot.position.set(-carEnu.x, 0, -carEnu.z);
+      worldRoot.userData.poseLive = true;
     }
   }
 
@@ -2358,14 +2368,15 @@
   }
 
   function npcLanePos(pose, lane) {
+    var r = pathRight(pose.hx, pose.hz);
     return {
-      x: pose.x + pose.nx * lane,
-      z: pose.z + pose.nz * lane
+      x: pose.x + r.x * lane,
+      z: pose.z + r.z * lane
     };
   }
 
   function lockEgoToLane(carRoot, origin, carSlot) {
-    applyEgoLane(carRoot, carSlot || (carRoot && carRoot.children && carRoot.children[0]));
+    applyEgoLane(carRoot, carSlot || (carRoot && carRoot.children && carRoot.children[0]), origin);
   }
 
   function npcCruise(traveled, dir) {
@@ -3404,9 +3415,9 @@
     var routeKey =
       list.length +
       ":" +
-      (list[0] ? list[0][0].toFixed(4) + "," + list[0][1].toFixed(4) : "x") +
+      (list[0] ? list[0][0].toFixed(5) + "," + list[0][1].toFixed(5) : "x") +
       ":" +
-      (list[list.length - 1] ? list[list.length - 1][0].toFixed(4) + "," + list[list.length - 1][1].toFixed(4) : "y") +
+      (list[list.length - 1] ? list[list.length - 1][0].toFixed(5) + "," + list[list.length - 1][1].toFixed(5) : "y") +
       ":" +
       origin.lng.toFixed(5) +
       "," +
@@ -3688,7 +3699,7 @@
         overlay.camSoft.pos = tmp.camPos.clone();
         overlay.camSoft.look = tmp.camLook.clone();
       }
-      if (!overlay.camSoft.live) {
+      if (!overlay.camSoft.live || kmh >= DEADBAND_KMH) {
         overlay.camSoft.pos.copy(tmp.chasePos);
         overlay.camSoft.look.copy(tmp.chaseLook);
         overlay.camSoft.live = true;
