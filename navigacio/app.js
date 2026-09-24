@@ -1054,7 +1054,7 @@
         $("follow").classList.remove("is-on");
         $("follow").setAttribute("aria-pressed", "false");
       }
-      setStatus("Tű mozgatása — engedd el a pontos háznál");
+      /* pin help removed */
     });
     marker.on("dragend", function () {
       const ll = marker.getLngLat();
@@ -1065,8 +1065,6 @@
           state.destLabel = label;
           if ($("destName")) $("destName").textContent = label;
           if ($("q")) $("q").value = label;
-          setStatus("Cím: " + label);
-          showPinAdjust();
           if (state.origin && (state.navigating || state.route)) return plan(!!state.navigating);
         })
         .catch(function () {
@@ -1080,8 +1078,7 @@
 
   function showPinAdjust() {
     const bar = $("pinAdjust");
-    if (!bar) return;
-    bar.hidden = !(state.dest && !state.navigating);
+    if (bar) bar.hidden = true;
   }
 
   function focusDest(lngLat) {
@@ -3577,6 +3574,9 @@
       $("follow").setAttribute("aria-pressed", "true");
     }
     if (!state.navigating) startNav();
+    if (window.NavCar3D && typeof window.NavCar3D.setOverview === "function") {
+      window.NavCar3D.setOverview(false);
+    }
     setStatus("Szimuláció 50 km/h");
     syncSimBtn();
     startSmooth();
@@ -3589,60 +3589,9 @@
   }
 
   function startSimDrive() {
-    if (state.simulating || state.simStarting) return;
-    if (state.coords.length >= 2) {
-      beginSimDrive();
-      return;
-    }
-    const from = state.origin || { lng: BUDAPEST[0], lat: BUDAPEST[1] };
-    const to = state.dest || { lng: BUDAPEST[0] + 0.028, lat: BUDAPEST[1] + 0.014 };
-    state.simStarting = true;
-    setStatus("TomTom útvonal…");
-    fetchTomTomRoute(from, to)
-      .then(function (route) {
-        state.route = route;
-        state.coords = (route.geometry && route.geometry.coordinates) || [];
-        state.traffic = route.traffic || [];
-        state.routeLen = Number(route.distance) || lineLen(state.coords);
-        state.steps = [];
-        (route.legs || []).forEach(function (leg) {
-          (leg.steps || []).forEach(function (s) {
-            state.steps.push(s);
-          });
-        });
-        state.traveled = 8;
-        state.origin = from;
-        setDest(to, state.destLabel || "Szimuláció");
-        state.simOwnedRoute = false;
-        state.arcadePreview = true;
-        const along = alongLine(state.coords, state.traveled);
-        const br = routeTangent(state.coords, state.traveled);
-        if (along) {
-          AppState.targetPos.lat = along.lat;
-          AppState.targetPos.lng = along.lng;
-          AppState.targetPos.bearing = br;
-          AppState.currentPos.lat = along.lat;
-          AppState.currentPos.lng = along.lng;
-          AppState.currentPos.bearing = br;
-          state.heading = br;
-          state.camHeading = br;
-        }
-        state._3dRouteAt = null;
-        if (window.NavCar3D && typeof window.NavCar3D.invalidateWorld === "function") {
-          window.NavCar3D.invalidateWorld();
-        }
-        addLayers();
-        drawRoute();
-        paintRoadUi();
-        beginSimDrive();
-      })
-      .catch(function () {
-        seedDemoRoute();
-        beginSimDrive();
-      })
-      .finally(function () {
-        state.simStarting = false;
-      });
+    if (state.simulating) return;
+    if (state.coords.length < 2) seedDemoRoute();
+    beginSimDrive();
   }
 
   function stopSimDrive(opts) {
@@ -4175,7 +4124,7 @@
         btn.appendChild(sub);
       }
       on(btn, "click", function () {
-        choose(p, { autoPlan: false });
+        choose(p);
       });
       li.appendChild(btn);
       box.appendChild(li);
@@ -4194,24 +4143,11 @@
     paintCar();
     if ($("q")) $("q").value = label;
     focusDest(dest);
-    const startNow = opts.autoPlan !== false;
-    if (!startNow && !state.navigating) {
-      state.route = null;
-      state.coords = [];
-      state.steps = [];
-      AppState.activeRoute = null;
-      try { drawRoute(); } catch (_e) {}
-    }
-    if (!state.origin) {
-      state.pendingPlan = !!startNow;
-      setStatus(startNow ? "Várom a GPS-t, aztán indulok…" : "Húzd a tűt a pontos házhoz, majd Útvonal");
-      return;
-    }
-    if (!startNow) {
-      setStatus("Húzd a tűt a pontos bejárathoz, majd Útvonal innét");
-      return;
-    }
-    await plan(false);
+    if (!state.origin) state.origin = { lng: BUDAPEST[0], lat: BUDAPEST[1] };
+    try {
+      await plan(false);
+    } catch (_e) {}
+    startSimDrive();
   }
 
   async function lookupAddress(q) {
@@ -4228,8 +4164,7 @@
     e.preventDefault();
     const q = String($("q").value || "").trim();
     if (!q) {
-      showShortcuts();
-      if (!carPlace()) setStatus("Írj be egy címet.", true);
+      startSimDrive();
       return;
     }
     const m = q.match(/^(-?\d+(?:[.,]\d+))\s*[,;]\s*(-?\d+(?:[.,]\d+))$/);
@@ -4242,7 +4177,7 @@
         title: lat.toFixed(5) + ", " + lng.toFixed(5),
         subtitle: "Koordináta",
         display_name: lat + ", " + lng
-      }, { autoPlan: false });
+      });
     }
     try {
       setStatus("Keresés…");
@@ -4897,7 +4832,9 @@
         $("follow").classList.remove("is-on");
         $("follow").setAttribute("aria-pressed", "false");
       }
-      setStatus("Térkép szabad — a térkép gomb visszateszi");
+      if (window.NavCar3D && typeof window.NavCar3D.setOverview === "function") {
+        window.NavCar3D.setOverview(true);
+      }
     }
     state.map.on("dragstart", unlockFollow);
     state.map.on("rotatestart", unlockFollow);
@@ -5013,13 +4950,7 @@
   function bind() {
     bindInstall();
     on("pinAdjustGo", "click", function () {
-      if (!state.dest) return setStatus("Előbb válassz címet.", true);
-      if (!state.origin) {
-        state.pendingPlan = true;
-        setStatus("Várom a GPS-t, aztán indulok…");
-        return;
-      }
-      plan(false);
+      startSimDrive();
     });
     on("searchForm", "submit", onSearch);
     on("q", "input", onQueryInput);
@@ -5041,11 +4972,11 @@
       state.follow = !state.follow;
       follow.classList.toggle("is-on", state.follow);
       follow.setAttribute("aria-pressed", state.follow ? "true" : "false");
+      if (window.NavCar3D && typeof window.NavCar3D.setOverview === "function") {
+        window.NavCar3D.setOverview(!state.follow);
+      }
       if (state.follow) {
         updateCamera(true);
-        setStatus("Követés be");
-      } else {
-        setStatus("Térkép szabad");
       }
     });
     on(follow, "pointerdown", function () {
