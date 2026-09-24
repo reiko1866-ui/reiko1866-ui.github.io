@@ -3553,8 +3553,8 @@
       };
     }
     state.steps = [
-      demoStep(16 * 22, "continue", "straight"),
-      demoStep(12 * 22, "turn", "right"),
+      demoStep(36, "continue", "straight"),
+      demoStep(90, "turn", "right"),
       demoStep(12 * 22, "turn", "right"),
       demoStep(14 * 22, "turn", "left"),
       demoStep(14 * 22, "turn", "right"),
