@@ -2232,8 +2232,15 @@
       npc.traveled += npc.dir * npc.speed * step;
       if (npc.dir > 0 && npc.traveled > total - 4) parkNpcOffEgo(npc, carT, total);
       else if (npc.dir < 0 && npc.traveled < 4) parkNpcOffEgo(npc, carT, total);
-      if (npc.lane === LANE_SAME && Math.abs(npc.traveled - carT) < 6) {
-        parkNpcOffEgo(npc, carT, total);
+      if (npc.lane === LANE_SAME && npc.dir > 0) {
+        var along = npc.traveled - carT;
+        if (along >= 0 && along < NPC_FOLLOW_GAP) {
+          npc.traveled = carT + NPC_FOLLOW_GAP;
+          npc.speed = Math.min(npc.speed, cruise);
+        } else if (along < 0 && along > -NPC_FOLLOW_GAP) {
+          npc.traveled = carT - NPC_FOLLOW_GAP;
+          npc.speed = 0;
+        }
       }
       var pose = poseOnPts(host.npcPath, npc.traveled);
       var at = npcLanePos(pose, npc.lane);
@@ -3540,8 +3547,8 @@
     var pace = 1;
     if (hit && hit.level >= 0.38) pace = hit.level >= 0.65 ? 0.22 : 0.55;
     if (hit && hit.npc && hit.gap < 28) {
-      if (hit.gap < 8) pace = Math.min(pace, 0.08);
-      else if (hit.gap < 16) pace = Math.min(pace, 0.32);
+      if (hit.gap < NPC_FOLLOW_GAP) pace = Math.min(pace, 0.08);
+      else if (hit.gap < 22) pace = Math.min(pace, 0.32);
       else pace = Math.min(pace, 0.62);
     }
     return pace;
